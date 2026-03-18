@@ -1,0 +1,9 @@
+{
+  "aliases": {
+    "quarkus-agent-mcp": {
+      "script-ref": "io.quarkus:quarkus-agent-mcp:1.0.0-SNAPSHOT:runner",
+      "description": "Standalone MCP server for AI coding agents to manage Quarkus applications",
+      "java-version": "21+"
+    }
+  }
+}

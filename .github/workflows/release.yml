@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]+*' ]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "Error: Invalid version format: $VERSION"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          ./mvnw versions:set -DnewVersion=$VERSION -DgenerateBackupPoms=false
+
+      - name: Build JVM uber-jar
+        run: ./mvnw package -DskipTests -Dquarkus.package.jar.type=uber-jar
+
+      - name: Rename artifacts
+        run: |
+          mv target/quarkus-agent-mcp-${VERSION}-runner.jar target/quarkus-agent-mcp-${VERSION}.jar
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            target/quarkus-agent-mcp-${{ env.VERSION }}.jar
+
+      - name: Update JBang catalog
+        run: |
+          cat > jbang-catalog.json << 'CATALOG_EOF'
+          {
+            "aliases": {
+              "quarkus-agent-mcp": {
+                "script-ref": "https://github.com/quarkusio/quarkus-agent-mcp/releases/download/v${VERSION}/quarkus-agent-mcp-${VERSION}.jar",
+                "description": "Standalone MCP server for AI coding agents to manage Quarkus applications",
+                "java-version": "21+"
+              }
+            }
+          }
+          CATALOG_EOF
+          sed -i "s/\${VERSION}/${VERSION}/g" jbang-catalog.json
+
+      - name: Commit updated JBang catalog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update JBang catalog for v${{ env.VERSION }}"
+          file_pattern: jbang-catalog.json
+          branch: main
