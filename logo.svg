@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <!-- VARIATION A: Heavier matrix rain, blue-green tint, more detail on face, bolder text -->
+  <defs>
+    <linearGradient id="suit1a" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d2d2d" />
+      <stop offset="100%" style="stop-color:#111" />
+    </linearGradient>
+    <linearGradient id="glass1a" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00FF41" />
+      <stop offset="40%" style="stop-color:#003300" />
+      <stop offset="100%" style="stop-color:#00FF41" />
+    </linearGradient>
+    <linearGradient id="tie1a" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4695EB" />
+      <stop offset="100%" style="stop-color:#1B3764" />
+    </linearGradient>
+    <filter id="glow1a">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" rx="30" fill="#050a05" />
+
+  <!-- Dense matrix rain columns -->
+  <text font-family="monospace" font-size="11" fill="#00FF41">
+    <tspan x="12" y="18" opacity="0.12">Q</tspan><tspan x="12" y="33" opacity="0.10">ア</tspan><tspan x="12" y="48" opacity="0.08">0</tspan><tspan x="12" y="63" opacity="0.06">ク</tspan><tspan x="12" y="78" opacity="0.04">1</tspan>
+    <tspan x="32" y="13" opacity="0.08">1</tspan><tspan x="32" y="28" opacity="0.10">M</tspan><tspan x="32" y="43" opacity="0.12">Q</tspan><tspan x="32" y="58" opacity="0.09">ス</tspan><tspan x="32" y="73" opacity="0.06">0</tspan><tspan x="32" y="88" opacity="0.04">P</tspan>
+    <tspan x="52" y="23" opacity="0.06">エ</tspan><tspan x="52" y="38" opacity="0.09">0</tspan><tspan x="52" y="53" opacity="0.12">Q</tspan><tspan x="52" y="68" opacity="0.08">1</tspan><tspan x="52" y="83" opacity="0.05">ジ</tspan>
+    <tspan x="72" y="15" opacity="0.10">C</tspan><tspan x="72" y="30" opacity="0.07">ク</tspan><tspan x="72" y="45" opacity="0.04">0</tspan><tspan x="72" y="60" opacity="0.08">Q</tspan><tspan x="72" y="75" opacity="0.11">ア</tspan><tspan x="72" y="90" opacity="0.06">1</tspan>
+  </text>
+  <text font-family="monospace" font-size="11" fill="#00FF41">
+    <tspan x="320" y="20" opacity="0.07">ス</tspan><tspan x="320" y="35" opacity="0.10">Q</tspan><tspan x="320" y="50" opacity="0.13">1</tspan><tspan x="320" y="65" opacity="0.08">0</tspan><tspan x="320" y="80" opacity="0.05">M</tspan>
+    <tspan x="340" y="15" opacity="0.11">0</tspan><tspan x="340" y="30" opacity="0.08">エ</tspan><tspan x="340" y="45" opacity="0.05">Q</tspan><tspan x="340" y="60" opacity="0.09">ク</tspan><tspan x="340" y="75" opacity="0.12">1</tspan><tspan x="340" y="90" opacity="0.06">ア</tspan>
+    <tspan x="360" y="22" opacity="0.09">Q</tspan><tspan x="360" y="37" opacity="0.06">0</tspan><tspan x="360" y="52" opacity="0.11">ス</tspan><tspan x="360" y="67" opacity="0.07">1</tspan><tspan x="360" y="82" opacity="0.04">P</tspan>
+    <tspan x="380" y="18" opacity="0.05">1</tspan><tspan x="380" y="33" opacity="0.08">Q</tspan><tspan x="380" y="48" opacity="0.12">ジ</tspan><tspan x="380" y="63" opacity="0.06">0</tspan><tspan x="380" y="78" opacity="0.03">C</tspan>
+  </text>
+  <!-- Bottom rain -->
+  <text font-family="monospace" font-size="11" fill="#00FF41">
+    <tspan x="12" y="310" opacity="0.04">0</tspan><tspan x="12" y="325" opacity="0.06">Q</tspan><tspan x="12" y="340" opacity="0.08">ス</tspan><tspan x="12" y="355" opacity="0.10">1</tspan><tspan x="12" y="370" opacity="0.05">M</tspan>
+    <tspan x="32" y="315" opacity="0.05">ア</tspan><tspan x="32" y="330" opacity="0.07">1</tspan><tspan x="32" y="345" opacity="0.09">Q</tspan><tspan x="32" y="360" opacity="0.04">0</tspan>
+    <tspan x="52" y="320" opacity="0.06">P</tspan><tspan x="52" y="335" opacity="0.08">Q</tspan><tspan x="52" y="350" opacity="0.10">エ</tspan><tspan x="52" y="365" opacity="0.06">0</tspan>
+    <tspan x="340" y="310" opacity="0.05">Q</tspan><tspan x="340" y="325" opacity="0.08">1</tspan><tspan x="340" y="340" opacity="0.10">ク</tspan><tspan x="340" y="355" opacity="0.06">0</tspan>
+    <tspan x="360" y="315" opacity="0.07">ア</tspan><tspan x="360" y="330" opacity="0.09">Q</tspan><tspan x="360" y="345" opacity="0.05">ス</tspan><tspan x="360" y="360" opacity="0.03">1</tspan>
+    <tspan x="380" y="320" opacity="0.04">0</tspan><tspan x="380" y="335" opacity="0.06">M</tspan><tspan x="380" y="350" opacity="0.08">Q</tspan><tspan x="380" y="365" opacity="0.04">C</tspan>
+  </text>
+
+  <!-- Suit jacket -->
+  <path d="M 110 220 L 130 180 L 155 200 L 200 195 L 245 200 L 270 180 L 290 220 L 300 350 L 100 350 Z"
+        fill="url(#suit1a)" />
+  <!-- Jacket lapels -->
+  <path d="M 155 200 L 185 195 L 175 250 L 150 230 Z" fill="#333" />
+  <path d="M 245 200 L 215 195 L 225 250 L 250 230 Z" fill="#333" />
+  <!-- Lapel edge highlight -->
+  <path d="M 155 200 L 185 195" stroke="#444" stroke-width="1" />
+  <path d="M 245 200 L 215 195" stroke="#444" stroke-width="1" />
+
+  <!-- White shirt -->
+  <path d="M 185 195 L 200 195 L 215 195 L 225 350 L 175 350 Z" fill="#E0E0E0" />
+
+  <!-- Tie -->
+  <path d="M 193 200 L 207 200 L 210 250 L 200 290 L 190 250 Z" fill="url(#tie1a)" />
+  <ellipse cx="200" cy="203" rx="10" ry="6" fill="#4695EB" />
+  <!-- Tie dimple -->
+  <line x1="200" y1="208" x2="200" y2="215" stroke="#1B3764" stroke-width="1.5" />
+
+  <!-- Collar -->
+  <path d="M 170 195 L 185 183 L 193 200" fill="white" stroke="#ccc" stroke-width="0.5" />
+  <path d="M 230 195 L 215 183 L 207 200" fill="white" stroke="#ccc" stroke-width="0.5" />
+
+  <!-- Pocket square -->
+  <path d="M 130 235 L 140 225 L 150 228 L 148 240 Z" fill="#4695EB" />
+
+  <!-- Suit button -->
+  <circle cx="200" cy="270" r="4" fill="#333" stroke="#444" stroke-width="1" />
+
+  <!-- Head -->
+  <ellipse cx="200" cy="145" rx="55" ry="65" fill="#C4956A" />
+
+  <!-- Subtle jaw definition -->
+  <path d="M 155 175 Q 200 210 245 175" fill="none" stroke="#B0845A" stroke-width="1" opacity="0.3" />
+
+  <!-- Hair -->
+  <path d="M 145 130 Q 150 78 200 72 Q 250 78 255 130 L 255 118 Q 250 83 200 78 Q 150 83 145 118 Z"
+        fill="#222" />
+  <path d="M 145 130 Q 148 113 158 106" fill="none" stroke="#333" stroke-width="2" />
+  <path d="M 255 130 Q 252 113 242 106" fill="none" stroke="#333" stroke-width="2" />
+  <!-- Side hair -->
+  <path d="M 145 130 Q 144 140 146 150" fill="none" stroke="#222" stroke-width="4" />
+  <path d="M 255 130 Q 256 140 254 150" fill="none" stroke="#222" stroke-width="4" />
+
+  <!-- Sunglasses -->
+  <rect x="155" y="127" width="36" height="24" rx="3" fill="url(#glass1a)" stroke="#111" stroke-width="2" />
+  <rect x="209" y="127" width="36" height="24" rx="3" fill="url(#glass1a)" stroke="#111" stroke-width="2" />
+  <path d="M 191 138 Q 200 134 209 138" fill="none" stroke="#111" stroke-width="2.5" />
+  <line x1="155" y1="135" x2="146" y2="132" stroke="#111" stroke-width="2" />
+  <line x1="245" y1="135" x2="254" y2="132" stroke="#111" stroke-width="2" />
+  <!-- Reflections -->
+  <rect x="160" y="130" width="10" height="3" rx="1" fill="#00FF41" opacity="0.4" />
+  <rect x="214" y="130" width="10" height="3" rx="1" fill="#00FF41" opacity="0.4" />
+  <!-- Bottom edge highlight -->
+  <line x1="157" y1="150" x2="189" y2="150" stroke="#00FF41" stroke-width="0.5" opacity="0.3" />
+  <line x1="211" y1="150" x2="243" y2="150" stroke="#00FF41" stroke-width="0.5" opacity="0.3" />
+
+  <!-- Nose hint -->
+  <path d="M 198 148 L 200 158 L 203 155" fill="none" stroke="#B0845A" stroke-width="1" opacity="0.4" />
+
+  <!-- Smirk -->
+  <path d="M 183 167 Q 200 174 217 166" fill="none" stroke="#8B6914" stroke-width="2" stroke-linecap="round" />
+  <!-- Chin dimple -->
+  <path d="M 197 190 Q 200 193 203 190" fill="none" stroke="#B0845A" stroke-width="1" opacity="0.3" />
+
+  <!-- Earpiece -->
+  <circle cx="146" cy="148" r="4" fill="#333" stroke="#555" stroke-width="1" />
+  <path d="M 146 152 Q 140 167 146 178" fill="none" stroke="#555" stroke-width="1.5" />
+
+  <!-- Ears -->
+  <ellipse cx="146" cy="145" rx="5" ry="12" fill="#B8855A" />
+  <ellipse cx="254" cy="145" rx="5" ry="12" fill="#B8855A" />
+
+  <!-- Bright falling characters on sides -->
+  <text font-family="monospace" font-size="14" fill="#00FF41" filter="url(#glow1a)">
+    <tspan x="28" y="115" opacity="0.8">Q</tspan>
+    <tspan x="28" y="138" opacity="0.6">0</tspan>
+    <tspan x="28" y="161" opacity="0.4">1</tspan>
+    <tspan x="28" y="184" opacity="0.25">M</tspan>
+    <tspan x="28" y="207" opacity="0.15">C</tspan>
+    <tspan x="28" y="230" opacity="0.08">P</tspan>
+  </text>
+  <text font-family="monospace" font-size="14" fill="#00FF41" filter="url(#glow1a)">
+    <tspan x="365" y="95" opacity="0.25">1</tspan>
+    <tspan x="365" y="118" opacity="0.4">0</tspan>
+    <tspan x="365" y="141" opacity="0.7">Q</tspan>
+    <tspan x="365" y="164" opacity="0.5">1</tspan>
+    <tspan x="365" y="187" opacity="0.3">ス</tspan>
+    <tspan x="365" y="210" opacity="0.15">0</tspan>
+  </text>
+
+  <!-- AGENT Q text with glow -->
+  <text x="113" y="387" font-family="'Courier New', monospace" font-size="38" font-weight="bold" fill="#00FF41" filter="url(#glow1a)" letter-spacing="5">AGENT Q</text>
+</svg>

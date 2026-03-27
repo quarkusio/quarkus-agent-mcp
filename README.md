@@ -1,5 +1,9 @@
 # Quarkus Agent MCP
 
+<p align="center">
+  <img src="logo.svg" width="250" alt="Agent Q Logo">
+</p>
+
 A standalone MCP server that enables AI coding agents to create, manage, and interact with Quarkus applications. It runs as a separate process that survives app crashes, giving agents the ability to create projects, check for updates, read extension skills, control application lifecycle, proxy Dev MCP tools, and search Quarkus documentation.
 
 Part of the [DevStar](https://github.com/quarkusio/quarkus/discussions/53093) working group.
