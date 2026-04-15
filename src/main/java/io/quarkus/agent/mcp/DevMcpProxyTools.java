@@ -95,7 +95,7 @@ public class DevMcpProxyTools {
             + "Skills may include an 'Available Dev MCP Tools' section listing extension-specific Dev MCP tools "
             + "that can be invoked via quarkus/callTool (e.g. OpenAPI schema retrieval, scheduler job management). "
             + "Skills can be customized per-project by placing SKILL.md files under "
-            + "src/main/resources/META-INF/skills/<extension-name>/SKILL.md in the project directory. "
+            + ".quarkus/skills/<extension-name>/SKILL.md in the project directory. "
             + "Project-level skills override the built-in defaults.",
             annotations = @Tool.Annotations(readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))

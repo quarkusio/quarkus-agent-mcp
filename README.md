@@ -187,7 +187,7 @@ Skills are loaded using a three-layer override chain (most specific wins):
 
 1. **JAR skills** — from the `quarkus-extension-skills` JAR, automatically downloaded from Maven Central (or a configured mirror) for the project's Quarkus version. These are the official defaults.
 2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
-3. **Project-level skills** — from `src/main/resources/META-INF/skills/<extension-name>/SKILL.md` in the project directory. Allows teams to customize extension patterns for their specific project conventions.
+3. **Project-level skills** — from `.quarkus/skills/<extension-name>/SKILL.md` in the project directory. Allows teams to customize extension patterns for their specific project conventions.
 
 Each layer overrides the previous by skill name. For example, a project-level `quarkus-rest` skill replaces both the user-level and JAR versions.
 

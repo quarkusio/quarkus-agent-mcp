@@ -38,7 +38,7 @@ import org.w3c.dom.NodeList;
  *       shipped with each Quarkus release (baseline defaults)</li>
  *   <li><b>User-level skills</b> — from {@code ~/.quarkus/skills/} or a configured
  *       directory (for extension developers testing globally)</li>
- *   <li><b>Project-level skills</b> — from {@code src/main/resources/META-INF/skills/}
+ *   <li><b>Project-level skills</b> — from {@code .quarkus/skills/}
  *       in the project directory (for per-project customization)</li>
  * </ol>
  * Each layer overrides the previous by skill name (most specific wins).
@@ -116,9 +116,9 @@ public final class SkillReader {
         Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
         overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir), effectiveLocalDir.toString());
 
-        // Layer 3: Overlay project-level skills (src/main/resources/META-INF/skills/)
+        // Layer 3: Overlay project-level skills (.quarkus/skills/)
         if (projectDir != null) {
-            Path projectSkillsDir = Path.of(projectDir, "src", "main", "resources", SKILLS_PATH_PREFIX);
+            Path projectSkillsDir = Path.of(projectDir, ".quarkus", "skills");
             overlaySkills(skillsByName, readLocalSkills(projectSkillsDir), projectSkillsDir.toString());
         }
 

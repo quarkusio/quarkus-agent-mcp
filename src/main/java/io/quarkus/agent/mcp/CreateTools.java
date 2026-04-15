@@ -477,7 +477,7 @@ public class CreateTools {
                     ## Customizing Skills
 
                     Extension skills can be overridden per-project by placing SKILL.md files under
-                    `src/main/resources/META-INF/skills/<extension-name>/SKILL.md`. Project-level
+                    `.quarkus/skills/<extension-name>/SKILL.md`. Project-level
                     skills take precedence over the built-in defaults. This is useful for enforcing
                     team conventions or adjusting patterns for specific project requirements.
                     """;

@@ -254,8 +254,8 @@ class SkillReaderTest {
 
     @Test
     void readLocalSkillsFromProjectDir() throws Exception {
-        // Simulate a project with skills under src/main/resources/META-INF/skills/
-        Path projectSkillsDir = tempDir.resolve("src/main/resources/META-INF/skills/quarkus-rest");
+        // Simulate a project with skills under .quarkus/skills/
+        Path projectSkillsDir = tempDir.resolve(".quarkus/skills/quarkus-rest");
         Files.createDirectories(projectSkillsDir);
         Files.writeString(projectSkillsDir.resolve("SKILL.md"), """
                 ---
@@ -266,7 +266,7 @@ class SkillReaderTest {
                 ### Custom REST patterns for this project
                 """);
 
-        Path skillsDir = tempDir.resolve("src/main/resources/META-INF/skills");
+        Path skillsDir = tempDir.resolve(".quarkus/skills");
         List<SkillReader.SkillInfo> skills = SkillReader.readLocalSkills(skillsDir);
 
         assertEquals(1, skills.size());
