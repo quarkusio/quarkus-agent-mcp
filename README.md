@@ -53,6 +53,21 @@ Add to `.vscode/mcp.json` in your workspace:
 }
 ```
 
+#### IBM Bob
+
+Add to `.bob/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "quarkus-agent": {
+      "command": "jbang",
+      "args": ["quarkus-agent-mcp@quarkusio"]
+    }
+  }
+}
+```
+
 #### Cursor
 
 Add to `.cursor/mcp.json`:
