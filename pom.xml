@@ -25,8 +25,8 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/quarkusio/quarkus-agent-mcp.git</connection>
-        <developerConnection>scm:git:ssh://github.com:quarkusio/quarkus-agent-mcp.git</developerConnection>
+        <connection>scm:git:https://github.com/quarkusio/quarkus-agent-mcp.git</connection>
+        <developerConnection>scm:git:https://github.com/quarkusio/quarkus-agent-mcp.git</developerConnection>
         <url>https://github.com/quarkusio/quarkus-agent-mcp</url>
     </scm>
 
