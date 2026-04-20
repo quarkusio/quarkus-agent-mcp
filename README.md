@@ -126,7 +126,7 @@ After registering, ask your agent something like:
 
 > "Search the Quarkus docs for how to create a REST endpoint"
 
-If the MCP server is working, the agent will use `quarkus/searchDocs` and return documentation results.
+If the MCP server is working, the agent will use `quarkus_searchDocs` and return documentation results.
 
 ## Usage
 
@@ -138,13 +138,13 @@ Ask your agent to build a Quarkus application using natural language. The agent 
 
 > **You:** Create a Quarkus REST API with a greeting endpoint and a PostgreSQL database
 >
-> **Agent:** _(uses `quarkus/create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode, and a `CLAUDE.md` is generated with project-specific workflow instructions)_
+> **Agent:** _(uses `quarkus_create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode, and a `CLAUDE.md` is generated with project-specific workflow instructions)_
 >
-> **Agent:** _(calls `quarkus/skills` to learn the correct patterns for Panache, REST, and other extensions before writing any code)_
+> **Agent:** _(calls `quarkus_skills` to learn the correct patterns for Panache, REST, and other extensions before writing any code)_
 >
 > **You:** Add a `Greeting` entity and a REST endpoint that stores and retrieves greetings
 >
-> **Agent:** _(writes the code following patterns from skills, then runs tests via a subagent using `quarkus/callTool`)_
+> **Agent:** _(writes the code following patterns from skills, then runs tests via a subagent using `quarkus_callTool`)_
 
 ### Development workflow
 
@@ -153,22 +153,22 @@ The MCP server guides the agent through the optimal Quarkus development workflow
 ```
 NEW PROJECT                           EXISTING PROJECT
 
-1. quarkus/create                     1. quarkus/update (via subagent)
+1. quarkus_create                     1. quarkus_update (via subagent)
    → scaffolds + auto-starts             → checks version, suggests upgrades
    → generates CLAUDE.md
-                                      2. quarkus/start
-2. quarkus/skills                        → starts dev mode
+                                      2. quarkus_start
+2. quarkus_skills                        → starts dev mode
    → learn extension patterns
-                                      3. quarkus/skills
-3. quarkus/searchDocs                    → learn extension patterns
+                                      3. quarkus_skills
+3. quarkus_searchDocs                    → learn extension patterns
    → look up APIs, config
-                                      4. quarkus/searchDocs
+                                      4. quarkus_searchDocs
 4. Write code + tests                    → look up APIs, config
 
 5. Run tests (via subagent)           5. Write code + tests
-   → quarkus/callTool
+   → quarkus_callTool
    → devui-testing_runTests           6. Run tests (via subagent)
-                                         → quarkus/callTool
+                                         → quarkus_callTool
 6. Iterate                               → devui-testing_runTests
 ```
 
@@ -177,26 +177,26 @@ NEW PROJECT                           EXISTING PROJECT
 - **Hot reload** is automatic in Quarkus dev mode — triggered on the next access (HTTP request or test run), not on file save.
 - **Skills before code** — the agent reads extension-specific skills to learn correct patterns, testing approaches, and common pitfalls before writing any code.
 - **Tests via subagents** — test execution is dispatched to a subagent so the main conversation stays responsive.
-- **The MCP server survives crashes** — if the app crashes due to a code error, the agent can use `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location) and fix it. Use `quarkus/logs` for broader context.
+- **The MCP server survives crashes** — if the app crashes due to a code error, the agent can use `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location) and fix it. Use `quarkus_logs` for broader context.
 - **CLAUDE.md** — every new project gets a `CLAUDE.md` with Quarkus-specific workflow instructions that guide the agent.
 
 ### What the agent can do with a running app
 
-Once a Quarkus app is running in dev mode, the agent can discover and use all Dev MCP tools via `quarkus/searchTools` and `quarkus/callTool`. The tool list is **dynamic** — it changes when extensions are added or removed, so the agent should re-discover tools after any extension change. Typical tools include:
+Once a Quarkus app is running in dev mode, the agent can discover and use all Dev MCP tools via `quarkus_searchTools` and `quarkus_callTool`. The tool list is **dynamic** — it changes when extensions are added or removed, so the agent should re-discover tools after any extension change. Typical tools include:
 
 | Capability | How to discover | Example |
 |-----------|----------------|---------|
-| Testing | `quarkus/searchTools` query: `test` | Run all tests, run a specific test class |
-| Configuration | `quarkus/searchTools` query: `config` | View and change config properties |
-| Extensions | `quarkus/searchTools` query: `extension` | Add or remove extensions at runtime |
-| Endpoints | `quarkus/searchTools` query: `endpoint` | List all REST endpoints and their URLs |
-| Dev Services | `quarkus/searchTools` query: `dev-services` | View database URLs, container info |
-| Log levels | `quarkus/searchTools` query: `log` | Change log levels at runtime |
+| Testing | `quarkus_searchTools` query: `test` | Run all tests, run a specific test class |
+| Configuration | `quarkus_searchTools` query: `config` | View and change config properties |
+| Extensions | `quarkus_searchTools` query: `extension` | Add or remove extensions at runtime |
+| Endpoints | `quarkus_searchTools` query: `endpoint` | List all REST endpoints and their URLs |
+| Dev Services | `quarkus_searchTools` query: `dev-services` | View database URLs, container info |
+| Log levels | `quarkus_searchTools` query: `log` | Change log levels at runtime |
 | Exceptions | `devui-exceptions_getLastException` | Get last compilation/deployment/runtime exception with stack trace and source location |
 
 ### Extension skills
 
-The agent can read extension-specific coding skills using `quarkus/skills`. Skills contain patterns, testing guidelines, and common pitfalls for each extension — things like "always use `@Transactional` for write operations with Panache" or "don't create REST clients manually, let CDI inject them."
+The agent can read extension-specific coding skills using `quarkus_skills`. Skills contain patterns, testing guidelines, and common pitfalls for each extension — things like "always use `@Transactional` for write operations with Panache" or "don't create REST clients manually, let CDI inject them."
 
 Skills are loaded using a three-layer chain (most specific wins):
 
@@ -209,19 +209,19 @@ Each layer can either **enhance** (default) or **override** the previous layer, 
 - **`mode: enhance`** (default) — appends content to the base skill. The base content is preserved and the customization is added after a separator. This is ideal for adding project conventions or team standards without losing the built-in guidance.
 - **`mode: override`** — fully replaces the base skill. Use this when you need complete control over a skill's content.
 
-The agent can also create or update skill customizations using `quarkus/updateSkill`. When the user asks to customize a skill, the agent will ask:
+The agent can also create or update skill customizations using `quarkus_updateSkill`. When the user asks to customize a skill, the agent will ask:
 1. **Enhance or override?** — append to the base skill or fully replace it.
 2. **Project or global scope?** — save under `.quarkus/skills/` (this project only) or `~/.quarkus/skills/` (all projects).
 
 ### Documentation search
 
-The agent can search Quarkus documentation at any time using `quarkus/searchDocs`. This uses semantic search (BGE embeddings + pgvector) over the full Quarkus documentation.
+The agent can search Quarkus documentation at any time using `quarkus_searchDocs`. This uses semantic search (BGE embeddings + pgvector) over the full Quarkus documentation.
 
 On first use, a Docker/Podman container with the pre-indexed documentation is started automatically. If a project directory is provided, the documentation version matches the project's Quarkus version.
 
 ### Update checking
 
-For existing projects, `quarkus/update` checks if the Quarkus version is current and provides a full upgrade report:
+For existing projects, `quarkus_update` checks if the Quarkus version is current and provides a full upgrade report:
 
 - Compares build files against [reference projects](https://github.com/quarkusio/code-with-quarkus-compare)
 - Runs `quarkus update --dry-run` (if CLI available) to preview automated migrations
@@ -234,44 +234,44 @@ For existing projects, `quarkus/update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion` |
+| `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion` |
 
 ### Update Checking
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required) |
+| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required) |
 
 ### Extension Skills
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
-| `quarkus/updateSkill` | Create or update a skill customization (enhance or override) | `projectDir` (required), `skillName` (required), `content` (required), `description`, `mode`, `scope` |
+| `quarkus_skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
+| `quarkus_updateSkill` | Create or update a skill customization (enhance or override) | `projectDir` (required), `skillName` (required), `content` (required), `description`, `mode`, `scope` |
 
 ### Lifecycle Management
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/start` | Start a Quarkus app in dev mode | `projectDir` (required), `buildTool` |
-| `quarkus/stop` | Graceful shutdown | `projectDir` (required) |
-| `quarkus/restart` | Force restart (usually not needed — hot reload is automatic) | `projectDir` (required) |
-| `quarkus/status` | Get app state | `projectDir` (required) |
-| `quarkus/logs` | Get recent log output | `projectDir` (required), `lines` |
-| `quarkus/list` | List all managed instances | _(none)_ |
+| `quarkus_start` | Start a Quarkus app in dev mode | `projectDir` (required), `buildTool` |
+| `quarkus_stop` | Graceful shutdown | `projectDir` (required) |
+| `quarkus_restart` | Force restart (usually not needed — hot reload is automatic) | `projectDir` (required) |
+| `quarkus_status` | Get app state | `projectDir` (required) |
+| `quarkus_logs` | Get recent log output | `projectDir` (required), `lines` |
+| `quarkus_list` | List all managed instances | _(none)_ |
 
 ### Dev MCP Proxy
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/searchTools` | Discover tools on the running app's Dev MCP server | `projectDir` (required), `query` |
-| `quarkus/callTool` | Invoke a Dev MCP tool by name | `projectDir` (required), `toolName` (required), `toolArguments` |
+| `quarkus_searchTools` | Discover tools on the running app's Dev MCP server | `projectDir` (required), `query` |
+| `quarkus_callTool` | Invoke a Dev MCP tool by name | `projectDir` (required), `toolName` (required), `toolArguments` |
 
 ### Documentation Search
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus/searchDocs` | Semantic search over Quarkus documentation | `query` (required), `maxResults`, `projectDir` |
+| `quarkus_searchDocs` | Semantic search over Quarkus documentation | `query` (required), `maxResults`, `projectDir` |
 
 ## Architecture
 

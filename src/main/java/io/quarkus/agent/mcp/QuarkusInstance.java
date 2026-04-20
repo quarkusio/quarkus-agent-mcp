@@ -149,7 +149,7 @@ public class QuarkusInstance {
     public void restart() {
         if (!process.isAlive()) {
             throw new IllegalStateException(
-                    "Process is not running. Use quarkus/start to start a new instance.");
+                    "Process is not running. Use quarkus_start to start a new instance.");
         }
         status.set(Status.STARTING);
         httpPort = -1;

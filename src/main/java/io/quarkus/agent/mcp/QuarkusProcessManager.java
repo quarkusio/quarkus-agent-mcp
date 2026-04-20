@@ -74,7 +74,7 @@ public class QuarkusProcessManager {
         QuarkusInstance instance = instances.get(normalizedDir);
         if (instance == null) {
             throw new IllegalStateException(
-                    "No Quarkus instance found at: " + normalizedDir + ". Use quarkus/start first.");
+                    "No Quarkus instance found at: " + normalizedDir + ". Use quarkus_start first.");
         }
 
         if (!instance.isAlive()) {

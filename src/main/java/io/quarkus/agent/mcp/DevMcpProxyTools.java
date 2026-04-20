@@ -1,12 +1,5 @@
 package io.quarkus.agent.mcp;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkiverse.mcp.server.Tool;
-import io.quarkiverse.mcp.server.ToolArg;
-import io.quarkiverse.mcp.server.ToolResponse;
-import jakarta.inject.Inject;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -19,8 +12,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.quarkiverse.mcp.server.Tool;
+import io.quarkiverse.mcp.server.ToolArg;
+import io.quarkiverse.mcp.server.ToolResponse;
+import jakarta.inject.Inject;
 
 /**
  * MCP tools that proxy requests to a running Quarkus application's Dev MCP server.
@@ -49,12 +52,14 @@ public class DevMcpProxyTools {
     @ConfigProperty(name = "agent-mcp.local-skills-dir")
     Optional<String> localSkillsDir;
 
-    @Tool(name = "quarkus/searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
-            + "Use this before interacting with the running app — for testing, config, extensions, "
-            + "endpoints, dev services, etc. Then use quarkus/callTool to invoke the discovered tool. "
-            + "The tool list is DYNAMIC — it changes when extensions are added or removed. "
+    @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
+            + "Use this before interacting with the running app -- for testing, config, extensions, "
+            + "endpoints, dev services, etc. Then use quarkus_callTool to invoke the discovered tool. "
+            + "The tool list is DYNAMIC -- it changes when extensions are added or removed. "
             + "Re-call this after any extension change to discover newly available tools.",
-            annotations = @Tool.Annotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true))
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_searchTools", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
     ToolResponse searchTools(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Search query to filter tools by name or description (case-insensitive). "
@@ -81,19 +86,20 @@ public class DevMcpProxyTools {
         }
     }
 
-    @Tool(name = "quarkus/skills", description = "Get coding skills, patterns, testing guidelines, and configuration reference "
+    @Tool(name = "quarkus_skills", description = "Get coding skills, patterns, testing guidelines, and configuration reference "
             + "for the Quarkus extensions used in the project. "
             + "ALWAYS call this BEFORE writing code or tests to learn the correct Quarkus patterns for each extension. "
-            + "Does NOT require the app to be running — reads from built extension JARs. "
+            + "Does NOT require the app to be running -- reads from built extension JARs. "
             + "If the app is still building (just created), this will wait for the build to complete. "
             + "Skills may include an 'Available Dev MCP Tools' section listing extension-specific Dev MCP tools "
-            + "that can be invoked via quarkus/callTool (e.g. OpenAPI schema retrieval, scheduler job management). "
-            + "Skills can be customized using quarkus/updateSkill. Customizations use a three-layer chain: "
-            + "JAR defaults → global (~/.quarkus/skills/) → project (.quarkus/skills/). "
+            + "that can be invoked via quarkus_callTool (e.g. OpenAPI schema retrieval, scheduler job management). "
+            + "Skills can be customized using quarkus_updateSkill. Customizations use a three-layer chain: "
+            + "JAR defaults -> global (~/.quarkus/skills/) -> project (.quarkus/skills/). "
             + "By default, customizations ENHANCE (append to) the base skill. "
             + "Use mode 'override' to fully replace a base skill.",
-            annotations = @Tool.Annotations(readOnlyHint = true, destructiveHint = false,
-                    idempotentHint = true, openWorldHint = false))
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_skills", readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     ToolResponse skills(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Optional query to filter skills by extension name (case-insensitive). "
@@ -181,25 +187,26 @@ public class DevMcpProxyTools {
         if (status == QuarkusInstance.Status.CRASHED || status == QuarkusInstance.Status.STOPPED) {
             return List.of();
         }
-        // RUNNING or timed out (still STARTING) — try reading skills either way
+        // RUNNING or timed out (still STARTING) -- try reading skills either way
         return SkillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly);
     }
 
-    @Tool(name = "quarkus/updateSkill", description = "Create or update a skill customization for a Quarkus extension. "
+    @Tool(name = "quarkus_updateSkill", description = "Create or update a skill customization for a Quarkus extension. "
             + "Use this when the user wants to add project conventions, team standards, or guardrails to an extension skill. "
             + "IMPORTANT: Before writing, ask the user two questions: "
             + "(1) Should this ENHANCE the existing skill (append your content to the base) or OVERRIDE it (fully replace the base)? "
             + "Enhance is the default and recommended for most cases. "
             + "(2) Should this be saved at PROJECT scope (.quarkus/skills/ in the project, affects only this project) "
             + "or GLOBAL scope (~/.quarkus/skills/, affects all projects)?",
-            annotations = @Tool.Annotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true))
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_updateSkill", readOnlyHint = false, destructiveHint = false, idempotentHint = true))
     ToolResponse updateSkill(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "The extension skill name (e.g. 'quarkus-rest', 'quarkus-hibernate-orm-panache')") String skillName,
-            @ToolArg(description = "The skill content in markdown (without frontmatter — it will be generated)") String content,
+            @ToolArg(description = "The skill content in markdown (without frontmatter -- it will be generated)") String content,
             @ToolArg(description = "Optional description for the skill", required = false) String description,
-            @ToolArg(description = "Mode: 'enhance' (default) appends to the base skill, 'override' fully replaces it",
-                    required = false) String mode,
+            @ToolArg(description = "Mode: 'enhance' (default) appends to the base skill, 'override' fully replaces it", required = false) String mode,
             @ToolArg(description = "Scope: 'project' (default) saves under .quarkus/skills/ in the project, "
                     + "'global' saves under ~/.quarkus/skills/", required = false) String scope) {
         try {
@@ -217,18 +224,18 @@ public class DevMcpProxyTools {
                             + "- **Mode**: " + modeLabel + "\n"
                             + "- **Scope**: " + scopeLabel + "\n"
                             + "- **Path**: " + written + "\n\n"
-                            + "The skill will take effect on the next call to `quarkus/skills`.");
+                            + "The skill will take effect on the next call to `quarkus_skills`.");
         } catch (Exception e) {
             return ToolResponse.error("Failed to write skill: " + e.getMessage());
         }
     }
 
-    @Tool(name = "quarkus/callTool", description = "Invoke a Dev MCP tool by name on the running Quarkus app. "
-            + "Use quarkus/searchTools first to discover tool names and parameters. "
+    @Tool(name = "quarkus_callTool", description = "Invoke a Dev MCP tool by name on the running Quarkus app. "
+            + "Use quarkus_searchTools first to discover tool names and parameters. "
             + "After structural changes (adding extensions, endpoints), update README.md.")
     ToolResponse callTool(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
-            @ToolArg(description = "The name of the Dev MCP tool to call (as returned by quarkus/searchTools)") String toolName,
+            @ToolArg(description = "The name of the Dev MCP tool to call (as returned by quarkus_searchTools)") String toolName,
             @ToolArg(description = "Arguments to pass to the tool as a JSON string (matching the tool's inputSchema). "
                     + "Omit if the tool takes no arguments.", required = false) String toolArguments) {
         try {
@@ -266,7 +273,7 @@ public class DevMcpProxyTools {
         QuarkusInstance instance = processManager.getInstance(projectDir);
         if (instance == null) {
             throw new IllegalStateException(
-                    "Quarkus application is not running at: " + projectDir + ". Start it first with quarkus/start.");
+                    "Quarkus application is not running at: " + projectDir + ". Start it first with quarkus_start.");
         }
 
         // If the app is still starting, wait for it to become ready
@@ -280,7 +287,7 @@ public class DevMcpProxyTools {
         if (instance.getStatus() != QuarkusInstance.Status.RUNNING) {
             throw new IllegalStateException(
                     "Quarkus application is not running at: " + projectDir
-                            + " (status: " + instance.getStatus() + "). Start it first with quarkus/start.");
+                            + " (status: " + instance.getStatus() + "). Start it first with quarkus_start.");
         }
 
         int port = instance.getHttpPort();
@@ -387,7 +394,8 @@ public class DevMcpProxyTools {
                     .timeout(REQUEST_TIMEOUT)
                     .build();
 
-            HttpResponse<String> response = HttpClientProvider.getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpClientProvider.getHttpClient().send(request,
+                    HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
                 throw new RuntimeException("Dev MCP returned HTTP " + response.statusCode());
             }

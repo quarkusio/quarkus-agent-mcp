@@ -41,12 +41,14 @@ public class UpdateTools {
             "^[0-9]+\\.[0-9]+\\.[0-9]+([.\\-][A-Za-z0-9]+)*$");
 
 
-    @Tool(name = "quarkus/update", description = "Check if a Quarkus project is up-to-date and provide an upgrade report. "
+    @Tool(name = "quarkus_update", description = "Check if a Quarkus project is up-to-date and provide an upgrade report. "
             + "Detects the current version, checks for newer releases, compares build files against "
             + "reference projects, and optionally runs 'quarkus update --dry-run' to preview migrations. "
             + "IMPORTANT: For existing Quarkus projects, ALWAYS call this tool using a subagent BEFORE "
             + "starting any development work to ensure the project is on the latest version.",
-            annotations = @Tool.Annotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true))
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_update", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
     ToolResponse update(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
@@ -89,7 +91,7 @@ public class UpdateTools {
                 return ToolResponse.success(report.toString());
             }
 
-            // Step 3: Project is outdated — full upgrade analysis
+            // Step 3: Project is outdated -- full upgrade analysis
             report.append("**A newer Quarkus version is available!**\n\n");
 
             // Step 3a: Compare build files against current version reference

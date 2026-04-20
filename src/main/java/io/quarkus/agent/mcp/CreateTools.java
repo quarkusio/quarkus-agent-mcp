@@ -41,18 +41,18 @@ public class CreateTools {
     // Extensions: comma-separated list of extension short names
     private static final Pattern VALID_EXTENSIONS = Pattern.compile("^[a-zA-Z0-9._,:-]+$");
 
-    // Cache which command is available — doesn't change during the lifetime of the server
+    // Cache which command is available -- doesn't change during the lifetime of the server
     private volatile String cachedCreateCommand;
 
-    @Tool(name = "quarkus/create", description = "Create a new Quarkus application and auto-start it in dev mode. "
-            + "RULES: 1) NEVER implement features manually when a Quarkus extension exists — "
+    @Tool(name = "quarkus_create", description = "Create a new Quarkus application and auto-start it in dev mode. "
+            + "RULES: 1) NEVER implement features manually when a Quarkus extension exists -- "
             + "always search for and add the right extension first. "
             + "2) BEFORE creating the app or writing ANY code, present the user with extension choices for each capability. "
             + "When multiple extensions can fulfill a capability (e.g. REST: quarkus-rest vs resteasy-classic vs spring-web; "
             + "Web UI: Qute vs Web Bundler vs Quinoa vs Web Dependency Locator; "
             + "Persistence: Hibernate ORM with Panache vs Hibernate Reactive vs JDBC), "
             + "list ALL options with a recommended default and WAIT for the user to choose. NEVER silently pick one. "
-            + "3) Use quarkus/skills for each chosen extension BEFORE writing any code — this is mandatory, not optional. "
+            + "3) Use quarkus_skills for each chosen extension BEFORE writing any code -- this is mandatory, not optional. "
             + "4) ALWAYS write tests for every feature if it makes sense and unless the user explicitly requested you not to. "
             + "5) Keep README.md updated with app description, features, endpoints, and Quarkus guide links after every change.")
     ToolResponse create(
@@ -175,29 +175,29 @@ public class CreateTools {
                 LOG.infof("Auto-started Quarkus app at: %s", projectDir);
                 return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir
                         + "\n\nNEXT STEPS (follow this order strictly):"
-                        + "\n1. STOP — do NOT write any code yet. For each capability the user requested, "
-                        + "search for Quarkus extensions that provide it using quarkus/searchDocs. "
+                        + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "
+                        + "search for Quarkus extensions that provide it using quarkus_searchDocs. "
                         + "NEVER roll your own solution when an extension exists."
-                        + "\n2. PRESENT OPTIONS — when multiple extensions can fulfill a capability, "
+                        + "\n2. PRESENT OPTIONS -- when multiple extensions can fulfill a capability, "
                         + "list ALL options to the user with a recommended default marked. "
                         + "Wait for the user to choose before proceeding. Never silently pick one."
-                        + "\n3. LOAD SKILLS — call quarkus/skills for each chosen extension BEFORE writing any code. "
+                        + "\n3. LOAD SKILLS -- call quarkus_skills for each chosen extension BEFORE writing any code. "
                         + "This is mandatory, not optional."
-                        + "\n4. Add chosen extensions via quarkus/searchTools query='extension' → quarkus/callTool."
-                        + "\n5. Use quarkus/searchDocs to look up additional Quarkus APIs and best practices."
+                        + "\n4. Add chosen extensions via quarkus_searchTools query='extension' -> quarkus_callTool."
+                        + "\n5. Use quarkus_searchDocs to look up additional Quarkus APIs and best practices."
                         + "\n6. Write your code AND tests. Always include tests for every feature."
-                        + "\n7. Run tests with quarkus/callTool: use 'devui-testing_runTests' to run all tests, "
+                        + "\n7. Run tests with quarkus_callTool: use 'devui-testing_runTests' to run all tests, "
                         + "'devui-testing_runAffectedTests' to run only tests affected by your changes, "
                         + "or 'devui-testing_runTest' with arguments {\"className\":\"com.example.MyTest\"} for a specific test."
-                        + "\n8. After code changes, trigger a reload via quarkus/callTool with toolName 'devui-logstream_forceRestart'. Do NOT restart the app manually."
-                        + "\n   IMPORTANT: After pom.xml/build.gradle changes (adding dependencies or extensions), you MUST do a full quarkus/stop + quarkus/start. forceRestart only recompiles source — it does NOT re-resolve dependencies."
+                        + "\n8. After code changes, trigger a reload via quarkus_callTool with toolName 'devui-logstream_forceRestart'. Do NOT restart the app manually."
+                        + "\n   IMPORTANT: After pom.xml/build.gradle changes (adding dependencies or extensions), you MUST do a full quarkus_stop + quarkus_start. forceRestart only recompiles source -- it does NOT re-resolve dependencies."
                         + "\n9. Update README.md with: app description, features, endpoints, how to run, and links to Quarkus guides."
                         + "\n10. After core features work, suggest to the user: security, observability, health checks, OpenAPI.");
             } catch (Exception startError) {
                 LOG.warnf("Project created but failed to auto-start: %s", startError.getMessage());
                 return ToolResponse.success("Quarkus project created at: " + projectDir
                         + "\nAuto-start failed: " + startError.getMessage()
-                        + "\nUse quarkus/start with projectDir='" + projectDir + "' to start it manually.");
+                        + "\nUse quarkus_start with projectDir='" + projectDir + "' to start it manually.");
             }
         } catch (Exception e) {
             LOG.error("Failed to create Quarkus project", e);
@@ -434,45 +434,45 @@ public class CreateTools {
     private void generateProjectInstructions(String projectDir, String extensions) {
         try {
             String agentsMdContent = """
-                    # AGENTS.md — Quarkus Project Instructions
+                    # AGENTS.md -- Quarkus Project Instructions
 
                     This is a Quarkus application. Follow these rules when working on this project.
 
-                    ## CRITICAL — Extension-First Rule (NEVER skip this)
+                    ## CRITICAL -- Extension-First Rule (NEVER skip this)
 
                     **STOP before writing ANY code.** For every feature or capability the user requests:
 
-                    1. **Search for Quarkus extensions** that provide the capability using `quarkus/searchDocs` and `quarkus/searchTools query='extension'`.
+                    1. **Search for Quarkus extensions** that provide the capability using `quarkus_searchDocs` and `quarkus_searchTools query='extension'`.
                     2. **Present ALL matching options to the user** with a recommended default marked. Examples:
-                       - User asks for REST → present: **quarkus-rest** (recommended), resteasy-classic, spring-web
-                       - User asks for web UI → present: **Qute** (recommended), Web Bundler, Quinoa, Web Dependency Locator
-                       - User asks for persistence → present: **Hibernate ORM with Panache** (recommended), Hibernate Reactive, JDBC directly
-                       - User asks for security → present: **OIDC** (recommended), Security JDBC, Security JPA, Security Properties
+                       - User asks for REST -> present: **quarkus-rest** (recommended), resteasy-classic, spring-web
+                       - User asks for web UI -> present: **Qute** (recommended), Web Bundler, Quinoa, Web Dependency Locator
+                       - User asks for persistence -> present: **Hibernate ORM with Panache** (recommended), Hibernate Reactive, JDBC directly
+                       - User asks for security -> present: **OIDC** (recommended), Security JDBC, Security JPA, Security Properties
                     3. **Wait for the user to choose** before proceeding. Do NOT silently pick an extension.
-                    4. **Load skills** with `quarkus/skills` for the chosen extension BEFORE writing any code.
+                    4. **Load skills** with `quarkus_skills` for the chosen extension BEFORE writing any code.
 
                     Skipping any of these steps is a violation. NEVER implement a feature by hand-coding HTML, JavaScript, REST endpoints, or other functionality when a Quarkus extension exists for it.
 
                     ## Required Workflow
 
-                    1. **Use quarkus/update (via subagent) when returning to this project** — checks if the Quarkus version is up-to-date and suggests upgrades.
-                    2. **Use quarkus/skills BEFORE writing any code or tests** — it contains extension-specific patterns, testing approaches, and common pitfalls that prevent mistakes. Skills may also list **Available Dev MCP Tools** specific to each extension (e.g. OpenAPI schema retrieval, scheduler job management) — use these via `quarkus/callTool`. Call this EVERY time you are about to add or modify a feature, not just at project creation.
-                    3. **Use quarkus/searchDocs for Quarkus documentation** — do NOT use generic documentation tools (Context7, web search). The Quarkus doc search is version-aware and more accurate.
-                    4. **Use quarkus/searchTools to discover Dev MCP tools** on the running app for testing, config changes, and extension management. The tool list is **dynamic** — it changes when extensions are added or removed. Re-call `quarkus/searchTools` after any extension change to discover newly available tools. Note: some extension-specific tools are also documented in the skills output (see step 2).
-                    5. **Use quarkus/callTool to invoke Dev MCP tools** — run tests, add extensions, update configuration. Do NOT run Maven/Gradle commands manually.
-                    6. **After code changes, trigger a reload** via `quarkus/callTool` with toolName `devui-logstream_forceRestart`. Do NOT restart the app manually.
-                    7. **After pom.xml / build.gradle changes** (adding dependencies or extensions), you MUST do a full `quarkus/stop` + `quarkus/start` cycle. A `forceRestart` only recompiles source files — it does NOT re-resolve dependencies.
+                    1. **Use quarkus_update (via subagent) when returning to this project** -- checks if the Quarkus version is up-to-date and suggests upgrades.
+                    2. **Use quarkus_skills BEFORE writing any code or tests** -- it contains extension-specific patterns, testing approaches, and common pitfalls that prevent mistakes. Skills may also list **Available Dev MCP Tools** specific to each extension (e.g. OpenAPI schema retrieval, scheduler job management) -- use these via `quarkus_callTool`. Call this EVERY time you are about to add or modify a feature, not just at project creation.
+                    3. **Use quarkus_searchDocs for Quarkus documentation** -- do NOT use generic documentation tools (Context7, web search). The Quarkus doc search is version-aware and more accurate.
+                    4. **Use quarkus_searchTools to discover Dev MCP tools** on the running app for testing, config changes, and extension management. The tool list is **dynamic** -- it changes when extensions are added or removed. Re-call `quarkus_searchTools` after any extension change to discover newly available tools. Note: some extension-specific tools are also documented in the skills output (see step 2).
+                    5. **Use quarkus_callTool to invoke Dev MCP tools** -- run tests, add extensions, update configuration. Do NOT run Maven/Gradle commands manually.
+                    6. **After code changes, trigger a reload** via `quarkus_callTool` with toolName `devui-logstream_forceRestart`. Do NOT restart the app manually.
+                    7. **After pom.xml / build.gradle changes** (adding dependencies or extensions), you MUST do a full `quarkus_stop` + `quarkus_start` cycle. A `forceRestart` only recompiles source files -- it does NOT re-resolve dependencies.
 
                     ## Rules
 
-                    - NEVER implement features manually when a Quarkus extension exists — search for and add the right extension first.
-                    - NEVER silently pick an extension when multiple options exist — ALWAYS present options to the user and wait for their choice.
-                    - NEVER write code for a feature without first loading its skill via `quarkus/skills`.
-                    - ALWAYS write tests for every feature — no exceptions.
+                    - NEVER implement features manually when a Quarkus extension exists -- search for and add the right extension first.
+                    - NEVER silently pick an extension when multiple options exist -- ALWAYS present options to the user and wait for their choice.
+                    - NEVER write code for a feature without first loading its skill via `quarkus_skills`.
+                    - ALWAYS write tests for every feature -- no exceptions.
                     - ALWAYS keep README.md updated with app description, features, endpoints, and Quarkus guide links.
-                    - ALWAYS summarize after completing work — when you finish building an app, adding a feature, or completing a task, provide a clear summary of what was done (files created/modified, endpoints added, extensions used, etc.) and suggest logical next steps the user might want to take (e.g. adding security, observability, persistence, testing improvements, deployment).
-                    - Use `@QuarkusTest` for integration tests — Dev Services auto-starts backing services (databases, messaging, etc.).
-                    - Use `%dev.` and `%test.` profile prefixes for dev/test configuration — never hardcode connection URLs without a profile prefix.
+                    - ALWAYS summarize after completing work -- when you finish building an app, adding a feature, or completing a task, provide a clear summary of what was done (files created/modified, endpoints added, extensions used, etc.) and suggest logical next steps the user might want to take (e.g. adding security, observability, persistence, testing improvements, deployment).
+                    - Use `@QuarkusTest` for integration tests -- Dev Services auto-starts backing services (databases, messaging, etc.).
+                    - Use `%dev.` and `%test.` profile prefixes for dev/test configuration -- never hardcode connection URLs without a profile prefix.
 
                     ## Testing
 
@@ -480,7 +480,7 @@ public class CreateTools {
 
                     ```
                     Use the Agent tool to launch a subagent with this prompt:
-                      "Run the Quarkus tests for project <projectDir> using quarkus/callTool
+                      "Run the Quarkus tests for project <projectDir> using quarkus_callTool
                        with toolName 'devui-testing_runTests'. Analyze the results and report
                        which tests passed, failed, or errored. If tests fail, include the
                        failure messages and suggest fixes."
@@ -488,30 +488,30 @@ public class CreateTools {
 
                     - Use `devui-testing_runTests` to run all tests.
                     - Use `devui-testing_runTest` with arguments `{"className":"com.example.MyTest"}` to run a specific test class.
-                    - Do NOT run Maven/Gradle test commands manually — the Dev MCP test tools handle compilation, hot reload, and result reporting.
+                    - Do NOT run Maven/Gradle test commands manually -- the Dev MCP test tools handle compilation, hot reload, and result reporting.
                     - After fixing test failures, re-run tests with a subagent to verify the fix.
 
                     ## Error Handling
 
                     When something goes wrong (compilation error, deployment failure, runtime exception):
 
-                    1. Use `quarkus/callTool` with toolName `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location).
+                    1. Use `quarkus_callTool` with toolName `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location).
                     2. Fix the issue based on the exception details.
                     3. Call `devui-exceptions_clearLastException` to clear the recorded exception.
-                    4. Use `quarkus/logs` only when you need broader log context beyond the exception itself.
+                    4. Use `quarkus_logs` only when you need broader log context beyond the exception itself.
 
-                    **Note:** If the app fails on its very first deploy (before the Dev MCP handler is registered), the exception endpoint won't exist yet — fall back to `quarkus/logs` in that case. For hot-reload failures (the common case), the endpoint is always available from the prior successful deploy.
+                    **Note:** If the app fails on its very first deploy (before the Dev MCP handler is registered), the exception endpoint won't exist yet -- fall back to `quarkus_logs` in that case. For hot-reload failures (the common case), the endpoint is always available from the prior successful deploy.
 
                     ## Customizing Skills
 
-                    Extension skills can be customized per-project or globally using `quarkus/updateSkill`.
+                    Extension skills can be customized per-project or globally using `quarkus_updateSkill`.
                     When the user asks to update or customize a skill, ask them:
-                    1. **Enhance or override?** — Enhance (default) appends content to the base skill.
+                    1. **Enhance or override?** -- Enhance (default) appends content to the base skill.
                        Override fully replaces the base skill.
-                    2. **Project or global scope?** — Project scope (`.quarkus/skills/`) affects only this project.
+                    2. **Project or global scope?** -- Project scope (`.quarkus/skills/`) affects only this project.
                        Global scope (`~/.quarkus/skills/`) affects all projects.
 
-                    Skills use a three-layer chain: JAR defaults → global customizations → project customizations.
+                    Skills use a three-layer chain: JAR defaults -> global customizations -> project customizations.
                     Each layer can either enhance (append to) or override (replace) the previous layer.
 
                     You can also manually place SKILL.md files under `.quarkus/skills/<extension-name>/SKILL.md`.
