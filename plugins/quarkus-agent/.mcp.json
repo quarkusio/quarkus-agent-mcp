@@ -1,6 +1,10 @@
 {
-  "quarkus-agent": {
-    "command": "jbang",
-    "args": ["quarkus-agent-mcp@quarkusio"]
+  "mcpServers": {
+    "quarkus-agent": {
+      "command": "jbang",
+      "args": [
+        "quarkus-agent-mcp@quarkusio"
+      ]
+    }
   }
 }
