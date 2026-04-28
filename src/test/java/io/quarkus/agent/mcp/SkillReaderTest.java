@@ -6,7 +6,9 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
@@ -964,5 +966,579 @@ class SkillReaderTest {
         SkillReader.SkillInfo info = SkillReader.parseFrontmatter(content);
 
         assertEquals(List.of("web", "reactive"), info.categories());
+    }
+
+    // --- Core extension scanning tests (runtime JARs with on-the-fly composition) ---
+
+    private Path createJar(Path dir, String fileName,
+            String rawSkill, String extensionYaml) throws Exception {
+        Files.createDirectories(dir);
+        Path jarPath = dir.resolve(fileName);
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarPath.toFile()))) {
+            if (rawSkill != null) {
+                jos.putNextEntry(new JarEntry("META-INF/quarkus-skill.md"));
+                jos.write(rawSkill.getBytes(StandardCharsets.UTF_8));
+                jos.closeEntry();
+            }
+            if (extensionYaml != null) {
+                jos.putNextEntry(new JarEntry("META-INF/quarkus-extension.yaml"));
+                jos.write(extensionYaml.getBytes(StandardCharsets.UTF_8));
+                jos.closeEntry();
+            }
+        }
+        return jarPath;
+    }
+
+    private void createCoreExtension(Path m2Repo, String artifactId, String version,
+            String rawSkill, String extensionYaml) throws Exception {
+        Path quarkusDir = m2Repo.resolve("io/quarkus");
+        createJar(quarkusDir.resolve(artifactId + "-deployment/" + version),
+                artifactId + "-deployment-" + version + ".jar", rawSkill, null);
+        createJar(quarkusDir.resolve(artifactId + "/" + version),
+                artifactId + "-" + version + ".jar", null, extensionYaml);
+    }
+
+    @Test
+    void scanCoreExtensionSkillsComposesFromDeploymentJar() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2",
+                "### CDI patterns\nUse @Inject for DI.",
+                "name: \"ArC\"\ndescription: \"Build time CDI\"\nmetadata:\n  guide: \"https://quarkus.io/guides/cdi\"\n  categories:\n  - \"core\"\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+
+        assertEquals(1, skills.size());
+        assertEquals("quarkus-arc", skills.get(0).name());
+        assertEquals("Build time CDI", skills.get(0).description());
+        assertEquals(List.of("core"), skills.get(0).categories());
+        assertTrue(skills.get(0).content().contains("# ArC"));
+        assertTrue(skills.get(0).content().contains("Use @Inject"));
+        assertTrue(skills.get(0).content().contains("Build time CDI"));
+        assertTrue(skills.get(0).content().contains("https://quarkus.io/guides/cdi"));
+    }
+
+    @Test
+    void scanCoreExtensionSkillsIgnoresWrongVersion() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.20.0", "### CDI", "name: ArC\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    @Test
+    void scanCoreExtensionSkillsSkipsJarsWithoutSkills() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        // Deployment JAR with no skill, runtime JAR with metadata
+        Path quarkusDir = m2Repo.resolve("io/quarkus");
+        createJar(quarkusDir.resolve("quarkus-vertx-deployment/3.21.2"),
+                "quarkus-vertx-deployment-3.21.2.jar", null, null);
+        createJar(quarkusDir.resolve("quarkus-vertx/3.21.2"),
+                "quarkus-vertx-3.21.2.jar", null, "name: Vert.x\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    @Test
+    void scanCoreExtensionSkillsFindsMultipleSkills() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2", "### CDI", "name: ArC\n");
+        createCoreExtension(m2Repo, "quarkus-rest", "3.21.2", "### REST", "name: REST\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+
+        assertEquals(2, skills.size());
+    }
+
+    @Test
+    void scanCoreExtensionSkillsMetadataOnly() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2",
+                "### CDI content",
+                "name: ArC\ndescription: \"Build time CDI\"\nmetadata:\n  categories:\n  - \"core\"\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, true);
+
+        assertEquals(1, skills.size());
+        assertEquals("quarkus-arc", skills.get(0).name());
+        assertEquals("Build time CDI", skills.get(0).description());
+        assertEquals(List.of("core"), skills.get(0).categories());
+        assertNull(skills.get(0).content());
+    }
+
+    @Test
+    void scanCoreExtensionSkillsReturnsEmptyForMissingDir() {
+        Path m2Repo = tempDir.resolve("non-existent-m2");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    // --- On-the-fly composition tests ---
+
+    @Test
+    void parseExtensionYamlExtractsAllFields() {
+        String yaml = """
+                name: "ArC"
+                description: "Build time CDI dependency injection"
+                metadata:
+                  guide: "https://quarkus.io/guides/cdi-reference"
+                  categories:
+                  - "core"
+                  status: "stable"
+                """;
+
+        SkillReader.ExtensionMetadata meta = SkillReader.parseExtensionYaml(yaml);
+
+        assertEquals("ArC", meta.name);
+        assertEquals("Build time CDI dependency injection", meta.description);
+        assertEquals("https://quarkus.io/guides/cdi-reference", meta.guide);
+        assertEquals(List.of("core"), meta.categories);
+    }
+
+    @Test
+    void parseExtensionYamlHandlesMultipleCategories() {
+        String yaml = """
+                name: REST
+                description: "Build RESTful web services"
+                metadata:
+                  categories:
+                  - "web"
+                  - "reactive"
+                """;
+
+        SkillReader.ExtensionMetadata meta = SkillReader.parseExtensionYaml(yaml);
+
+        assertEquals(List.of("web", "reactive"), meta.categories);
+    }
+
+    @Test
+    void parseExtensionYamlHandlesMinimalContent() {
+        SkillReader.ExtensionMetadata meta = SkillReader.parseExtensionYaml("name: Foo\n");
+
+        assertEquals("Foo", meta.name);
+        assertNull(meta.description);
+        assertNull(meta.guide);
+        assertNull(meta.categories);
+    }
+
+    @Test
+    void composeContentIncludesMetadataHeader() {
+        SkillReader.ExtensionMetadata meta = new SkillReader.ExtensionMetadata();
+        meta.name = "REST";
+        meta.description = "Build RESTful APIs";
+        meta.guide = "https://quarkus.io/guides/rest";
+
+        String result = SkillReader.composeContent("### Endpoints\nUse @Path.", meta, null, "quarkus-rest");
+
+        assertTrue(result.startsWith("# REST\n"));
+        assertTrue(result.contains("> Build RESTful APIs"));
+        assertTrue(result.contains("> Guide: https://quarkus.io/guides/rest"));
+        assertTrue(result.contains("### Endpoints"));
+    }
+
+    @Test
+    void composeContentWithNullMetaReturnsRawSkill() {
+        String result = SkillReader.composeContent("### Raw skill content", null, null, "quarkus-rest");
+
+        assertEquals("### Raw skill content\n", result);
+    }
+
+    @Test
+    void composeContentIncludesMcpToolsSection() {
+        SkillReader.ExtensionMetadata meta = new SkillReader.ExtensionMetadata();
+        meta.name = "REST";
+
+        Map<String, SkillReader.ParameterInfo> params = new LinkedHashMap<>();
+        params.put("path", new SkillReader.ParameterInfo("The resource path", true));
+        List<SkillReader.McpToolInfo> tools = List.of(
+                new SkillReader.McpToolInfo("listEndpoints", "List all REST endpoints", null),
+                new SkillReader.McpToolInfo("testEndpoint", "Test an endpoint", params));
+
+        String result = SkillReader.composeContent("### REST patterns", meta, tools, "quarkus-rest");
+
+        assertTrue(result.contains("### Available Dev MCP Tools"));
+        assertTrue(result.contains("quarkus-rest_listEndpoints"));
+        assertTrue(result.contains("quarkus-rest_testEndpoint"));
+        assertTrue(result.contains("List all REST endpoints"));
+        assertTrue(result.contains("`path` (required): The resource path"));
+    }
+
+    @Test
+    void formatMcpToolsSectionFormatsTable() {
+        List<SkillReader.McpToolInfo> tools = List.of(
+                new SkillReader.McpToolInfo("myTool", "Does something", null));
+
+        String result = SkillReader.formatMcpToolsSection(tools, "quarkus-rest");
+
+        assertTrue(result.contains("| `quarkus-rest_myTool` |"));
+        assertTrue(result.contains("Does something"));
+        assertTrue(result.contains("—")); // no params
+    }
+
+    @Test
+    void composeSkillFromExtensionCombinesDeploymentAndRuntime() throws Exception {
+        Path depDir = tempDir.resolve("deployment");
+        Path rtDir = tempDir.resolve("runtime");
+        Path deploymentJar = createJar(depDir, "quarkus-rest-deployment-3.21.2.jar",
+                "### Endpoints\nUse @Path and @GET.", null);
+        Path runtimeJar = createJar(rtDir, "quarkus-rest-3.21.2.jar", null,
+                "name: REST\ndescription: \"Build RESTful APIs\"\nmetadata:\n  guide: \"https://quarkus.io/guides/rest\"\n  categories:\n  - \"web\"\n  - \"reactive\"\n");
+
+        SkillReader.SkillInfo skill = SkillReader.composeSkillFromExtension(
+                deploymentJar, runtimeJar, null, "quarkus-rest", false);
+
+        assertNotNull(skill);
+        assertEquals("quarkus-rest", skill.name());
+        assertEquals("Build RESTful APIs", skill.description());
+        assertEquals(List.of("web", "reactive"), skill.categories());
+        assertTrue(skill.content().contains("# REST"));
+        assertTrue(skill.content().contains("> Build RESTful APIs"));
+        assertTrue(skill.content().contains("### Endpoints"));
+    }
+
+    @Test
+    void composeSkillFromExtensionWithoutRuntime() throws Exception {
+        Path depDir = tempDir.resolve("deployment");
+        Path deploymentJar = createJar(depDir, "dep.jar", "### Custom patterns", null);
+
+        SkillReader.SkillInfo skill = SkillReader.composeSkillFromExtension(
+                deploymentJar, Path.of("/nonexistent.jar"), null, "quarkus-custom", false);
+
+        assertNotNull(skill);
+        assertEquals("quarkus-custom", skill.name());
+        assertNull(skill.description());
+        assertTrue(skill.content().contains("### Custom patterns"));
+    }
+
+    @Test
+    void composeSkillFromExtensionReturnsNullWhenNoSkill() throws Exception {
+        Path depDir = tempDir.resolve("deployment");
+        Path deploymentJar = createJar(depDir, "dep.jar", null, null);
+
+        SkillReader.SkillInfo skill = SkillReader.composeSkillFromExtension(
+                deploymentJar, Path.of("/nonexistent.jar"), null, "quarkus-vertx", false);
+
+        assertNull(skill);
+    }
+
+    // --- Non-core extension scanning tests (runtime JARs) ---
+
+    @Test
+    void scanNonCoreExtensionSkillsFindsQuarkiverseSkills() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>1.2.0</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        // Deployment JAR with raw skill
+        String groupPath = "io/quarkiverse/langchain4j";
+        createJar(m2Repo.resolve(groupPath + "/quarkus-langchain4j-openai-deployment/1.2.0"),
+                "quarkus-langchain4j-openai-deployment-1.2.0.jar",
+                "### AI patterns\nUse AI service.", null);
+        // Runtime JAR with extension metadata
+        createJar(m2Repo.resolve(groupPath + "/quarkus-langchain4j-openai/1.2.0"),
+                "quarkus-langchain4j-openai-1.2.0.jar", null,
+                "name: LangChain4j OpenAI\ndescription: \"LangChain4j OpenAI extension\"\nmetadata:\n  categories:\n  - \"ai\"\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
+                projectDir.toString(), m2Repo, false);
+
+        assertEquals(1, skills.size());
+        assertEquals("quarkus-langchain4j-openai", skills.get(0).name());
+        assertEquals("LangChain4j OpenAI extension", skills.get(0).description());
+        assertEquals(List.of("ai"), skills.get(0).categories());
+        assertTrue(skills.get(0).content().contains("### AI patterns"));
+    }
+
+    @Test
+    void scanNonCoreExtensionSkillsSkipsCoreGroupId() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-rest</artifactId>
+                            <version>3.21.2</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        createCoreExtension(m2Repo, "quarkus-rest", "3.21.2", "### REST", "name: REST\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
+                projectDir.toString(), m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    @Test
+    void scanNonCoreExtensionSkillsHandlesMissingJar() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>1.2.0</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
+                projectDir.toString(), m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    @Test
+    void scanNonCoreExtensionSkillsReturnsEmptyForNullProjectDir() {
+        Path m2Repo = tempDir.resolve("m2-repo");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(null, m2Repo, false);
+
+        assertTrue(skills.isEmpty());
+    }
+
+    // --- pom.xml dependency parsing tests ---
+
+    @Test
+    void parseDependenciesExtractsDirectDeps() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>1.2.0</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-rest</artifactId>
+                            <version>3.21.2</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertEquals(2, deps.size());
+        assertEquals("io.quarkiverse.langchain4j", deps.get(0).groupId());
+        assertEquals("quarkus-langchain4j-openai", deps.get(0).artifactId());
+        assertEquals("1.2.0", deps.get(0).version());
+        assertEquals("io.quarkus", deps.get(1).groupId());
+    }
+
+    @Test
+    void parseDependenciesResolvesPropertyPlaceholders() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <properties>
+                        <langchain4j.version>1.2.0</langchain4j.version>
+                    </properties>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>${langchain4j.version}</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertEquals(1, deps.size());
+        assertEquals("1.2.0", deps.get(0).version());
+    }
+
+    @Test
+    void parseDependenciesSkipsBomManagedWithoutVersion() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-rest</artifactId>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertTrue(deps.isEmpty());
+    }
+
+    @Test
+    void parseDependenciesSkipsUnresolvableProperties() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>${unknown.version}</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertTrue(deps.isEmpty());
+    }
+
+    @Test
+    void parseDependenciesSkipsPluginDeps() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <build>
+                        <plugins>
+                            <plugin>
+                                <groupId>io.quarkus</groupId>
+                                <artifactId>quarkus-maven-plugin</artifactId>
+                                <version>3.21.2</version>
+                                <dependencies>
+                                    <dependency>
+                                        <groupId>some.plugin</groupId>
+                                        <artifactId>plugin-dep</artifactId>
+                                        <version>1.0</version>
+                                    </dependency>
+                                </dependencies>
+                            </plugin>
+                        </plugins>
+                    </build>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>1.2.0</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertEquals(1, deps.size());
+        assertEquals("quarkus-langchain4j-openai", deps.get(0).artifactId());
+    }
+
+    @Test
+    void parseDependenciesSkipsDependencyManagement() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("pom.xml"), """
+                <project>
+                    <dependencyManagement>
+                        <dependencies>
+                            <dependency>
+                                <groupId>io.quarkus.platform</groupId>
+                                <artifactId>quarkus-bom</artifactId>
+                                <version>3.21.2</version>
+                                <type>pom</type>
+                                <scope>import</scope>
+                            </dependency>
+                        </dependencies>
+                    </dependencyManagement>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkiverse.langchain4j</groupId>
+                            <artifactId>quarkus-langchain4j-openai</artifactId>
+                            <version>1.2.0</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertEquals(1, deps.size());
+        assertEquals("quarkus-langchain4j-openai", deps.get(0).artifactId());
+    }
+
+    @Test
+    void parseDependenciesReturnsEmptyForMissingPom() {
+        Path projectDir = tempDir.resolve("no-such-project");
+
+        List<SkillReader.MavenDependency> deps = SkillReader.parseDependencies(projectDir.toString());
+
+        assertTrue(deps.isEmpty());
+    }
+
+    @Test
+    void resolvePropertyHandlesNullAndNoPlaceholders() {
+        assertEquals("1.2.0", SkillReader.resolveProperty("1.2.0", Map.of()));
+        assertNull(SkillReader.resolveProperty(null, Map.of()));
+        assertEquals("hello", SkillReader.resolveProperty("hello", Map.of("foo", "bar")));
+    }
+
+    @Test
+    void resolvePropertySubstitutesMultiplePlaceholders() {
+        Map<String, String> props = Map.of("major", "3", "minor", "21");
+        assertEquals("3.21", SkillReader.resolveProperty("${major}.${minor}", props));
+    }
+
+    @Test
+    void parseSettingsFromMvnConfigHandlesEqualsForm() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path mvnDir = projectDir.resolve(".mvn");
+        Files.createDirectories(mvnDir);
+        Files.writeString(mvnDir.resolve("maven.config"), "-s=.mvn/custom-settings.xml\n");
+
+        Path result = SkillReader.parseSettingsFromMvnConfig(projectDir);
+
+        assertNotNull(result);
+        assertEquals(projectDir.resolve(".mvn/custom-settings.xml").normalize(), result);
+    }
+
+    @Test
+    void parseSettingsFromMvnConfigHandlesLongEqualsForm() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path mvnDir = projectDir.resolve(".mvn");
+        Files.createDirectories(mvnDir);
+        Files.writeString(mvnDir.resolve("maven.config"), "--settings=/abs/path/settings.xml\n");
+
+        Path result = SkillReader.parseSettingsFromMvnConfig(projectDir);
+
+        assertNotNull(result);
+        assertEquals(Path.of("/abs/path/settings.xml"), result);
     }
 }
