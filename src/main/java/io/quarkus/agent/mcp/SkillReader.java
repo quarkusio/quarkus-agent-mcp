@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,14 +17,25 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationTarget;
+import org.jboss.jandex.AnnotationValue;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.Index;
+import org.jboss.jandex.Indexer;
+import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.MethodParameterInfo;
+import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -32,8 +44,14 @@ import org.w3c.dom.NodeList;
 /**
  * Reads extension skill files (SKILL.md) using a three-layer chain:
  * <ol>
- *   <li><b>JAR skills</b> — from the aggregated {@code quarkus-extension-skills} JAR
- *       shipped with each Quarkus release (baseline defaults)</li>
+ *   <li><b>Extension skills</b> — composed on-the-fly from individual extension
+ *       JARs in the local Maven repository. Raw skill content is read from
+ *       {@code META-INF/quarkus-skill.md} (in deployment or runtime JARs) and
+ *       combined with extension metadata from {@code META-INF/quarkus-extension.yaml}
+ *       (in runtime JARs). Core extensions are discovered by version-filtered
+ *       scanning; non-core extensions (Quarkiverse, custom) by parsing the
+ *       project's pom.xml. Falls back to the aggregated
+ *       {@code quarkus-extension-skills} JAR for older Quarkus versions.</li>
  *   <li><b>User-level skills</b> — from {@code ~/.quarkus/skills/} or a configured
  *       directory (for extension developers testing globally)</li>
  *   <li><b>Project-level skills</b> — from {@code .quarkus/skills/}
@@ -48,15 +66,41 @@ public final class SkillReader {
     private static final Logger LOG = Logger.getLogger(SkillReader.class);
 
     private static final String SKILLS_PATH_PREFIX = "META-INF/skills/";
+    private static final String RAW_SKILL_PATH = "META-INF/quarkus-skill.md";
+    private static final String EXTENSION_YAML_PATH = "META-INF/quarkus-extension.yaml";
     private static final String SKILL_FILE_NAME = "SKILL.md";
     private static final String SKILLS_ARTIFACT_ID = "quarkus-extension-skills";
+    private static final String CORE_GROUP_ID = "io.quarkus";
+    private static final String DEPLOYMENT_SUFFIX = "-deployment";
+    private static final String DEV_SUFFIX = "-dev";
     private static final String MAVEN_CENTRAL_BASE = "https://repo1.maven.org/maven2";
+
+    // Jandex annotation names for MCP tool discovery
+    private static final DotName JSON_RPC_DESCRIPTION = DotName
+            .createSimple("io.quarkus.runtime.annotations.JsonRpcDescription");
+    private static final DotName DEV_MCP_ENABLE_BY_DEFAULT = DotName
+            .createSimple("io.quarkus.runtime.annotations.DevMCPEnableByDefault");
+    private static final DotName DEV_MCP_BUILD_TIME_TOOL = DotName
+            .createSimple("io.quarkus.devui.spi.buildtime.DevMcpBuildTimeTool");
+    private static final DotName DEV_MCP_BUILD_TIME_TOOLS = DotName
+            .createSimple("io.quarkus.devui.spi.buildtime.DevMcpBuildTimeTools");
+    private static final DotName OPTIONAL = DotName.createSimple("java.util.Optional");
     private static final Pattern VALID_SKILL_NAME = Pattern.compile("^[a-zA-Z0-9._-]+$");
     private static final Pattern FRONTMATTER_NAME = Pattern.compile("^name:\\s*(.+)$", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_DESC = Pattern.compile("^description:\\s*\"(.+)\"$", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_MODE = Pattern.compile("^mode:\\s*(\\S+)", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_CATEGORIES = Pattern.compile(
             "^categor(?:y|ies):\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
+
+    // Patterns for parsing quarkus-extension.yaml (simple top-level and nested fields)
+    private static final Pattern YAML_NAME = Pattern.compile("^name:\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
+    private static final Pattern YAML_DESCRIPTION = Pattern.compile(
+            "^description:\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
+    private static final Pattern YAML_GUIDE = Pattern.compile(
+            "^\\s+guide:\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
+    private static final Pattern YAML_CATEGORIES_BLOCK = Pattern.compile(
+            "categories:\\s*\\n((?:\\s+-\\s*.+\\n?)+)", Pattern.MULTILINE);
+    private static final Pattern YAML_LIST_ITEM = Pattern.compile("^\\s+-\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
 
     public enum SkillMode {
         ENHANCE,
@@ -111,24 +155,39 @@ public final class SkillReader {
         // Use a map keyed by skill name so each layer can override the previous
         Map<String, SkillInfo> skillsByName = new LinkedHashMap<>();
 
-        // Layer 1: Load skills from the aggregated JAR (baseline)
+        // Layer 1: Scan extension runtime JARs and compose skills on-the-fly
         String version = QuarkusVersionDetector.detect(projectDir);
         if (version != null) {
             Path m2Repo = Path.of(System.getProperty("user.home"), ".m2", "repository");
-            Path jarPath = resolveSkillsJarPath(version, m2Repo);
 
-            if (!Files.isRegularFile(jarPath)) {
-                LOG.infof("Skills JAR not found locally, downloading for version %s", version);
-                jarPath = downloadFromMavenRepo(version, jarPath, projectDir);
+            // 1a: Scan core extension runtime JARs (io.quarkus) by version
+            for (SkillInfo skill : scanCoreExtensionSkills(version, m2Repo, metadataOnly)) {
+                skillsByName.put(skill.name(), skill);
             }
 
-            if (jarPath != null) {
-                try {
-                    for (SkillInfo skill : readSkillsFromJar(jarPath, metadataOnly)) {
-                        skillsByName.put(skill.name(), skill);
+            // 1b: Scan non-core extension runtime JARs (Quarkiverse, custom) from pom.xml
+            for (SkillInfo skill : scanNonCoreExtensionSkills(projectDir, m2Repo, metadataOnly)) {
+                skillsByName.putIfAbsent(skill.name(), skill);
+            }
+
+            // Fallback: try aggregated JAR for older Quarkus versions without per-extension skills
+            if (skillsByName.isEmpty()) {
+                LOG.debugf("No skills found in extension JARs, trying aggregated JAR for version %s", version);
+                Path jarPath = resolveSkillsJarPath(version, m2Repo);
+
+                if (!Files.isRegularFile(jarPath)) {
+                    LOG.infof("Skills JAR not found locally, downloading for version %s", version);
+                    jarPath = downloadFromMavenRepo(version, jarPath, projectDir);
+                }
+
+                if (jarPath != null) {
+                    try {
+                        for (SkillInfo skill : readSkillsFromJar(jarPath, metadataOnly)) {
+                            skillsByName.put(skill.name(), skill);
+                        }
+                    } catch (IOException e) {
+                        LOG.warnf("Failed to read skills from %s: %s", jarPath, e.getMessage());
                     }
-                } catch (IOException e) {
-                    LOG.warnf("Failed to read skills from %s: %s", jarPath, e.getMessage());
                 }
             }
         } else {
@@ -333,6 +392,544 @@ public final class SkillReader {
             LOG.debugf("Failed to scan local skills directory %s: %s", skillsDir, e.getMessage());
         }
         return skills;
+    }
+
+    // ── Per-extension runtime JAR scanning with on-the-fly composition ─────
+
+    /**
+     * Scans core Quarkus extension deployment JARs for skills.
+     * For each deployment JAR containing a raw skill file, reads extension
+     * metadata from the corresponding runtime JAR and discovers MCP tools
+     * via Jandex scanning.
+     */
+    static List<SkillInfo> scanCoreExtensionSkills(String version, Path m2Repo, boolean metadataOnly) {
+        Path quarkusDir = m2Repo.resolve("io/quarkus");
+        if (!Files.isDirectory(quarkusDir)) {
+            return List.of();
+        }
+
+        List<SkillInfo> skills = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(quarkusDir,
+                entry -> Files.isDirectory(entry)
+                        && entry.getFileName().toString().startsWith("quarkus-")
+                        && entry.getFileName().toString().endsWith(DEPLOYMENT_SUFFIX))) {
+            for (Path extDir : stream) {
+                String deploymentArtifactId = extDir.getFileName().toString();
+                String artifactId = deploymentArtifactId.substring(0,
+                        deploymentArtifactId.length() - DEPLOYMENT_SUFFIX.length());
+                Path deploymentJar = extDir.resolve(version)
+                        .resolve(deploymentArtifactId + "-" + version + ".jar");
+                if (!Files.isRegularFile(deploymentJar)) {
+                    continue;
+                }
+
+                Path runtimeJar = quarkusDir.resolve(artifactId)
+                        .resolve(version).resolve(artifactId + "-" + version + ".jar");
+                Path devJar = quarkusDir.resolve(artifactId + DEV_SUFFIX)
+                        .resolve(version).resolve(artifactId + DEV_SUFFIX + "-" + version + ".jar");
+
+                SkillInfo skill = composeSkillFromExtension(deploymentJar, runtimeJar, devJar,
+                        artifactId, metadataOnly);
+                if (skill != null) {
+                    skills.add(skill);
+                }
+            }
+        } catch (IOException e) {
+            LOG.debugf("Failed to scan core extension JARs in %s: %s", quarkusDir, e.getMessage());
+        }
+
+        if (!skills.isEmpty()) {
+            LOG.infof("Found %d skills from core extension JARs (version %s)", skills.size(), version);
+        }
+        return skills;
+    }
+
+    /**
+     * Scans non-core extension deployment JARs for skills.
+     * Parses the project's pom.xml for dependencies with a groupId other
+     * than io.quarkus, looks up deployment, runtime, and dev JARs, and
+     * composes skills on-the-fly.
+     */
+    static List<SkillInfo> scanNonCoreExtensionSkills(String projectDir, Path m2Repo, boolean metadataOnly) {
+        if (projectDir == null) {
+            return List.of();
+        }
+
+        List<MavenDependency> deps = parseDependencies(projectDir);
+        if (deps.isEmpty()) {
+            return List.of();
+        }
+
+        List<SkillInfo> skills = new ArrayList<>();
+        for (MavenDependency dep : deps) {
+            if (CORE_GROUP_ID.equals(dep.groupId())) {
+                continue;
+            }
+            String groupPath = dep.groupId().replace('.', '/');
+            Path deploymentJar = m2Repo.resolve(groupPath)
+                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX)
+                    .resolve(dep.version())
+                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX + "-" + dep.version() + ".jar");
+            Path runtimeJar = m2Repo.resolve(groupPath)
+                    .resolve(dep.artifactId())
+                    .resolve(dep.version())
+                    .resolve(dep.artifactId() + "-" + dep.version() + ".jar");
+            Path devJar = m2Repo.resolve(groupPath)
+                    .resolve(dep.artifactId() + DEV_SUFFIX)
+                    .resolve(dep.version())
+                    .resolve(dep.artifactId() + DEV_SUFFIX + "-" + dep.version() + ".jar");
+
+            SkillInfo skill = composeSkillFromExtension(deploymentJar, runtimeJar, devJar,
+                    dep.artifactId(), metadataOnly);
+            if (skill != null) {
+                skills.add(skill);
+                LOG.debugf("Found skill from non-core extension %s", dep.artifactId());
+            }
+        }
+        return skills;
+    }
+
+    /**
+     * Composes a skill from an extension's JARs:
+     * raw skill from deployment JAR, metadata from runtime JAR,
+     * MCP tools from deployment + dev JARs via Jandex.
+     */
+    static SkillInfo composeSkillFromExtension(Path deploymentJar, Path runtimeJar, Path devJar,
+            String artifactId, boolean metadataOnly) {
+        if (!Files.isRegularFile(deploymentJar)) {
+            return null;
+        }
+
+        try (JarFile depJar = new JarFile(deploymentJar.toFile())) {
+            JarEntry skillEntry = depJar.getJarEntry(RAW_SKILL_PATH);
+            if (skillEntry == null) {
+                return null;
+            }
+
+            ExtensionMetadata meta = null;
+            if (Files.isRegularFile(runtimeJar)) {
+                try (JarFile rtJar = new JarFile(runtimeJar.toFile())) {
+                    meta = readExtensionMetadata(rtJar);
+                } catch (IOException e) {
+                    LOG.debugf("Failed to read runtime metadata from %s: %s", runtimeJar, e.getMessage());
+                }
+            }
+
+            String skillName = artifactId;
+            String description = meta != null ? meta.description : null;
+            List<String> categories = meta != null ? meta.categories : null;
+
+            if (metadataOnly) {
+                return new SkillInfo(skillName, description, null, SkillMode.ENHANCE, categories);
+            }
+
+            String rawSkill;
+            try (InputStream is = depJar.getInputStream(skillEntry)) {
+                rawSkill = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            }
+
+            List<McpToolInfo> tools = discoverMcpTools(depJar, runtimeJar, devJar);
+            String content = composeContent(rawSkill, meta, tools, skillName);
+            return new SkillInfo(skillName, description, content, SkillMode.ENHANCE, categories);
+        } catch (IOException e) {
+            LOG.debugf("Failed to compose skill from %s: %s", deploymentJar, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Reads extension metadata from {@code META-INF/quarkus-extension.yaml} in a JAR.
+     */
+    static ExtensionMetadata readExtensionMetadata(JarFile jar) {
+        JarEntry yamlEntry = jar.getJarEntry(EXTENSION_YAML_PATH);
+        if (yamlEntry == null) {
+            return null;
+        }
+        try (InputStream is = jar.getInputStream(yamlEntry)) {
+            String yaml = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            return parseExtensionYaml(yaml);
+        } catch (IOException e) {
+            LOG.debugf("Failed to read extension metadata from %s: %s", jar.getName(), e.getMessage());
+            return null;
+        }
+    }
+
+    static ExtensionMetadata parseExtensionYaml(String yaml) {
+        ExtensionMetadata meta = new ExtensionMetadata();
+
+        Matcher m = YAML_NAME.matcher(yaml);
+        if (m.find()) {
+            meta.name = m.group(1).trim();
+        }
+
+        m = YAML_DESCRIPTION.matcher(yaml);
+        if (m.find()) {
+            meta.description = m.group(1).trim();
+        }
+
+        m = YAML_GUIDE.matcher(yaml);
+        if (m.find()) {
+            meta.guide = m.group(1).trim();
+        }
+
+        m = YAML_CATEGORIES_BLOCK.matcher(yaml);
+        if (m.find()) {
+            String block = m.group(1);
+            List<String> cats = new ArrayList<>();
+            Matcher itemMatcher = YAML_LIST_ITEM.matcher(block);
+            while (itemMatcher.find()) {
+                cats.add(itemMatcher.group(1).trim().toLowerCase());
+            }
+            if (!cats.isEmpty()) {
+                meta.categories = List.copyOf(cats);
+            }
+        }
+
+        return meta;
+    }
+
+    /**
+     * Composes the skill body from raw skill content, extension metadata,
+     * and discovered MCP tools.
+     */
+    static String composeContent(String rawSkill, ExtensionMetadata meta,
+            List<McpToolInfo> tools, String skillName) {
+        StringBuilder sb = new StringBuilder();
+
+        if (meta != null) {
+            if (meta.name != null) {
+                sb.append("# ").append(meta.name).append("\n\n");
+            }
+            if (meta.description != null) {
+                sb.append("> ").append(meta.description).append("\n");
+            }
+            if (meta.guide != null) {
+                sb.append("> Guide: ").append(meta.guide).append("\n");
+            }
+            if (sb.length() > 0) {
+                sb.append("\n");
+            }
+        }
+
+        sb.append(rawSkill.trim()).append("\n");
+
+        if (tools != null && !tools.isEmpty()) {
+            sb.append("\n").append(formatMcpToolsSection(tools, skillName));
+        }
+
+        return sb.toString();
+    }
+
+    // ── MCP tool discovery via Jandex ──────────────────────────────────────
+
+    record McpToolInfo(String name, String description, Map<String, ParameterInfo> parameters) {
+    }
+
+    record ParameterInfo(String description, boolean required) {
+    }
+
+    /**
+     * Discovers MCP tools from an extension's JARs:
+     * runtime methods from the dev JAR, build-time tools from the deployment JAR.
+     */
+    static List<McpToolInfo> discoverMcpTools(JarFile deploymentJar, Path runtimeJar, Path devJar) {
+        List<McpToolInfo> tools = new ArrayList<>();
+
+        // Scan dev JAR for @JsonRpcDescription + @DevMCPEnableByDefault methods
+        if (devJar != null && Files.isRegularFile(devJar)) {
+            try (JarFile jar = new JarFile(devJar.toFile())) {
+                tools.addAll(scanRuntimeMcpMethods(jar));
+            } catch (IOException e) {
+                LOG.debugf("Failed to scan dev JAR %s: %s", devJar, e.getMessage());
+            }
+        }
+
+        // Scan runtime JAR for the same annotations (some extensions put them here)
+        if (runtimeJar != null && Files.isRegularFile(runtimeJar)) {
+            try (JarFile jar = new JarFile(runtimeJar.toFile())) {
+                tools.addAll(scanRuntimeMcpMethods(jar));
+            } catch (IOException e) {
+                LOG.debugf("Failed to scan runtime JAR %s: %s", runtimeJar, e.getMessage());
+            }
+        }
+
+        // Scan deployment JAR for @DevMcpBuildTimeTool annotations
+        tools.addAll(scanBuildTimeTools(deploymentJar));
+
+        // Deduplicate by tool name
+        Map<String, McpToolInfo> deduplicated = new LinkedHashMap<>();
+        for (McpToolInfo tool : tools) {
+            deduplicated.putIfAbsent(tool.name(), tool);
+        }
+        return new ArrayList<>(deduplicated.values());
+    }
+
+    /**
+     * Scans a JAR for methods annotated with both @JsonRpcDescription and @DevMCPEnableByDefault.
+     */
+    static List<McpToolInfo> scanRuntimeMcpMethods(JarFile jar) {
+        Index index;
+        try {
+            index = indexJar(jar);
+        } catch (IOException e) {
+            LOG.debugf("Failed to index JAR %s: %s", jar.getName(), e.getMessage());
+            return List.of();
+        }
+
+        List<McpToolInfo> tools = new ArrayList<>();
+        for (AnnotationInstance ann : index.getAnnotations(JSON_RPC_DESCRIPTION)) {
+            if (ann.target().kind() != AnnotationTarget.Kind.METHOD) {
+                continue;
+            }
+
+            MethodInfo method = ann.target().asMethod();
+            if (method.name().equals("<init>")
+                    || method.returnType().kind() == Type.Kind.VOID
+                    || !java.lang.reflect.Modifier.isPublic(method.flags())) {
+                continue;
+            }
+
+            if (!method.hasAnnotation(DEV_MCP_ENABLE_BY_DEFAULT)) {
+                continue;
+            }
+
+            AnnotationValue descValue = ann.value();
+            if (descValue == null || descValue.asString().isBlank()) {
+                continue;
+            }
+
+            Map<String, ParameterInfo> params = new LinkedHashMap<>();
+            for (MethodParameterInfo param : method.parameters()) {
+                boolean required = !OPTIONAL.equals(param.type().name());
+                String paramDesc = null;
+                AnnotationInstance paramAnn = param.annotation(JSON_RPC_DESCRIPTION);
+                if (paramAnn != null && paramAnn.value() != null) {
+                    paramDesc = paramAnn.value().asString();
+                }
+                params.put(param.name(), new ParameterInfo(paramDesc, required));
+            }
+
+            tools.add(new McpToolInfo(method.name(), descValue.asString(),
+                    params.isEmpty() ? null : params));
+        }
+        return tools;
+    }
+
+    /**
+     * Scans a deployment JAR for @DevMcpBuildTimeTool annotations.
+     */
+    static List<McpToolInfo> scanBuildTimeTools(JarFile deploymentJar) {
+        Index index;
+        try {
+            index = indexJar(deploymentJar);
+        } catch (IOException e) {
+            LOG.debugf("Failed to index deployment JAR %s: %s", deploymentJar.getName(), e.getMessage());
+            return List.of();
+        }
+
+        List<McpToolInfo> tools = new ArrayList<>();
+
+        for (AnnotationInstance ann : index.getAnnotations(DEV_MCP_BUILD_TIME_TOOL)) {
+            tools.add(buildTimeToolFromAnnotation(ann));
+        }
+        for (AnnotationInstance container : index.getAnnotations(DEV_MCP_BUILD_TIME_TOOLS)) {
+            AnnotationValue valueArray = container.value();
+            if (valueArray != null) {
+                for (AnnotationInstance ann : valueArray.asNestedArray()) {
+                    tools.add(buildTimeToolFromAnnotation(ann));
+                }
+            }
+        }
+        return tools;
+    }
+
+    private static McpToolInfo buildTimeToolFromAnnotation(AnnotationInstance ann) {
+        String name = ann.value("name").asString();
+        String description = ann.value("description").asString();
+
+        Map<String, ParameterInfo> params = new LinkedHashMap<>();
+        AnnotationValue paramsValue = ann.value("params");
+        if (paramsValue != null) {
+            for (AnnotationInstance paramAnn : paramsValue.asNestedArray()) {
+                String paramName = paramAnn.value("name").asString();
+                AnnotationValue paramDescValue = paramAnn.value("description");
+                String paramDesc = paramDescValue != null ? paramDescValue.asString() : null;
+                if (paramDesc != null && paramDesc.isEmpty()) {
+                    paramDesc = null;
+                }
+                AnnotationValue requiredValue = paramAnn.value("required");
+                boolean required = requiredValue == null || requiredValue.asBoolean();
+                params.put(paramName, new ParameterInfo(paramDesc, required));
+            }
+        }
+        return new McpToolInfo(name, description, params.isEmpty() ? null : params);
+    }
+
+    /**
+     * Creates a Jandex index from all .class files inside a JAR.
+     */
+    static Index indexJar(JarFile jar) throws IOException {
+        Indexer indexer = new Indexer();
+        Enumeration<JarEntry> entries = jar.entries();
+        while (entries.hasMoreElements()) {
+            JarEntry entry = entries.nextElement();
+            if (entry.getName().endsWith(".class") && !entry.isDirectory()) {
+                try (InputStream is = jar.getInputStream(entry)) {
+                    indexer.index(is);
+                }
+            }
+        }
+        return indexer.complete();
+    }
+
+    /**
+     * Formats a markdown table listing available Dev MCP tools.
+     */
+    static String formatMcpToolsSection(List<McpToolInfo> tools, String extensionName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("### Available Dev MCP Tools\n\n");
+        sb.append("| Tool | Description | Parameters |\n");
+        sb.append("|------|-------------|------------|\n");
+
+        for (McpToolInfo tool : tools) {
+            String fullName = extensionName + "_" + tool.name();
+            sb.append("| `").append(fullName).append("` | ");
+            sb.append(escapeMarkdownTable(tool.description())).append(" | ");
+
+            if (tool.parameters() != null && !tool.parameters().isEmpty()) {
+                StringJoiner pj = new StringJoiner(", ");
+                for (Map.Entry<String, ParameterInfo> param : tool.parameters().entrySet()) {
+                    StringBuilder ps = new StringBuilder();
+                    ps.append("`").append(param.getKey()).append("`");
+                    if (param.getValue().required()) {
+                        ps.append(" (required)");
+                    }
+                    if (param.getValue().description() != null) {
+                        ps.append(": ").append(escapeMarkdownTable(param.getValue().description()));
+                    }
+                    pj.add(ps.toString());
+                }
+                sb.append(pj);
+            } else {
+                sb.append("—");
+            }
+            sb.append(" |\n");
+        }
+        return sb.toString();
+    }
+
+    private static String escapeMarkdownTable(String text) {
+        return text.replace("|", "\\|").replace("\n", " ");
+    }
+
+    static class ExtensionMetadata {
+        String name;
+        String description;
+        String guide;
+        List<String> categories;
+    }
+
+    // ── pom.xml dependency parsing ──────────────────────────────────────────
+
+    record MavenDependency(String groupId, String artifactId, String version) {
+    }
+
+    /**
+     * Parses direct dependencies from the project's {@code pom.xml}.
+     * Resolves property placeholders like {@code ${some.version}} from the
+     * {@code <properties>} section. Skips dependencies without a resolvable version.
+     */
+    static List<MavenDependency> parseDependencies(String projectDir) {
+        Path pomFile = Path.of(projectDir, "pom.xml");
+        if (!Files.isRegularFile(pomFile)) {
+            return List.of();
+        }
+
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            Document doc = factory.newDocumentBuilder().parse(pomFile.toFile());
+
+            Map<String, String> properties = parseProperties(doc);
+
+            List<MavenDependency> deps = new ArrayList<>();
+            NodeList depNodes = doc.getElementsByTagName("dependency");
+            for (int i = 0; i < depNodes.getLength(); i++) {
+                Element depEl = (Element) depNodes.item(i);
+                // Skip dependencies nested inside <plugin> or <exclusions>
+                if (isNestedInPluginOrExclusion(depEl)) {
+                    continue;
+                }
+                String groupId = getChildText(depEl, "groupId");
+                String artifactId = getChildText(depEl, "artifactId");
+                String version = getChildText(depEl, "version");
+
+                if (groupId == null || artifactId == null) {
+                    continue;
+                }
+
+                groupId = resolveProperty(groupId, properties);
+                artifactId = resolveProperty(artifactId, properties);
+                if (version != null) {
+                    version = resolveProperty(version, properties);
+                }
+
+                // Skip if version couldn't be resolved (BOM-managed, we can't resolve those)
+                if (version == null || version.contains("${")) {
+                    continue;
+                }
+
+                deps.add(new MavenDependency(groupId, artifactId, version));
+            }
+            return deps;
+        } catch (Exception e) {
+            LOG.debugf("Failed to parse pom.xml at %s: %s", pomFile, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static Map<String, String> parseProperties(Document doc) {
+        Map<String, String> props = new HashMap<>();
+        NodeList propsNodes = doc.getElementsByTagName("properties");
+        if (propsNodes.getLength() > 0) {
+            Element propsEl = (Element) propsNodes.item(0);
+            NodeList children = propsEl.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                if (children.item(i) instanceof Element el) {
+                    props.put(el.getTagName(), el.getTextContent().trim());
+                }
+            }
+        }
+        return props;
+    }
+
+    static String resolveProperty(String value, Map<String, String> properties) {
+        if (value == null || !value.contains("${")) {
+            return value;
+        }
+        String resolved = value;
+        Pattern propPattern = Pattern.compile("\\$\\{([^}]+)}");
+        Matcher m = propPattern.matcher(value);
+        while (m.find()) {
+            String propName = m.group(1);
+            String propValue = properties.get(propName);
+            if (propValue != null) {
+                resolved = resolved.replace(m.group(0), propValue);
+            }
+        }
+        return resolved;
+    }
+
+    private static boolean isNestedInPluginOrExclusion(Element el) {
+        org.w3c.dom.Node parent = el.getParentNode();
+        while (parent instanceof Element parentEl) {
+            String tag = parentEl.getTagName();
+            if ("plugin".equals(tag) || "exclusions".equals(tag) || "dependencyManagement".equals(tag)) {
+                return true;
+            }
+            parent = parentEl.getParentNode();
+        }
+        return false;
     }
 
     /**
