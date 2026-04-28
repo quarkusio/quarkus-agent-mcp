@@ -1515,4 +1515,30 @@ class SkillReaderTest {
         Map<String, String> props = Map.of("major", "3", "minor", "21");
         assertEquals("3.21", SkillReader.resolveProperty("${major}.${minor}", props));
     }
+
+    @Test
+    void parseSettingsFromMvnConfigHandlesEqualsForm() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path mvnDir = projectDir.resolve(".mvn");
+        Files.createDirectories(mvnDir);
+        Files.writeString(mvnDir.resolve("maven.config"), "-s=.mvn/custom-settings.xml\n");
+
+        Path result = SkillReader.parseSettingsFromMvnConfig(projectDir);
+
+        assertNotNull(result);
+        assertEquals(projectDir.resolve(".mvn/custom-settings.xml").normalize(), result);
+    }
+
+    @Test
+    void parseSettingsFromMvnConfigHandlesLongEqualsForm() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path mvnDir = projectDir.resolve(".mvn");
+        Files.createDirectories(mvnDir);
+        Files.writeString(mvnDir.resolve("maven.config"), "--settings=/abs/path/settings.xml\n");
+
+        Path result = SkillReader.parseSettingsFromMvnConfig(projectDir);
+
+        assertNotNull(result);
+        assertEquals(Path.of("/abs/path/settings.xml"), result);
+    }
 }

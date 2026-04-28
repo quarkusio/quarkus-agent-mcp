@@ -606,7 +606,7 @@ public final class SkillReader {
             if (meta.guide != null) {
                 sb.append("> Guide: ").append(meta.guide).append("\n");
             }
-            if (sb.length() > 0) {
+            if (!sb.isEmpty()) {
                 sb.append("\n");
             }
         }
@@ -730,13 +730,19 @@ public final class SkillReader {
         List<McpToolInfo> tools = new ArrayList<>();
 
         for (AnnotationInstance ann : index.getAnnotations(DEV_MCP_BUILD_TIME_TOOL)) {
-            tools.add(buildTimeToolFromAnnotation(ann));
+            McpToolInfo tool = buildTimeToolFromAnnotation(ann);
+            if (tool != null) {
+                tools.add(tool);
+            }
         }
         for (AnnotationInstance container : index.getAnnotations(DEV_MCP_BUILD_TIME_TOOLS)) {
             AnnotationValue valueArray = container.value();
             if (valueArray != null) {
                 for (AnnotationInstance ann : valueArray.asNestedArray()) {
-                    tools.add(buildTimeToolFromAnnotation(ann));
+                    McpToolInfo tool = buildTimeToolFromAnnotation(ann);
+                    if (tool != null) {
+                        tools.add(tool);
+                    }
                 }
             }
         }
@@ -744,8 +750,13 @@ public final class SkillReader {
     }
 
     private static McpToolInfo buildTimeToolFromAnnotation(AnnotationInstance ann) {
-        String name = ann.value("name").asString();
-        String description = ann.value("description").asString();
+        AnnotationValue nameValue = ann.value("name");
+        AnnotationValue descriptionValue = ann.value("description");
+        if (nameValue == null || descriptionValue == null) {
+            return null;
+        }
+        String name = nameValue.asString();
+        String description = descriptionValue.asString();
 
         Map<String, ParameterInfo> params = new LinkedHashMap<>();
         AnnotationValue paramsValue = ann.value("params");
@@ -1108,10 +1119,18 @@ public final class SkillReader {
         try {
             String content = Files.readString(configFile, StandardCharsets.UTF_8);
             String[] tokens = content.trim().split("\\s+");
-            for (int i = 0; i < tokens.length - 1; i++) {
-                if (tokens[i].equals("-s") || tokens[i].equals("--settings")) {
-                    Path settingsPath = Path.of(tokens[i + 1]);
-                    // Resolve relative paths against the project directory
+            for (int i = 0; i < tokens.length; i++) {
+                String token = tokens[i];
+                String settingsValue = null;
+                if ((token.equals("-s") || token.equals("--settings")) && i + 1 < tokens.length) {
+                    settingsValue = tokens[i + 1];
+                } else if (token.startsWith("-s=")) {
+                    settingsValue = token.substring(3);
+                } else if (token.startsWith("--settings=")) {
+                    settingsValue = token.substring(11);
+                }
+                if (settingsValue != null) {
+                    Path settingsPath = Path.of(settingsValue);
                     if (!settingsPath.isAbsolute()) {
                         settingsPath = projectDir.resolve(settingsPath);
                     }
