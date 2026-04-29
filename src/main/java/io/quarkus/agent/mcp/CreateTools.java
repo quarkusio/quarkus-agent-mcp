@@ -191,7 +191,7 @@ public class CreateTools {
                 return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir
                         + "\n\nNEXT STEPS (follow this order strictly):"
                         + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "
-                        + "search for Quarkus extensions that provide it using quarkus_searchDocs. "
+                        + "search for Quarkus extensions that provide it using quarkus_searchDocs and quarkus_searchTools query='extension'. "
                         + "NEVER roll your own solution when an extension exists."
                         + "\n2. PRESENT OPTIONS -- use search results from step 1 to list ALL matching extensions "
                         + "to the user with a recommended default marked. "
