@@ -47,11 +47,10 @@ public class CreateTools {
     @Tool(name = "quarkus_create", description = "Create a new Quarkus application and auto-start it in dev mode. "
             + "RULES: 1) NEVER implement features manually when a Quarkus extension exists -- "
             + "always search for and add the right extension first. "
-            + "2) BEFORE creating the app or writing ANY code, present the user with extension choices for each capability. "
-            + "When multiple extensions can fulfill a capability (e.g. REST: quarkus-rest vs resteasy-classic vs spring-web; "
-            + "Web UI: Qute vs Web Bundler vs Quinoa vs Web Dependency Locator; "
-            + "Persistence: Hibernate ORM with Panache vs Hibernate Reactive vs JDBC), "
-            + "list ALL options with a recommended default and WAIT for the user to choose. NEVER silently pick one. "
+            + "2) BEFORE creating the app or writing ANY code, use quarkus_searchTools query='extension' and "
+            + "quarkus_searchDocs to discover ALL extensions that can fulfill each requested capability. "
+            + "Present the full list of matching extensions to the user with a recommended default "
+            + "and WAIT for the user to choose. NEVER silently pick one. "
             + "3) Use quarkus_skills for each chosen extension BEFORE writing any code -- this is mandatory, not optional. "
             + "4) ALWAYS write tests for every feature if it makes sense and unless the user explicitly requested you not to. "
             + "5) Keep README.md updated with app description, features, endpoints, and Quarkus guide links after every change.")
@@ -194,8 +193,8 @@ public class CreateTools {
                         + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "
                         + "search for Quarkus extensions that provide it using quarkus_searchDocs. "
                         + "NEVER roll your own solution when an extension exists."
-                        + "\n2. PRESENT OPTIONS -- when multiple extensions can fulfill a capability, "
-                        + "list ALL options to the user with a recommended default marked. "
+                        + "\n2. PRESENT OPTIONS -- use search results from step 1 to list ALL matching extensions "
+                        + "to the user with a recommended default marked. "
                         + "Wait for the user to choose before proceeding. Never silently pick one."
                         + "\n3. LOAD SKILLS -- call quarkus_skills for each chosen extension BEFORE writing any code. "
                         + "This is mandatory, not optional."
@@ -472,13 +471,10 @@ public class CreateTools {
                     **STOP before writing ANY code.** For every feature or capability the user requests:
 
                     1. **Search for Quarkus extensions** that provide the capability using `quarkus_searchDocs` and `quarkus_searchTools query='extension'`.
-                    2. **Present ALL matching options to the user** with a recommended default marked. Examples:
-                       - User asks for REST -> present: **quarkus-rest** (recommended), resteasy-classic, spring-web
-                       - User asks for web UI -> present: **Qute** (recommended), Web Bundler, Quinoa, Web Dependency Locator
-                       - User asks for persistence -> present: **Hibernate ORM with Panache** (recommended), Hibernate Reactive, JDBC directly
-                       - User asks for security -> present: **OIDC** (recommended), Security JDBC, Security JPA, Security Properties
-                    3. **Wait for the user to choose** before proceeding. Do NOT silently pick an extension.
-                    4. **Load skills** with `quarkus_skills` for the chosen extension BEFORE writing any code.
+                       Do NOT rely on a fixed list of extensions -- always search dynamically, as available extensions change across Quarkus versions and platform BOMs.
+                    2. **Present ALL matching extensions to the user** with a recommended default marked. Wait for the user to choose before proceeding.
+                       Do NOT silently pick an extension when multiple options exist.
+                    3. **Load skills** with `quarkus_skills` for the chosen extension BEFORE writing any code.
 
                     Skipping any of these steps is a violation. NEVER implement a feature by hand-coding HTML, JavaScript, REST endpoints, or other functionality when a Quarkus extension exists for it.
 
