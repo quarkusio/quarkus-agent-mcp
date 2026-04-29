@@ -170,7 +170,7 @@ Ask your agent to build a Quarkus application using natural language. The agent 
 
 > **You:** Create a Quarkus REST API with a greeting endpoint and a PostgreSQL database
 >
-> **Agent:** _(uses `quarkus_create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode, and a `CLAUDE.md` is generated with project-specific workflow instructions)_
+> **Agent:** _(uses `quarkus_create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode, a `CLAUDE.md` is generated with project-specific workflow instructions, and a `.mcp.json` is created for automatic MCP server discovery)_
 >
 > **Agent:** _(calls `quarkus_skills` to learn the correct patterns for Panache, REST, and other extensions before writing any code)_
 >
@@ -187,7 +187,7 @@ NEW PROJECT                           EXISTING PROJECT
 
 1. quarkus_create                     1. quarkus_update
    → scaffolds + auto-starts             → checks version, suggests upgrades
-   → generates CLAUDE.md
+   → generates CLAUDE.md + .mcp.json
                                       2. quarkus_start
 2. quarkus_skills                        → starts dev mode
    → learn extension patterns
@@ -211,6 +211,7 @@ NEW PROJECT                           EXISTING PROJECT
 - **Tests via subagents** — if your agent supports subagents, test execution can be dispatched to one so the main conversation stays responsive.
 - **The MCP server survives crashes** — if the app crashes due to a code error, the agent can use `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location) and fix it. Use `quarkus_logs` for broader context.
 - **CLAUDE.md** — every new project gets a `CLAUDE.md` with Quarkus-specific workflow instructions that guide the agent.
+- **`.mcp.json`** — every new project gets a `.mcp.json` for automatic MCP server discovery by agents that support the convention (Claude Code, Pi/pi.dev).
 
 ### What the agent can do with a running app
 
@@ -230,9 +231,11 @@ Once a Quarkus app is running in dev mode, the agent can discover and use all De
 
 The agent can read extension-specific coding skills using `quarkus_skills`. Skills contain patterns, testing guidelines, and common pitfalls for each extension — things like "always use `@Transactional` for write operations with Panache" or "don't create REST clients manually, let CDI inject them."
 
+When called without a query, skills are organized by category (Web, Data, Security, Core, etc.) for easier discovery.
+
 Skills are loaded using a three-layer chain (most specific wins):
 
-1. **JAR skills** — from the `quarkus-extension-skills` JAR, automatically downloaded from Maven Central (or a configured mirror) for the project's Quarkus version. These are the official defaults.
+1. **Extension skills** — discovered from individual extension deployment JARs (`META-INF/quarkus-skill.md`) in the local Maven repository, composed with extension metadata and available Dev MCP tools. This supports skills from Quarkus core, Quarkiverse, and custom extensions. For older Quarkus versions that don't ship skill files in deployment JARs, the aggregated `quarkus-extension-skills` JAR is used as a fallback.
 2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
 3. **Project-level skills** — from `.quarkus/skills/<extension-name>/SKILL.md` in the project directory. Allows teams to customize extension patterns for their specific project conventions.
 
@@ -244,6 +247,8 @@ Each layer can either **enhance** (default) or **override** the previous layer, 
 The agent can also create or update skill customizations using `quarkus_updateSkill`. When the user asks to customize a skill, the agent will ask:
 1. **Enhance or override?** — append to the base skill or fully replace it.
 2. **Project or global scope?** — save under `.quarkus/skills/` (this project only) or `~/.quarkus/skills/` (all projects).
+
+To inspect or version-control a skill, the agent can use `quarkus_saveSkill` to materialize the full composed skill (all layers merged) as a local file in `.quarkus/skills/`.
 
 ### Documentation search
 
@@ -266,7 +271,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion` |
+| `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md and `.mcp.json` | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion`, `noCode`, `noWrapper`, `createInCurrentDir` |
 
 ### Update Checking
 
@@ -279,7 +284,8 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `quarkus_skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
-| `quarkus_updateSkill` | Create or update a skill customization (enhance or override) | `projectDir` (required), `skillName` (required), `content` (required), `description`, `mode`, `scope` |
+| `quarkus_updateSkill` | Create or update a skill customization (enhance or override) | `projectDir` (required), `skillName` (required), `content` (required), `description`, `categories`, `mode`, `scope` |
+| `quarkus_saveSkill` | Save a composed skill as a local file in `.quarkus/skills/` for inspection and version control | `projectDir` (required), `skillName` (required) |
 
 ### Lifecycle Management
 
@@ -305,6 +311,16 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 |------|-------------|------------|
 | `quarkus_searchDocs` | Semantic search over Quarkus documentation | `query` (required), `maxResults`, `projectDir` |
 
+### Agent Logging
+
+In stdio mode, server logs are invisible because stdout/stderr are consumed by the MCP protocol. These tools let the agent toggle file logging at runtime without any upfront configuration.
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `quarkus_agent_log_enable` | Enable file logging to `~/.quarkus/agent-mcp/agent-mcp.log` | _(none)_ |
+| `quarkus_agent_log_disable` | Disable file logging (the log file is preserved) | _(none)_ |
+| `quarkus_agent_log` | Read the last N lines from the log file | `lines` |
+
 ## Architecture
 
 ```
@@ -316,18 +332,19 @@ AI Coding Agent (Claude Code, Copilot, Cursor...)
 |                                          |
 |  create ------- quarkus create app       |
 |  update ------- version check + report   |
-|  skills ------- extension-skills JAR     |
+|  skills ------- extension deployment JARs|
 |  start/stop --- child process            |
 |  searchTools -- HTTP proxy to Dev MCP    |
 |  callTool ----- HTTP proxy to Dev MCP    |
 |  searchDocs --- embeddings + pgvector    |
+|  agent_log ---- on-demand file logging   |
 +------+---------+---------+----------+----+
        |         |         |          |
        v         v         v          v
-  quarkus dev  /q/dev-mcp  pgvector   Maven Central
-  (may crash   (running    (pre-      (extension-
-   -- Agent    app's Dev   indexed    skills JAR)
-   survives)   MCP tools)  docs)
+  quarkus dev  /q/dev-mcp  pgvector   ~/.m2/repository
+  (may crash   (running    (pre-      (extension
+   -- Agent    app's Dev   indexed    deployment
+   survives)   MCP tools)  docs)     JARs)
 ```
 
 The MCP server wraps `quarkus dev` as a child process, so it stays alive when the app crashes. This is the key differentiator from the built-in Dev MCP server.
@@ -345,6 +362,8 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.doc-search.pg-database` | `quarkus` | PostgreSQL database |
 | `agent-mcp.doc-search.min-score` | `0.82` | Minimum similarity score for search results |
 | `agent-mcp.local-skills-dir` | `~/.quarkus/skills` | Directory for user-level skill customizations |
+| `agent-mcp.process.mvn-cmd` | _(auto-detect)_ | Override the Maven command used to start dev mode (e.g. `mvn` to skip wrapper detection) |
+| `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |
 
 ## Building a Native Image
 
