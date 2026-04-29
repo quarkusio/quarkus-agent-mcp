@@ -74,13 +74,9 @@ public class CreateTools {
             @ToolArg(description = "Whether to skip starter code from extension codestarts. "
                     + "If not specified, ask the user before creating the project. "
                     + "Some extensions provide useful starter code tailored to the extension; "
-                    + "others only generate a basic hello world. "
-                    + "Default to true (skip code) if the user has no preference.",
-                    required = false) Boolean noCode,
+                    + "others only generate a basic hello world.") boolean noCode,
             @ToolArg(description = "Whether to skip generating the Maven/Gradle wrapper scripts. "
-                    + "If not specified, ask the user before creating the project. "
-                    + "Default to false (include wrapper) if the user has no preference.",
-                    required = false) Boolean noWrapper) {
+                    + "If not specified, ask the user before creating the project.") boolean noWrapper) {
         try {
             String resolvedGroupId = (groupId != null && !groupId.isBlank()) ? groupId : "org.acme";
             String resolvedArtifactId = (artifactId != null && !artifactId.isBlank()) ? artifactId : "quarkus-app";
@@ -118,11 +114,8 @@ public class CreateTools {
                 createInPlace = false;
             }
 
-            boolean resolvedNoCode = noCode == null || noCode;
-            boolean resolvedNoWrapper = noWrapper != null && noWrapper;
-
             List<String> command = buildCommand(outDir, resolvedGroupId, resolvedArtifactId, extensions, buildTool,
-                    resolvedVersion, resolvedNoCode, resolvedNoWrapper);
+                    resolvedVersion, noCode, noWrapper);
             LOG.infof("Creating Quarkus app: %s", String.join(" ", command));
 
             ProcessBuilder pb = new ProcessBuilder(command)
