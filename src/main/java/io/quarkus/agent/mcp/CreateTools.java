@@ -170,13 +170,13 @@ public class CreateTools {
                 projectDir = new File(outDir, resolvedArtifactId).getAbsolutePath();
             }
 
-            // Ensure rest-assured is available for testing (--no-code skips it)
+            // Ensure rest-assured is available for testing (codestarts may not include it)
             addRestAssuredIfMissing(projectDir);
 
             // Ensure source directories exist so dev mode watches them from the start.
-            // --no-code creates an empty project; if src/test/java doesn't exist when
-            // dev mode starts, the file watcher never registers it and tests added later
-            // won't be discovered without a full restart.
+            // If src/test/java doesn't exist when dev mode starts, the file watcher
+            // never registers it and tests added later won't be discovered without a
+            // full restart.
             createSourceDirectories(projectDir);
 
             // Generate AGENTS.md with Quarkus-specific instructions (and CLAUDE.md pointing to it)
