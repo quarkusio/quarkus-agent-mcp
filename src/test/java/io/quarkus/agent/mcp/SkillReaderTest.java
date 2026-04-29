@@ -1541,4 +1541,67 @@ class SkillReaderTest {
         assertNotNull(result);
         assertEquals(Path.of("/abs/path/settings.xml"), result);
     }
+
+    // --- Save skill (materialize composed skill locally) tests ---
+
+    @Test
+    void saveSkillWritesComposedContentWithOverrideMode() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2",
+                "### CDI patterns\nUse @Inject for DI.",
+                "name: \"ArC\"\ndescription: \"Build time CDI\"\nmetadata:\n  guide: \"https://quarkus.io/guides/cdi\"\n  categories:\n  - \"core\"\n");
+
+        // Read the composed skill (layer 1)
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+        assertEquals(1, skills.size());
+        SkillReader.SkillInfo skill = skills.get(0);
+
+        // Write it locally with override mode
+        Path projectDir = tempDir.resolve("my-project");
+        Files.createDirectories(projectDir);
+        Path written = SkillReader.writeSkill(
+                skill.name(), skill.content(), skill.description(), skill.categories(),
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
+
+        assertTrue(Files.exists(written));
+        String savedContent = Files.readString(written);
+        assertTrue(savedContent.contains("name: quarkus-arc"));
+        assertTrue(savedContent.contains("mode: override"));
+        assertTrue(savedContent.contains("description: \"Build time CDI\""));
+        assertTrue(savedContent.contains("categories: \"core\""));
+        assertTrue(savedContent.contains("### CDI patterns"));
+        assertTrue(savedContent.contains("Use @Inject"));
+        assertEquals(projectDir.resolve(".quarkus/skills/quarkus-arc/SKILL.md"), written);
+    }
+
+    @Test
+    void savedSkillOverridesBaseOnNextRead() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2",
+                "### CDI patterns\nUse @Inject for DI.",
+                "name: \"ArC\"\ndescription: \"Build time CDI\"\n");
+
+        // Read the base skill
+        List<SkillReader.SkillInfo> baseSkills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+        SkillReader.SkillInfo base = baseSkills.get(0);
+
+        // Save it locally
+        Path projectDir = tempDir.resolve("my-project");
+        Files.createDirectories(projectDir);
+        SkillReader.writeSkill(
+                base.name(), base.content(), base.description(), base.categories(),
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
+
+        // Verify the saved skill is used as an override in the three-layer chain
+        Map<String, SkillReader.SkillInfo> skillMap = new LinkedHashMap<>();
+        skillMap.put(base.name(), base);
+
+        Path projectSkillsDir = projectDir.resolve(".quarkus/skills");
+        List<SkillReader.SkillInfo> projectSkills = SkillReader.readLocalSkills(projectSkillsDir);
+        SkillReader.overlaySkills(skillMap, projectSkills, projectSkillsDir.toString());
+
+        SkillReader.SkillInfo result = skillMap.get("quarkus-arc");
+        assertNotNull(result);
+        assertEquals(SkillReader.SkillMode.OVERRIDE, result.mode());
+    }
 }
