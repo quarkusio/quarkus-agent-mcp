@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -1603,5 +1604,46 @@ class SkillReaderTest {
         SkillReader.SkillInfo result = skillMap.get("quarkus-arc");
         assertNotNull(result);
         assertEquals(SkillReader.SkillMode.OVERRIDE, result.mode());
+    }
+
+    @Test
+    void saveSkillCreateOnlyRefusesToOverwriteExistingFile() throws Exception {
+        Path m2Repo = tempDir.resolve("m2-repo");
+        createCoreExtension(m2Repo, "quarkus-arc", "3.21.2",
+                "### CDI patterns\nUse @Inject for DI.",
+                "name: \"ArC\"\ndescription: \"Build time CDI\"\n");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.scanCoreExtensionSkills("3.21.2", m2Repo, false);
+        SkillReader.SkillInfo skill = skills.get(0);
+
+        Path projectDir = tempDir.resolve("my-project");
+        Files.createDirectories(projectDir);
+
+        SkillReader.writeSkill(
+                skill.name(), skill.content(), skill.description(), skill.categories(),
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true, true);
+
+        assertThrows(FileAlreadyExistsException.class, () -> SkillReader.writeSkill(
+                skill.name(), skill.content(), skill.description(), skill.categories(),
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true, true));
+    }
+
+    @Test
+    void saveSkillWithoutCreateOnlyOverwritesExistingFile() throws Exception {
+        Path projectDir = tempDir.resolve("my-project");
+        Files.createDirectories(projectDir);
+
+        SkillReader.writeSkill(
+                "quarkus-test", "Original content", "desc", null,
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
+
+        SkillReader.writeSkill(
+                "quarkus-test", "Updated content", "desc", null,
+                SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
+
+        Path skillFile = projectDir.resolve(".quarkus/skills/quarkus-test/SKILL.md");
+        String content = Files.readString(skillFile);
+        assertTrue(content.contains("Updated content"));
+        assertFalse(content.contains("Original content"));
     }
 }

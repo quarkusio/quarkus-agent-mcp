@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -959,6 +960,13 @@ public final class SkillReader {
      */
     static Path writeSkill(String skillName, String content, String description, List<String> categories,
             SkillMode mode, String projectDir, Path localSkillsDir, boolean projectScope) throws IOException {
+        return writeSkill(skillName, content, description, categories, mode, projectDir, localSkillsDir, projectScope,
+                false);
+    }
+
+    static Path writeSkill(String skillName, String content, String description, List<String> categories,
+            SkillMode mode, String projectDir, Path localSkillsDir, boolean projectScope, boolean createOnly)
+            throws IOException {
         if (skillName == null || !VALID_SKILL_NAME.matcher(skillName).matches()) {
             throw new IllegalArgumentException("Invalid skill name: " + skillName
                     + ". Must contain only letters, digits, dots, hyphens, and underscores.");
@@ -988,7 +996,12 @@ public final class SkillReader {
         sb.append(content);
 
         Path skillFile = skillDir.resolve(SKILL_FILE_NAME);
-        Files.writeString(skillFile, sb.toString(), StandardCharsets.UTF_8);
+        if (createOnly) {
+            Files.writeString(skillFile, sb.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        } else {
+            Files.writeString(skillFile, sb.toString(), StandardCharsets.UTF_8);
+        }
         LOG.infof("Wrote skill '%s' to %s", skillName, skillFile);
         return skillFile;
     }

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -115,9 +116,7 @@ public class DevMcpProxyTools {
             + "Skills can be customized using quarkus_updateSkill. Customizations use a three-layer chain: "
             + "JAR defaults -> global (~/.quarkus/skills/) -> project (.quarkus/skills/). "
             + "By default, customizations ENHANCE (append to) the base skill. "
-            + "Use mode 'override' to fully replace a base skill. "
-            + "After presenting skills, you can offer the user to save them locally "
-            + "using quarkus_saveSkill for version control and direct editing.",
+            + "Use mode 'override' to fully replace a base skill.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_skills", readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
@@ -314,19 +313,12 @@ public class DevMcpProxyTools {
             + "version-control, and edit directly. The saved file uses OVERRIDE mode. "
             + "Use this when the user wants to inspect, customize, or version-control an extension skill. "
             + "NOTE: If a local project skill already exists for this name, the tool will NOT overwrite it.",
-            annotations = @Tool.Annotations(title = "quarkus_saveSkill", readOnlyHint = false, destructiveHint = false, idempotentHint = true))
+            annotations = @Tool.Annotations(title = "quarkus_saveSkill", readOnlyHint = false, destructiveHint = false, idempotentHint = false))
     ToolResponse saveSkill(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "The extension skill name to save locally "
                     + "(e.g. 'quarkus-rest', 'quarkus-hibernate-orm-panache')") String skillName) {
         try {
-            Path projectSkillFile = Path.of(projectDir, ".quarkus", "skills", skillName, "SKILL.md");
-            if (Files.exists(projectSkillFile)) {
-                return ToolResponse.success(
-                        "A local skill for '" + skillName + "' already exists at " + projectSkillFile + ".\n"
-                                + "To modify it, edit the file directly or use quarkus_updateSkill.");
-            }
-
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
             List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false);
             SkillReader.SkillInfo matched = skills.stream()
@@ -342,7 +334,7 @@ public class DevMcpProxyTools {
 
             Path written = SkillReader.writeSkill(
                     matched.name(), matched.content(), matched.description(), matched.categories(),
-                    SkillReader.SkillMode.OVERRIDE, projectDir, effectiveLocalDir, true);
+                    SkillReader.SkillMode.OVERRIDE, projectDir, effectiveLocalDir, true, true);
 
             return ToolResponse.success(
                     "Skill '" + matched.name() + "' saved successfully.\n"
@@ -350,6 +342,10 @@ public class DevMcpProxyTools {
                             + "- **Path**: " + written + "\n\n"
                             + "You can now edit this file directly. "
                             + "The skill will take effect on the next call to `quarkus_skills`.");
+        } catch (FileAlreadyExistsException e) {
+            return ToolResponse.success(
+                    "A local skill for '" + skillName + "' already exists at " + e.getFile() + ".\n"
+                            + "To modify it, edit the file directly or use quarkus_updateSkill.");
         } catch (Exception e) {
             return ToolResponse.error("Failed to save skill: " + e.getMessage());
         }
