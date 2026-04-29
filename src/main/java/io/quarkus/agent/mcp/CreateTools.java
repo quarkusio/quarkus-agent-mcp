@@ -71,7 +71,17 @@ public class CreateTools {
                     + "Set to true when the user asks to create the project 'here', 'in the current directory', "
                     + "or 'in this directory'. If omitted, auto-detects: when the outputDir name matches "
                     + "the artifactId and the directory is empty, the project is created in-place.",
-                    required = false) Boolean createInCurrentDir) {
+                    required = false) Boolean createInCurrentDir,
+            @ToolArg(description = "Whether to skip starter code from extension codestarts. "
+                    + "If not specified, ask the user before creating the project. "
+                    + "Some extensions provide useful starter code tailored to the extension; "
+                    + "others only generate a basic hello world. "
+                    + "Default to true (skip code) if the user has no preference.",
+                    required = false) Boolean noCode,
+            @ToolArg(description = "Whether to skip generating the Maven/Gradle wrapper scripts. "
+                    + "If not specified, ask the user before creating the project. "
+                    + "Default to false (include wrapper) if the user has no preference.",
+                    required = false) Boolean noWrapper) {
         try {
             String resolvedGroupId = (groupId != null && !groupId.isBlank()) ? groupId : "org.acme";
             String resolvedArtifactId = (artifactId != null && !artifactId.isBlank()) ? artifactId : "quarkus-app";
@@ -109,8 +119,11 @@ public class CreateTools {
                 createInPlace = false;
             }
 
+            boolean resolvedNoCode = noCode == null || noCode;
+            boolean resolvedNoWrapper = noWrapper != null && noWrapper;
+
             List<String> command = buildCommand(outDir, resolvedGroupId, resolvedArtifactId, extensions, buildTool,
-                    resolvedVersion);
+                    resolvedVersion, resolvedNoCode, resolvedNoWrapper);
             LOG.infof("Creating Quarkus app: %s", String.join(" ", command));
 
             ProcessBuilder pb = new ProcessBuilder(command)
@@ -209,13 +222,15 @@ public class CreateTools {
     }
 
     private List<String> buildCommand(File outputDir, String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion) {
+            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
         String cmd = resolveCreateCommand();
         return switch (cmd) {
             case "quarkus" -> buildQuarkusCliCommand("quarkus", groupId, artifactId, extensions, buildTool,
-                    quarkusVersion);
-            case "mvn" -> buildMavenCommand(groupId, artifactId, extensions, buildTool, quarkusVersion);
-            case "jbang" -> buildJBangCommand(groupId, artifactId, extensions, buildTool, quarkusVersion);
+                    quarkusVersion, noCode, noWrapper);
+            case "mvn" -> buildMavenCommand(groupId, artifactId, extensions, buildTool, quarkusVersion, noCode,
+                    noWrapper);
+            case "jbang" -> buildJBangCommand(groupId, artifactId, extensions, buildTool, quarkusVersion, noCode,
+                    noWrapper);
             default -> throw new IllegalStateException("Unexpected command: " + cmd);
         };
     }
@@ -244,23 +259,29 @@ public class CreateTools {
     }
 
     private List<String> buildQuarkusCliCommand(String quarkusCmd, String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion) {
-        return buildCliStyleCommand(List.of(quarkusCmd), groupId, artifactId, extensions, buildTool, quarkusVersion);
+            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
+        return buildCliStyleCommand(List.of(quarkusCmd), groupId, artifactId, extensions, buildTool, quarkusVersion,
+                noCode, noWrapper);
     }
 
     private List<String> buildJBangCommand(String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion) {
+            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
         return buildCliStyleCommand(List.of("jbang", "quarkus@quarkusio"), groupId, artifactId, extensions, buildTool,
-                quarkusVersion);
+                quarkusVersion, noCode, noWrapper);
     }
 
     private List<String> buildCliStyleCommand(List<String> prefix, String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion) {
+            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
         List<String> cmd = new ArrayList<>(prefix);
         cmd.add("create");
         cmd.add("app");
         cmd.add(groupId + ":" + artifactId);
-        cmd.add("--no-code");
+        if (noCode) {
+            cmd.add("--no-code");
+        }
+        if (noWrapper) {
+            cmd.add("--no-wrapper");
+        }
         cmd.add("--batch-mode");
 
         if (quarkusVersion != null && !quarkusVersion.isBlank()) {
@@ -277,7 +298,7 @@ public class CreateTools {
     }
 
     private List<String> buildMavenCommand(String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion) {
+            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
         List<String> cmd = new ArrayList<>();
         cmd.add("mvn");
         String pluginGroupId = "io.quarkus.platform";
@@ -289,7 +310,12 @@ public class CreateTools {
                 + "create");
         cmd.add("-DprojectGroupId=" + groupId);
         cmd.add("-DprojectArtifactId=" + artifactId);
-        cmd.add("-DnoCode=true");
+        if (noCode) {
+            cmd.add("-DnoCode=true");
+        }
+        if (noWrapper) {
+            cmd.add("-DnoWrapper=true");
+        }
         cmd.add("-B");
 
         if (quarkusVersion != null && !quarkusVersion.isBlank()) {
