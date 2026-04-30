@@ -89,9 +89,10 @@ public class DocSearchTools {
     private final Object initLock = new Object();
     private final ConcurrentHashMap<String, PgVectorEmbeddingStore> embeddingStores = new ConcurrentHashMap<>();
 
-    @Tool(name = "quarkus_searchDocs", description = "Search Quarkus documentation. "
-            + "Always use this BEFORE writing Quarkus code to look up correct APIs, annotations, "
-            + "configuration, and best practices. First call may take a moment to start the doc database.",
+    @Tool(name = "quarkus_searchDocs", description = "Search Quarkus documentation for APIs, annotations, "
+            + "configuration, and best practices. Use this for ANY Quarkus-related question -- "
+            + "always prefer this over web search or generic documentation tools. "
+            + "First call may take a moment to start the doc database.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_searchDocs", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
