@@ -3,6 +3,9 @@ package io.quarkus.agent.mcp;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import io.quarkus.runtime.StartupEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -11,10 +14,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Logger;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logmanager.formatters.PatternFormatter;
 import org.jboss.logmanager.handlers.FileHandler;
 
+@ApplicationScoped
 public class AgentLogTools {
 
     private static final org.jboss.logging.Logger LOG = org.jboss.logging.Logger.getLogger(AgentLogTools.class);
@@ -22,6 +28,15 @@ public class AgentLogTools {
     private static final Path LOG_DIR = Path.of(System.getProperty("user.home"), ".quarkus", "agent-mcp");
     private static final Path LOG_FILE = LOG_DIR.resolve("agent-mcp.log");
     private static volatile FileHandler activeHandler;
+
+    @ConfigProperty(name = "agent-mcp.log.enabled")
+    Optional<Boolean> logEnabled;
+
+    void onStart(@Observes StartupEvent event) {
+        if (logEnabled.orElse(false)) {
+            enableLogging();
+        }
+    }
 
     @Tool(name = "quarkus_agent_log_enable", description = "Enable file logging for the Quarkus Agent MCP server. "
             + "Use this when running in stdio mode to capture log output that would otherwise be invisible. "
@@ -65,7 +80,7 @@ public class AgentLogTools {
 
     @Tool(name = "quarkus_agent_log", description = "Read the Quarkus Agent MCP server's own log file. "
             + "Returns the most recent lines from ~/.quarkus/agent-mcp/agent-mcp.log. "
-            + "The log file exists if quarkus_agent_log_enable was called previously.",
+            + "The log file exists if file logging was enabled via agent-mcp.log.enabled=true or by calling quarkus_agent_log_enable.",
             annotations = @Tool.Annotations(title = "quarkus_agent_log", readOnlyHint = true, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false))
     ToolResponse readLog(
