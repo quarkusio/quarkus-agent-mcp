@@ -313,7 +313,36 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 ### Agent Logging
 
-In stdio mode, server logs are invisible because stdout/stderr are consumed by the MCP protocol. These tools let the agent toggle file logging at runtime without any upfront configuration.
+In stdio mode, server logs are invisible because stdout/stderr are consumed by the MCP protocol.
+
+File logging can be enabled permanently by setting `agent-mcp.log.enabled=true`. The easiest way is via an environment variable in your MCP server configuration:
+
+**Claude Code:**
+
+```bash
+claude mcp add quarkus-agent -e AGENT_MCP_LOG_ENABLED=true -- jbang quarkus-agent-mcp@quarkusio
+```
+
+**VS Code / Cursor / Windsurf / JetBrains (JSON config):**
+
+```json
+{
+  "servers": {
+    "quarkus-agent": {
+      "type": "stdio",
+      "command": "jbang",
+      "args": ["quarkus-agent-mcp@quarkusio"],
+      "env": {
+        "AGENT_MCP_LOG_ENABLED": "true"
+      }
+    }
+  }
+}
+```
+
+Logs are written to `~/.quarkus/agent-mcp/agent-mcp.log`.
+
+The agent can also toggle file logging on-the-fly using these tools:
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
@@ -364,6 +393,7 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.local-skills-dir` | `~/.quarkus/skills` | Directory for user-level skill customizations |
 | `agent-mcp.process.mvn-cmd` | _(auto-detect)_ | Override the Maven command used to start dev mode (e.g. `mvn` to skip wrapper detection) |
 | `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |
+| `agent-mcp.log.enabled` | `false` | Enable file logging on startup — logs are written to `~/.quarkus/agent-mcp/agent-mcp.log` |
 
 ## Building a Native Image
 
