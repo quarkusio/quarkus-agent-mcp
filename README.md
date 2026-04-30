@@ -323,29 +323,9 @@ In stdio mode, server logs are invisible because stdout/stderr are consumed by t
 
 ## Architecture
 
-```
-AI Coding Agent (Claude Code, Copilot, Cursor...)
-        |  MCP (stdio)
-        v
-+------------------------------------------+
-|  Quarkus Agent MCP (always running)      |
-|                                          |
-|  create ------- quarkus create app       |
-|  update ------- version check + report   |
-|  skills ------- extension deployment JARs|
-|  start/stop --- child process            |
-|  searchTools -- HTTP proxy to Dev MCP    |
-|  callTool ----- HTTP proxy to Dev MCP    |
-|  searchDocs --- embeddings + pgvector    |
-|  agent_log ---- on-demand file logging   |
-+------+---------+---------+----------+----+
-       |         |         |          |
-       v         v         v          v
-  quarkus dev  /q/dev-mcp  pgvector   ~/.m2/repository
-  (may crash   (running    (pre-      (extension
-   -- Agent    app's Dev   indexed    deployment
-   survives)   MCP tools)  docs)     JARs)
-```
+<p align="center">
+  <img src="architecture-diagram.png" alt="Quarkus Agent MCP Architecture">
+</p>
 
 The MCP server wraps `quarkus dev` as a child process, so it stays alive when the app crashes. This is the key differentiator from the built-in Dev MCP server.
 
