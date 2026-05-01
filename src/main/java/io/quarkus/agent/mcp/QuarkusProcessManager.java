@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +35,9 @@ public class QuarkusProcessManager {
     @ConfigProperty(name = "agent-mcp.process.gradle-cmd")
     Optional<String> gradleCmd;
 
+    @ConfigProperty(name = "agent-mcp.app-log.enabled")
+    Optional<Boolean> appLogEnabled;
+
     private static final Set<String> VALID_BUILD_TOOLS = Set.of("maven", "gradle");
 
     public synchronized void start(String projectDir, String buildTool) {
@@ -60,6 +64,9 @@ public class QuarkusProcessManager {
             Process process = pb.start();
             QuarkusInstance instance = new QuarkusInstance(normalizedDir, process, executor);
             instances.put(normalizedDir, instance);
+            if (appLogEnabled.orElse(false)) {
+                instance.enableFileLogging(computeLogFile(normalizedDir));
+            }
             LOG.infof("Started Quarkus dev mode at: %s (build tool: %s)", normalizedDir, detectedBuildTool);
         } catch (IOException e) {
             throw new RuntimeException("Failed to start Quarkus dev mode: " + e.getMessage(), e);
@@ -218,6 +225,11 @@ public class QuarkusProcessManager {
                     + "Falling back to system build tool.", wrapper.getAbsolutePath(), e.getMessage());
             return false;
         }
+    }
+
+    static Path computeLogFile(String projectDir) {
+        String dirName = Path.of(projectDir).getFileName().toString();
+        return Path.of(System.getProperty("user.home"), ".quarkus", "apps", dirName, "quarkus-dev.log");
     }
 
     private boolean isWindows() {

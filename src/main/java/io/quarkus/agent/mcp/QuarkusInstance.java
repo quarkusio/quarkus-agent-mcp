@@ -1,12 +1,18 @@
 package io.quarkus.agent.mcp;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +43,8 @@ public class QuarkusInstance {
     private final LinkedList<String> logBuffer = new LinkedList<>();
     private final AtomicReference<Status> status = new AtomicReference<>(Status.STARTING);
     private volatile int httpPort = -1;
+    private volatile PrintWriter logWriter;
+    private volatile Path logFile;
 
     public QuarkusInstance(String projectDir, Process process, ExecutorService executor) {
         this.projectDir = projectDir;
@@ -111,6 +119,34 @@ public class QuarkusInstance {
         while (logBuffer.size() > MAX_LOG_LINES) {
             logBuffer.removeFirst();
         }
+        PrintWriter w = logWriter;
+        if (w != null) {
+            w.println(line);
+        }
+    }
+
+    public synchronized void enableFileLogging(Path file) {
+        if (logWriter != null) {
+            return;
+        }
+        try {
+            Files.createDirectories(file.getParent());
+            logWriter = new PrintWriter(new BufferedWriter(
+                    new OutputStreamWriter(new FileOutputStream(file.toFile(), true), StandardCharsets.UTF_8)), true);
+            logFile = file;
+            LOG.infof("App file logging enabled: %s", file);
+        } catch (IOException e) {
+            LOG.warnf("Failed to enable app file logging for %s: %s", projectDir, e.getMessage());
+        }
+    }
+
+    public synchronized void disableFileLogging() {
+        PrintWriter w = logWriter;
+        if (w != null) {
+            w.close();
+            logWriter = null;
+            LOG.infof("App file logging disabled for: %s", projectDir);
+        }
     }
 
     public String getProjectDir() {
@@ -157,6 +193,7 @@ public class QuarkusInstance {
     }
 
     public void stop() {
+        disableFileLogging();
         status.set(Status.STOPPED);
         if (process.isAlive()) {
             try {
@@ -181,5 +218,9 @@ public class QuarkusInstance {
 
     public int getHttpPort() {
         return httpPort;
+    }
+
+    public Path getLogFile() {
+        return logFile;
     }
 }
