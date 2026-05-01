@@ -114,7 +114,7 @@ public class DevMcpProxyTools {
             + "Skills may include an 'Available Dev MCP Tools' section listing extension-specific Dev MCP tools "
             + "that can be invoked via quarkus_callTool (e.g. OpenAPI schema retrieval, scheduler job management). "
             + "Skills can be customized using quarkus_updateSkill. Customizations use a three-layer chain: "
-            + "JAR defaults -> global (~/.quarkus/skills/) -> project (.quarkus/skills/). "
+            + "JAR defaults -> global (~/.quarkus/skills/) -> project (.agent/skills/). "
             + "By default, customizations ENHANCE (append to) the base skill. "
             + "Use mode 'override' to fully replace a base skill.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
@@ -271,7 +271,7 @@ public class DevMcpProxyTools {
             + "IMPORTANT: Before writing, ask the user two questions: "
             + "(1) Should this ENHANCE the existing skill (append your content to the base) or OVERRIDE it (fully replace the base)? "
             + "Enhance is the default and recommended for most cases. "
-            + "(2) Should this be saved at PROJECT scope (.quarkus/skills/ in the project, affects only this project) "
+            + "(2) Should this be saved at PROJECT scope (.agent/skills/ in the project, affects only this project) "
             + "or GLOBAL scope (~/.quarkus/skills/, affects all projects)?",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
@@ -283,7 +283,7 @@ public class DevMcpProxyTools {
             @ToolArg(description = "Optional description for the skill", required = false) String description,
             @ToolArg(description = "Optional comma-separated categories for the skill index (e.g. 'web', 'data', 'security', 'core')", required = false) String categories,
             @ToolArg(description = "Mode: 'enhance' (default) appends to the base skill, 'override' fully replaces it", required = false) String mode,
-            @ToolArg(description = "Scope: 'project' (default) saves under .quarkus/skills/ in the project, "
+            @ToolArg(description = "Scope: 'project' (default) saves under .agent/skills/ in the project, "
                     + "'global' saves under ~/.quarkus/skills/", required = false) String scope) {
         try {
             SkillReader.SkillMode skillMode = SkillReader.SkillMode.fromString(mode);
@@ -308,7 +308,7 @@ public class DevMcpProxyTools {
     }
 
     @Tool(name = "quarkus_saveSkill", description = "Save/materialize a composed extension skill as a local file "
-            + "in the project's .quarkus/skills/ directory. This creates a local copy of the full skill "
+            + "in the project's .agent/skills/ directory. This creates a local copy of the full skill "
             + "(including any existing user/project customizations) that the user can then see, "
             + "version-control, and edit directly. The saved file uses OVERRIDE mode. "
             + "Use this when the user wants to inspect, customize, or version-control an extension skill. "

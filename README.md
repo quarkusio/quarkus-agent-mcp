@@ -237,7 +237,7 @@ Skills are loaded using a three-layer chain (most specific wins):
 
 1. **Extension skills** — discovered from individual extension deployment JARs (`META-INF/quarkus-skill.md`) in the local Maven repository, composed with extension metadata and available Dev MCP tools. This supports skills from Quarkus core, Quarkiverse, and custom extensions. For older Quarkus versions that don't ship skill files in deployment JARs, the aggregated `quarkus-extension-skills` JAR is used as a fallback.
 2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
-3. **Project-level skills** — from `.quarkus/skills/<extension-name>/SKILL.md` in the project directory. Allows teams to customize extension patterns for their specific project conventions.
+3. **Project-level skills** — from `.agent/skills/<extension-name>/SKILL.md` in the project directory. Allows teams to customize extension patterns for their specific project conventions.
 
 Each layer can either **enhance** (default) or **override** the previous layer, controlled by the `mode` field in the SKILL.md frontmatter:
 
@@ -246,9 +246,9 @@ Each layer can either **enhance** (default) or **override** the previous layer, 
 
 The agent can also create or update skill customizations using `quarkus_updateSkill`. When the user asks to customize a skill, the agent will ask:
 1. **Enhance or override?** — append to the base skill or fully replace it.
-2. **Project or global scope?** — save under `.quarkus/skills/` (this project only) or `~/.quarkus/skills/` (all projects).
+2. **Project or global scope?** — save under `.agent/skills/` (this project only) or `~/.quarkus/skills/` (all projects).
 
-To inspect or version-control a skill, the agent can use `quarkus_saveSkill` to materialize the full composed skill (all layers merged) as a local file in `.quarkus/skills/`.
+To inspect or version-control a skill, the agent can use `quarkus_saveSkill` to materialize the full composed skill (all layers merged) as a local file in `.agent/skills/`.
 
 ### Documentation search
 
@@ -285,7 +285,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 |------|-------------|------------|
 | `quarkus_skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
 | `quarkus_updateSkill` | Create or update a skill customization (enhance or override) | `projectDir` (required), `skillName` (required), `content` (required), `description`, `categories`, `mode`, `scope` |
-| `quarkus_saveSkill` | Save a composed skill as a local file in `.quarkus/skills/` for inspection and version control | `projectDir` (required), `skillName` (required) |
+| `quarkus_saveSkill` | Save a composed skill as a local file in `.agent/skills/` for inspection and version control | `projectDir` (required), `skillName` (required) |
 
 ### Lifecycle Management
 

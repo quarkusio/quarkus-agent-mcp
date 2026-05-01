@@ -526,13 +526,13 @@ public class CreateTools {
                     When the user asks to update or customize a skill, ask them:
                     1. **Enhance or override?** -- Enhance (default) appends content to the base skill.
                        Override fully replaces the base skill.
-                    2. **Project or global scope?** -- Project scope (`.quarkus/skills/`) affects only this project.
+                    2. **Project or global scope?** -- Project scope (`.agent/skills/`) affects only this project.
                        Global scope (`~/.quarkus/skills/`) affects all projects.
 
                     Skills use a three-layer chain: JAR defaults -> global customizations -> project customizations.
                     Each layer can either enhance (append to) or override (replace) the previous layer.
 
-                    You can also manually place SKILL.md files under `.quarkus/skills/<extension-name>/SKILL.md`.
+                    You can also manually place SKILL.md files under `.agent/skills/<extension-name>/SKILL.md`.
                     Use `mode: enhance` (default) or `mode: override` in the YAML frontmatter to control behavior.
                     """;
             Files.writeString(Path.of(projectDir, "AGENTS.md"), agentsMdContent, StandardCharsets.UTF_8);

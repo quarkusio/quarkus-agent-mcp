@@ -55,7 +55,7 @@ import org.w3c.dom.NodeList;
  *       {@code quarkus-extension-skills} JAR for older Quarkus versions.</li>
  *   <li><b>User-level skills</b> — from {@code ~/.quarkus/skills/} or a configured
  *       directory (for extension developers testing globally)</li>
- *   <li><b>Project-level skills</b> — from {@code .quarkus/skills/}
+ *   <li><b>Project-level skills</b> — from {@code .agent/skills/}
  *       in the project directory (for per-project customization)</li>
  * </ol>
  * Each layer can either <b>enhance</b> (append to) or <b>override</b> (replace)
@@ -199,9 +199,9 @@ public final class SkillReader {
         Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
         overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir, metadataOnly), effectiveLocalDir.toString());
 
-        // Layer 3: Overlay project-level skills (.quarkus/skills/)
+        // Layer 3: Overlay project-level skills (.agent/skills/)
         if (projectDir != null) {
-            Path projectSkillsDir = Path.of(projectDir, ".quarkus", "skills");
+            Path projectSkillsDir = Path.of(projectDir, ".agent", "skills");
             overlaySkills(skillsByName, readLocalSkills(projectSkillsDir, metadataOnly), projectSkillsDir.toString());
         }
 
@@ -954,7 +954,7 @@ public final class SkillReader {
      * @param mode         ENHANCE or OVERRIDE
      * @param projectDir   the project directory (used for project-scope writes)
      * @param localSkillsDir user-level skills directory, or null for the default
-     * @param projectScope true to write under {@code <projectDir>/.quarkus/skills/},
+     * @param projectScope true to write under {@code <projectDir>/.agent/skills/},
      *                     false to write under the user-level directory
      * @return the path the file was written to
      */
@@ -974,7 +974,7 @@ public final class SkillReader {
 
         Path baseDir;
         if (projectScope) {
-            baseDir = Path.of(projectDir, ".quarkus", "skills");
+            baseDir = Path.of(projectDir, ".agent", "skills");
         } else {
             baseDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
         }

@@ -257,8 +257,8 @@ class SkillReaderTest {
 
     @Test
     void readLocalSkillsFromProjectDir() throws Exception {
-        // Simulate a project with skills under .quarkus/skills/
-        Path projectSkillsDir = tempDir.resolve(".quarkus/skills/quarkus-rest");
+        // Simulate a project with skills under .agent/skills/
+        Path projectSkillsDir = tempDir.resolve(".agent/skills/quarkus-rest");
         Files.createDirectories(projectSkillsDir);
         Files.writeString(projectSkillsDir.resolve("SKILL.md"), """
                 ---
@@ -269,7 +269,7 @@ class SkillReaderTest {
                 ### Custom REST patterns for this project
                 """);
 
-        Path skillsDir = tempDir.resolve(".quarkus/skills");
+        Path skillsDir = tempDir.resolve(".agent/skills");
         List<SkillReader.SkillInfo> skills = SkillReader.readLocalSkills(skillsDir);
 
         assertEquals(1, skills.size());
@@ -559,7 +559,7 @@ class SkillReaderTest {
         assertTrue(content.contains("description: \"Custom REST skill\""));
         assertTrue(content.contains("mode: enhance"));
         assertTrue(content.contains("### My custom patterns"));
-        assertEquals(projectDir.resolve(".quarkus/skills/quarkus-rest/SKILL.md"), written);
+        assertEquals(projectDir.resolve(".agent/skills/quarkus-rest/SKILL.md"), written);
     }
 
     @Test
@@ -1572,7 +1572,7 @@ class SkillReaderTest {
         assertTrue(savedContent.contains("categories: \"core\""));
         assertTrue(savedContent.contains("### CDI patterns"));
         assertTrue(savedContent.contains("Use @Inject"));
-        assertEquals(projectDir.resolve(".quarkus/skills/quarkus-arc/SKILL.md"), written);
+        assertEquals(projectDir.resolve(".agent/skills/quarkus-arc/SKILL.md"), written);
     }
 
     @Test
@@ -1597,7 +1597,7 @@ class SkillReaderTest {
         Map<String, SkillReader.SkillInfo> skillMap = new LinkedHashMap<>();
         skillMap.put(base.name(), base);
 
-        Path projectSkillsDir = projectDir.resolve(".quarkus/skills");
+        Path projectSkillsDir = projectDir.resolve(".agent/skills");
         List<SkillReader.SkillInfo> projectSkills = SkillReader.readLocalSkills(projectSkillsDir);
         SkillReader.overlaySkills(skillMap, projectSkills, projectSkillsDir.toString());
 
@@ -1641,7 +1641,7 @@ class SkillReaderTest {
                 "quarkus-test", "Updated content", "desc", null,
                 SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
 
-        Path skillFile = projectDir.resolve(".quarkus/skills/quarkus-test/SKILL.md");
+        Path skillFile = projectDir.resolve(".agent/skills/quarkus-test/SKILL.md");
         String content = Files.readString(skillFile);
         assertTrue(content.contains("Updated content"));
         assertFalse(content.contains("Original content"));
