@@ -6,7 +6,6 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
 import jakarta.inject.Inject;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jboss.logging.Logger;
@@ -35,7 +34,7 @@ public class LifecycleTools {
         try {
             processManager.start(projectDir, buildTool);
             String message = "Quarkus application starting in dev mode at: " + projectDir;
-            message += containerWarning(projectDir);
+            message += ContainerRuntimeChecker.containerWarning(projectDir);
             return ToolResponse.success(message);
         } catch (Exception e) {
             LOG.error("Failed to start Quarkus application at " + projectDir, e);
@@ -143,24 +142,5 @@ public class LifecycleTools {
         } catch (JsonProcessingException e) {
             return ToolResponse.error("Failed to serialize instance list: " + e.getMessage());
         }
-    }
-
-    static String containerWarning(String projectDir) {
-        try {
-            if (!ContainerRuntimeChecker.isContainerRuntimeAvailable()) {
-                List<String> extensions = ContainerRuntimeChecker.detectDevServicesExtensions(projectDir);
-                if (!extensions.isEmpty()) {
-                    return "\n\nWARNING: Docker/Podman is not running. "
-                            + "This project uses extensions that require Dev Services containers: "
-                            + String.join(", ", extensions) + ". "
-                            + "The app will likely fail to start backing services. "
-                            + "Ask the user to start Docker/Podman, then restart the app with quarkus_stop + quarkus_start. "
-                            + "Do NOT attempt to fix this by changing code or configuration.";
-                }
-            }
-        } catch (Exception e) {
-            LOG.debugf("Container runtime check failed: %s", e.getMessage());
-        }
-        return "";
     }
 }

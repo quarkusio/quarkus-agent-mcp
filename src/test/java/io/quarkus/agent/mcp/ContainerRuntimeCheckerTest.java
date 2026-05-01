@@ -124,6 +124,43 @@ class ContainerRuntimeCheckerTest {
         assertTrue(result.contains("Elasticsearch"));
     }
 
+    @Test
+    void ignoresExtensionNamesInComments() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                    <!-- TODO: add kafka and redis support later -->
+                    <dependencies>
+                        <dependency>
+                            <artifactId>quarkus-rest-jackson</artifactId>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<String> result = ContainerRuntimeChecker.detectDevServicesExtensions(tempDir.toString());
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void deduplicatesMultipleKafkaExtensions() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <artifactId>quarkus-messaging-kafka</artifactId>
+                        </dependency>
+                        <dependency>
+                            <artifactId>quarkus-kafka-client</artifactId>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
+
+        List<String> result = ContainerRuntimeChecker.detectDevServicesExtensions(tempDir.toString());
+        assertEquals(1, result.size());
+        assertEquals("Kafka", result.get(0));
+    }
+
     // --- detectContainerIssues ---
 
     @Test
@@ -159,13 +196,6 @@ class ContainerRuntimeCheckerTest {
     }
 
     @Test
-    void detectsErrorResponseFromDaemon() {
-        String logs = "Error response from daemon: conflict";
-        Optional<String> result = ContainerRuntimeChecker.detectContainerIssues(logs);
-        assertTrue(result.isPresent());
-    }
-
-    @Test
     void detectsDockerNotFound() {
         String logs = "docker: not found";
         Optional<String> result = ContainerRuntimeChecker.detectContainerIssues(logs);
@@ -180,15 +210,24 @@ class ContainerRuntimeCheckerTest {
     }
 
     @Test
-    void detectsTestcontainersException() {
+    void detectsTestcontainersStartupFailure() {
         String logs = """
                 2024-01-01 INFO Starting
-                org.testcontainers.containers.GenericContainer - something
-                java.lang.Exception: connection refused
+                org.testcontainers.containers.GenericContainer - Could not start container
                 """;
         Optional<String> result = ContainerRuntimeChecker.detectContainerIssues(logs);
         assertTrue(result.isPresent());
-        assertTrue(result.get().contains("Testcontainers error"));
+        assertTrue(result.get().contains("Testcontainers container startup failure"));
+    }
+
+    @Test
+    void ignoresNormalTestcontainersLogs() {
+        String logs = """
+                2024-01-01 INFO org.testcontainers.DockerClientFactory - Docker client strategy found
+                2024-01-01 INFO org.testcontainers.utility.ImageNameSubstitutor - Image name substitution
+                """;
+        Optional<String> result = ContainerRuntimeChecker.detectContainerIssues(logs);
+        assertTrue(result.isEmpty());
     }
 
     @Test

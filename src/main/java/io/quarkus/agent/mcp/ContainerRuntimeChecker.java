@@ -26,27 +26,29 @@ final class ContainerRuntimeChecker {
     private static final long CACHE_TTL_MS = 60_000;
 
     private static final Map<String, String> DEV_SERVICES_EXTENSIONS = Map.ofEntries(
-            Map.entry("jdbc-postgresql", "PostgreSQL"),
-            Map.entry("jdbc-mysql", "MySQL"),
-            Map.entry("jdbc-mariadb", "MariaDB"),
-            Map.entry("jdbc-mssql", "SQL Server"),
-            Map.entry("jdbc-oracle", "Oracle"),
-            Map.entry("jdbc-db2", "DB2"),
-            Map.entry("reactive-pg-client", "PostgreSQL Reactive"),
-            Map.entry("reactive-mysql-client", "MySQL Reactive"),
-            Map.entry("reactive-mssql-client", "SQL Server Reactive"),
-            Map.entry("reactive-oracle-client", "Oracle Reactive"),
-            Map.entry("mongodb", "MongoDB"),
-            Map.entry("elasticsearch", "Elasticsearch"),
-            Map.entry("opensearch", "OpenSearch"),
-            Map.entry("kafka", "Kafka"),
-            Map.entry("smallrye-reactive-messaging-amqp", "AMQP"),
-            Map.entry("smallrye-reactive-messaging-rabbitmq", "RabbitMQ"),
-            Map.entry("redis", "Redis"),
-            Map.entry("infinispan", "Infinispan"),
-            Map.entry("keycloak", "Keycloak"),
-            Map.entry("oidc", "OIDC/Keycloak"),
-            Map.entry("apicurio", "Apicurio Registry"));
+            Map.entry("quarkus-jdbc-postgresql", "PostgreSQL"),
+            Map.entry("quarkus-jdbc-mysql", "MySQL"),
+            Map.entry("quarkus-jdbc-mariadb", "MariaDB"),
+            Map.entry("quarkus-jdbc-mssql", "SQL Server"),
+            Map.entry("quarkus-jdbc-oracle", "Oracle"),
+            Map.entry("quarkus-jdbc-db2", "DB2"),
+            Map.entry("quarkus-reactive-pg-client", "PostgreSQL Reactive"),
+            Map.entry("quarkus-reactive-mysql-client", "MySQL Reactive"),
+            Map.entry("quarkus-reactive-mssql-client", "SQL Server Reactive"),
+            Map.entry("quarkus-reactive-oracle-client", "Oracle Reactive"),
+            Map.entry("quarkus-mongodb", "MongoDB"),
+            Map.entry("quarkus-elasticsearch", "Elasticsearch"),
+            Map.entry("quarkus-opensearch", "OpenSearch"),
+            Map.entry("quarkus-messaging-kafka", "Kafka"),
+            Map.entry("quarkus-kafka-client", "Kafka"),
+            Map.entry("quarkus-kafka-streams", "Kafka"),
+            Map.entry("quarkus-smallrye-reactive-messaging-amqp", "AMQP"),
+            Map.entry("quarkus-smallrye-reactive-messaging-rabbitmq", "RabbitMQ"),
+            Map.entry("quarkus-redis", "Redis"),
+            Map.entry("quarkus-infinispan", "Infinispan"),
+            Map.entry("quarkus-keycloak", "Keycloak"),
+            Map.entry("quarkus-oidc", "OIDC/Keycloak"),
+            Map.entry("quarkus-apicurio", "Apicurio Registry"));
 
     private static final List<String> CONTAINER_ERROR_PATTERNS = List.of(
             "Could not find a valid Docker environment",
@@ -54,9 +56,7 @@ final class ContainerRuntimeChecker {
             "Is the docker daemon running",
             "docker: not found",
             "podman: not found",
-            "ContainerLaunchException",
-            "Error response from daemon",
-            "DockerClientProviderStrategy: Could not find a valid Docker environment");
+            "ContainerLaunchException");
 
     private ContainerRuntimeChecker() {
     }
@@ -92,7 +92,7 @@ final class ContainerRuntimeChecker {
         }
         List<String> found = new ArrayList<>();
         for (var entry : DEV_SERVICES_EXTENSIONS.entrySet()) {
-            if (content.contains(entry.getKey())) {
+            if (content.contains(entry.getKey()) && !found.contains(entry.getValue())) {
                 found.add(entry.getValue());
             }
         }
@@ -111,8 +111,10 @@ final class ContainerRuntimeChecker {
             }
         }
         if (matchedPattern == null && logText.contains("org.testcontainers")) {
-            if (logText.contains("Exception") || logText.contains("Error")) {
-                matchedPattern = "Testcontainers error (org.testcontainers)";
+            if (logText.contains("Could not start container")
+                    || logText.contains("Timed out waiting for container")
+                    || logText.contains("Container startup failed")) {
+                matchedPattern = "Testcontainers container startup failure";
             }
         }
         if (matchedPattern == null) {
@@ -153,6 +155,25 @@ final class ContainerRuntimeChecker {
             LOG.debugf("Failed to read %s: %s", file, e.getMessage());
             return null;
         }
+    }
+
+    static String containerWarning(String projectDir) {
+        try {
+            if (!isContainerRuntimeAvailable()) {
+                List<String> extensions = detectDevServicesExtensions(projectDir);
+                if (!extensions.isEmpty()) {
+                    return "\n\nWARNING: Docker/Podman is not running. "
+                            + "This project uses extensions that require Dev Services containers: "
+                            + String.join(", ", extensions) + ". "
+                            + "The app will likely fail to start backing services. "
+                            + "Ask the user to start Docker/Podman, then restart the app with quarkus_stop + quarkus_start. "
+                            + "Do NOT attempt to fix this by changing code or configuration.";
+                }
+            }
+        } catch (Exception e) {
+            LOG.debugf("Container runtime check failed: %s", e.getMessage());
+        }
+        return "";
     }
 
     // Visible for testing
