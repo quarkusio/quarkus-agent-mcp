@@ -289,7 +289,7 @@ public class DevMcpProxyTools {
             List<String> parsedCategories = categories != null ? SkillReader.parseCategories(categories) : null;
             Path written = SkillReader.writeSkill(
                     skillName, content, description, parsedCategories, skillMode,
-                    projectDir, localSkillsDir.map(Path::of).orElse(null), false);
+                    null, localSkillsDir.map(Path::of).orElse(null), false);
 
             String modeLabel = skillMode == SkillReader.SkillMode.ENHANCE ? "enhance" : "override";
             return ToolResponse.success(

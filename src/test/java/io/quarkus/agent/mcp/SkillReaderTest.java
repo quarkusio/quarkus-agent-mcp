@@ -595,7 +595,7 @@ class SkillReaderTest {
         String content = Files.readString(written);
         assertTrue(content.contains("name: quarkus-rest"));
         assertTrue(content.contains("description: \"Custom REST skill\""));
-        assertTrue(content.contains("mode: enhance"));
+        assertFalse(content.contains("mode:"), "Project-scoped skills should not include mode");
         assertTrue(content.contains("### My custom patterns"));
         assertEquals(projectDir.resolve(".agent/skills/quarkus-rest/SKILL.md"), written);
     }
@@ -622,7 +622,23 @@ class SkillReaderTest {
     }
 
     @Test
-    void writeSkillWithOverrideMode() throws Exception {
+    void writeSkillWithOverrideModeGlobal() throws Exception {
+        Path globalDir = tempDir.resolve("global-skills");
+
+        Path written = SkillReader.writeSkill(
+                "quarkus-rest",
+                "### Full replacement",
+                "Override skill",
+                null,
+                SkillReader.SkillMode.OVERRIDE,
+                null, globalDir, false);
+
+        String content = Files.readString(written);
+        assertTrue(content.contains("mode: override"));
+    }
+
+    @Test
+    void writeSkillProjectScopeOmitsMode() throws Exception {
         Path projectDir = tempDir.resolve("my-project");
         Files.createDirectories(projectDir);
 
@@ -635,7 +651,7 @@ class SkillReaderTest {
                 projectDir.toString(), null, true);
 
         String content = Files.readString(written);
-        assertTrue(content.contains("mode: override"));
+        assertFalse(content.contains("mode:"), "Project-scoped skills should not include mode");
     }
 
     @Test
@@ -1605,7 +1621,7 @@ class SkillReaderTest {
         assertTrue(Files.exists(written));
         String savedContent = Files.readString(written);
         assertTrue(savedContent.contains("name: quarkus-arc"));
-        assertTrue(savedContent.contains("mode: override"));
+        assertFalse(savedContent.contains("mode:"), "Project-scoped skills should not include mode");
         assertTrue(savedContent.contains("description: \"Build time CDI\""));
         assertTrue(savedContent.contains("categories: \"core\""));
         assertTrue(savedContent.contains("### CDI patterns"));
@@ -1642,7 +1658,8 @@ class SkillReaderTest {
 
         SkillReader.SkillInfo result = skillMap.get("quarkus-arc");
         assertNotNull(result);
-        assertEquals(SkillReader.SkillMode.OVERRIDE, result.mode());
+        // Project skills don't write mode to frontmatter, so parsed mode defaults to ENHANCE
+        assertEquals(SkillReader.SkillMode.ENHANCE, result.mode());
     }
 
     @Test

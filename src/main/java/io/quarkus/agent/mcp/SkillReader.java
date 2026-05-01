@@ -998,7 +998,9 @@ public final class SkillReader {
         if (categories != null && !categories.isEmpty()) {
             sb.append("categories: \"").append(String.join(", ", categories)).append("\"\n");
         }
-        sb.append("mode: ").append(mode.name().toLowerCase()).append("\n");
+        if (!projectScope) {
+            sb.append("mode: ").append(mode.name().toLowerCase()).append("\n");
+        }
         sb.append("---\n\n");
         sb.append(content);
 
