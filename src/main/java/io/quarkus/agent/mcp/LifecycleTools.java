@@ -6,7 +6,9 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 
 /**
@@ -32,7 +34,9 @@ public class LifecycleTools {
             @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (auto-detected if omitted)", required = false) String buildTool) {
         try {
             processManager.start(projectDir, buildTool);
-            return ToolResponse.success("Quarkus application starting in dev mode at: " + projectDir);
+            String message = "Quarkus application starting in dev mode at: " + projectDir;
+            message += containerWarning(projectDir);
+            return ToolResponse.success(message);
         } catch (Exception e) {
             LOG.error("Failed to start Quarkus application at " + projectDir, e);
             return ToolResponse.error(e.getMessage());
@@ -78,9 +82,17 @@ public class LifecycleTools {
             if (instance == null) {
                 return ToolResponse.success("not_started");
             }
-            String status = instance.getStatus().name().toLowerCase();
-            if (instance.getStatus() == QuarkusInstance.Status.RUNNING && instance.getHttpPort() > 0) {
+            QuarkusInstance.Status currentStatus = instance.getStatus();
+            String status = currentStatus.name().toLowerCase();
+            if (currentStatus == QuarkusInstance.Status.RUNNING && instance.getHttpPort() > 0) {
                 return ToolResponse.success(status + " (port: " + instance.getHttpPort() + ")");
+            }
+            if (currentStatus == QuarkusInstance.Status.CRASHED) {
+                String recentLogs = instance.getRecentLogs(100);
+                Optional<String> diagnostic = ContainerRuntimeChecker.detectContainerIssues(recentLogs);
+                if (diagnostic.isPresent()) {
+                    return ToolResponse.success(status + "\n\n" + diagnostic.get());
+                }
             }
             return ToolResponse.success(status);
         } catch (Exception e) {
@@ -104,7 +116,12 @@ public class LifecycleTools {
                 return ToolResponse.error("No instance found for: " + projectDir);
             }
             int count = (lines != null && lines > 0) ? Math.min(lines, 10000) : 50;
-            return ToolResponse.success(instance.getRecentLogs(count));
+            String logs = instance.getRecentLogs(count);
+            Optional<String> diagnostic = ContainerRuntimeChecker.detectContainerIssues(logs);
+            if (diagnostic.isPresent()) {
+                logs += "\n\n---\n" + diagnostic.get();
+            }
+            return ToolResponse.success(logs);
         } catch (Exception e) {
             LOG.error("Failed to get logs for " + projectDir, e);
             return ToolResponse.error(e.getMessage());
@@ -126,5 +143,24 @@ public class LifecycleTools {
         } catch (JsonProcessingException e) {
             return ToolResponse.error("Failed to serialize instance list: " + e.getMessage());
         }
+    }
+
+    static String containerWarning(String projectDir) {
+        try {
+            if (!ContainerRuntimeChecker.isContainerRuntimeAvailable()) {
+                List<String> extensions = ContainerRuntimeChecker.detectDevServicesExtensions(projectDir);
+                if (!extensions.isEmpty()) {
+                    return "\n\nWARNING: Docker/Podman is not running. "
+                            + "This project uses extensions that require Dev Services containers: "
+                            + String.join(", ", extensions) + ". "
+                            + "The app will likely fail to start backing services. "
+                            + "Ask the user to start Docker/Podman, then restart the app with quarkus_stop + quarkus_start. "
+                            + "Do NOT attempt to fix this by changing code or configuration.";
+                }
+            }
+        } catch (Exception e) {
+            LOG.debugf("Container runtime check failed: %s", e.getMessage());
+        }
+        return "";
     }
 }
