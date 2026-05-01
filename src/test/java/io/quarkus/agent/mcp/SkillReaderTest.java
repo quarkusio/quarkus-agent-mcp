@@ -279,6 +279,44 @@ class SkillReaderTest {
     }
 
     @Test
+    void projectSkillReplacesBaseWithoutComposition() throws Exception {
+        // Base skill simulating JAR layer
+        SkillReader.SkillInfo base = new SkillReader.SkillInfo(
+                "quarkus-rest", "Base REST skill", "### Base REST patterns\nUse @GET for endpoints.",
+                SkillReader.SkillMode.ENHANCE, List.of("web"));
+
+        // Project-level skill in .agent/skills/ with ENHANCE mode
+        Path projectSkillsDir = tempDir.resolve(".agent/skills/quarkus-rest");
+        Files.createDirectories(projectSkillsDir);
+        Files.writeString(projectSkillsDir.resolve("SKILL.md"), """
+                ---
+                name: quarkus-rest
+                description: "Project REST conventions"
+                mode: enhance
+                ---
+
+                ### Project-specific patterns
+                Always use record DTOs.
+                """);
+
+        Map<String, SkillReader.SkillInfo> skillMap = new LinkedHashMap<>();
+        skillMap.put(base.name(), base);
+
+        // Project skills should replace directly — no enhance composition even though mode says enhance
+        Path skillsDir = tempDir.resolve(".agent/skills");
+        for (SkillReader.SkillInfo skill : SkillReader.readLocalSkills(skillsDir)) {
+            skillMap.put(skill.name(), skill);
+        }
+
+        SkillReader.SkillInfo result = skillMap.get("quarkus-rest");
+        assertNotNull(result);
+        assertEquals("Project REST conventions", result.description());
+        assertTrue(result.content().contains("Project-specific patterns"));
+        // Base content should NOT be present — project skills are standalone
+        assertFalse(result.content().contains("Base REST patterns"));
+    }
+
+    @Test
     void parseMirrorUrlFromSettingsXml() throws Exception {
         Path settingsFile = tempDir.resolve("settings.xml");
         Files.writeString(settingsFile, """
@@ -1593,13 +1631,14 @@ class SkillReaderTest {
                 base.name(), base.content(), base.description(), base.categories(),
                 SkillReader.SkillMode.OVERRIDE, projectDir.toString(), null, true);
 
-        // Verify the saved skill is used as an override in the three-layer chain
+        // Verify the saved skill replaces the base (project skills are standalone, no composition)
         Map<String, SkillReader.SkillInfo> skillMap = new LinkedHashMap<>();
         skillMap.put(base.name(), base);
 
         Path projectSkillsDir = projectDir.resolve(".agent/skills");
-        List<SkillReader.SkillInfo> projectSkills = SkillReader.readLocalSkills(projectSkillsDir);
-        SkillReader.overlaySkills(skillMap, projectSkills, projectSkillsDir.toString());
+        for (SkillReader.SkillInfo skill : SkillReader.readLocalSkills(projectSkillsDir)) {
+            skillMap.put(skill.name(), skill);
+        }
 
         SkillReader.SkillInfo result = skillMap.get("quarkus-arc");
         assertNotNull(result);
