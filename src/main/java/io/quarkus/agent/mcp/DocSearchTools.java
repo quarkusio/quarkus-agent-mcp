@@ -283,13 +283,13 @@ public class DocSearchTools {
                 }
             }
 
-            if (LEGACY_GUIDES.contains(title) || topics.contains("resteasy-classic")) {
+            if (matchesGuide(LEGACY_GUIDES, title, repoPath) || topics.contains("resteasy-classic")) {
                 score += LEGACY_PENALTY;
             }
             if (topics.contains("internals") || topics.contains("documentation")) {
                 score += INTERNAL_DOCS_PENALTY;
             }
-            if (MODERN_GUIDES.contains(title) || topics.contains("resteasy-reactive")) {
+            if (matchesGuide(MODERN_GUIDES, title, repoPath) || topics.contains("resteasy-reactive")) {
                 score += MODERN_GUIDE_BOOST;
             }
 
@@ -298,6 +298,18 @@ public class DocSearchTools {
 
         scored.sort((a, b) -> Double.compare(b.score, a.score));
         return scored;
+    }
+
+    private static boolean matchesGuide(Set<String> guides, String title, String repoPath) {
+        if (guides.contains(title)) {
+            return true;
+        }
+        for (String guide : guides) {
+            if (repoPath.contains("/" + guide + ".") || repoPath.contains("/" + guide + "/")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String metadataOrEmpty(TextSegment segment, String key) {
