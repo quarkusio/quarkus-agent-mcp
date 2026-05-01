@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 
 public class AppLogTools {
@@ -73,7 +74,12 @@ public class AppLogTools {
         try {
             int count = (lines != null && lines > 0) ? Math.min(lines, 10000) : 100;
             List<String> tail = readTail(logFile, count);
-            return ToolResponse.success(String.join("\n", tail));
+            String logs = String.join("\n", tail);
+            Optional<String> diagnostic = ContainerRuntimeChecker.detectContainerIssues(logs);
+            if (diagnostic.isPresent()) {
+                logs += "\n\n---\n" + diagnostic.get();
+            }
+            return ToolResponse.success(logs);
         } catch (IOException e) {
             LOG.error("Failed to read app log file", e);
             return ToolResponse.error("Failed to read app log file: " + e.getMessage());
