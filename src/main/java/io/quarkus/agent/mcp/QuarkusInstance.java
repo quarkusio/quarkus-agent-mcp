@@ -145,6 +145,7 @@ public class QuarkusInstance {
         if (w != null) {
             w.close();
             logWriter = null;
+            logFile = null;
             LOG.infof("App file logging disabled for: %s", projectDir);
         }
     }
