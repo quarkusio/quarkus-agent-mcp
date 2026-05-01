@@ -17,7 +17,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -38,13 +40,27 @@ public class DocSearchTools {
     private static final int MAX_MAX_RESULTS = 50;
     private static final int DIMENSION = 384;
 
+    private static final int MIN_CHUNK_LENGTH = 50;
+    private static final Pattern JUNK_PATTERN = Pattern.compile("^[\\-|\\s+]+$", Pattern.DOTALL);
+    private static final double LEGACY_PENALTY = -0.50;
+    private static final double INTERNAL_DOCS_PENALTY = -0.50;
+    private static final double MODERN_GUIDE_BOOST = 0.15;
+
+    private static final Set<String> LEGACY_GUIDES = Set.of(
+            "resteasy", "resteasy-client", "resteasy-client-multipart");
+
+    private static final Set<String> MODERN_GUIDES = Set.of(
+            "rest", "rest-json", "rest-client", "rest-data-panache",
+            "rest-virtual-threads", "rest-migration");
+
     private static final Map<String, String> SYNONYMS = Map.ofEntries(
             Map.entry("startup", "lifecycle"),
             Map.entry("injection", "cdi"),
             Map.entry("di", "cdi"),
             Map.entry("dependency injection", "cdi"),
-            Map.entry("rest", "resteasy"),
+            Map.entry("endpoint", "rest"),
             Map.entry("api", "rest"),
+            Map.entry("json", "rest-json"),
             Map.entry("database", "datasource"),
             Map.entry("db", "datasource"),
             Map.entry("orm", "hibernate"),
@@ -128,7 +144,9 @@ public class DocSearchTools {
                     .build();
 
             EmbeddingSearchResult<TextSegment> result = store.search(searchRequest);
-            List<EmbeddingMatch<TextSegment>> matches = result.matches();
+            List<EmbeddingMatch<TextSegment>> matches = result.matches().stream()
+                    .filter(m -> m.embedded() != null && !isJunkChunk(m.embedded()))
+                    .toList();
 
             List<ScoredMatch> boosted = applyMetadataBoost(matches, query);
 
@@ -206,6 +224,17 @@ public class DocSearchTools {
         }
     }
 
+    private boolean isJunkChunk(TextSegment segment) {
+        String text = segment.text().trim();
+        if (text.length() < MIN_CHUNK_LENGTH) {
+            return true;
+        }
+        if (JUNK_PATTERN.matcher(text).matches()) {
+            return true;
+        }
+        return text.startsWith("Configuration property fixed at build time");
+    }
+
     private List<ScoredMatch> applyMetadataBoost(List<EmbeddingMatch<TextSegment>> matches, String query) {
         String queryLower = query.toLowerCase();
         String[] queryTerms = queryLower.split("\\s+");
@@ -214,38 +243,54 @@ public class DocSearchTools {
         for (EmbeddingMatch<TextSegment> match : matches) {
             double score = match.score();
             TextSegment segment = match.embedded();
-            if (segment == null) {
-                continue;
-            }
 
-            String title = segment.metadata().getString("title");
-            String repoPath = segment.metadata().getString("repo_path");
-            if (title == null) {
-                title = "";
-            }
-            if (repoPath == null) {
-                repoPath = "";
-            }
-            String titleLower = title.toLowerCase();
-            String pathLower = repoPath.toLowerCase();
+            String title = metadataOrEmpty(segment, "title");
+            String repoPath = metadataOrEmpty(segment, "repo_path");
+            String topics = metadataOrEmpty(segment, "topics");
+            String categories = metadataOrEmpty(segment, "categories");
+            String sectionTitle = metadataOrEmpty(segment, "section_title");
+            String sectionPath = metadataOrEmpty(segment, "section_path");
+            String summary = metadataOrEmpty(segment, "summary");
 
             for (String term : queryTerms) {
-                if (titleLower.contains(term)) {
+                if (title.contains(term)) {
                     score += 0.15;
                 }
-                if (pathLower.contains(term)) {
+                if (repoPath.contains(term)) {
                     score += 0.10;
+                }
+                if (topics.contains(term)) {
+                    score += 0.15;
+                }
+                if (categories.contains(term)) {
+                    score += 0.10;
+                }
+                if (sectionTitle.contains(term) || sectionPath.contains(term)) {
+                    score += 0.08;
+                }
+                if (summary.contains(term)) {
+                    score += 0.05;
                 }
 
                 String synonym = SYNONYMS.get(term);
                 if (synonym != null) {
-                    if (titleLower.contains(synonym)) {
+                    if (title.contains(synonym) || topics.contains(synonym)) {
                         score += 0.12;
                     }
-                    if (pathLower.contains(synonym)) {
+                    if (repoPath.contains(synonym) || sectionPath.contains(synonym)) {
                         score += 0.08;
                     }
                 }
+            }
+
+            if (LEGACY_GUIDES.contains(title) || topics.contains("resteasy-classic")) {
+                score += LEGACY_PENALTY;
+            }
+            if (topics.contains("internals") || topics.contains("documentation")) {
+                score += INTERNAL_DOCS_PENALTY;
+            }
+            if (MODERN_GUIDES.contains(title) || topics.contains("resteasy-reactive")) {
+                score += MODERN_GUIDE_BOOST;
             }
 
             scored.add(new ScoredMatch(match, score));
@@ -253,6 +298,11 @@ public class DocSearchTools {
 
         scored.sort((a, b) -> Double.compare(b.score, a.score));
         return scored;
+    }
+
+    private static String metadataOrEmpty(TextSegment segment, String key) {
+        String value = segment.metadata().getString(key);
+        return value != null ? value.toLowerCase() : "";
     }
 
     private record ScoredMatch(EmbeddingMatch<TextSegment> match, double score) {
