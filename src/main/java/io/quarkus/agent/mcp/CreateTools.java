@@ -182,9 +182,10 @@ public class CreateTools {
 
             // Auto-start the app in dev mode
             try {
-                processManager.start(projectDir, buildTool, httpPort);
+                Integer effectivePort = processManager.start(projectDir, buildTool, httpPort);
                 LOG.infof("Auto-started Quarkus app at: %s", projectDir);
-                return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir
+                String portInfo = effectivePort != null ? " (port: " + effectivePort + ")" : "";
+                return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir + portInfo
                         + ContainerRuntimeChecker.containerWarning(projectDir)
                         + "\n\nNEXT STEPS (follow this order strictly):"
                         + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "

@@ -164,8 +164,12 @@ class QuarkusProcessManagerTest {
     }
 
     @Test
-    void isPortAvailableReturnsTrueForFreePort() {
-        assertTrue(QuarkusProcessManager.isPortAvailable(0));
+    void isPortAvailableReturnsTrueForFreePort() throws Exception {
+        int port;
+        try (ServerSocket ss = new ServerSocket(0)) {
+            port = ss.getLocalPort();
+        }
+        assertTrue(QuarkusProcessManager.isPortAvailable(port));
     }
 
     @Test

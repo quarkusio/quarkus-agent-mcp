@@ -43,7 +43,7 @@ public class QuarkusProcessManager {
     static final int DEFAULT_HTTP_PORT = 8080;
     private static final int MAX_PORT_SCAN = 100;
 
-    public synchronized void start(String projectDir, String buildTool, Integer httpPort) {
+    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort) {
         if (buildTool != null && !VALID_BUILD_TOOLS.contains(buildTool.toLowerCase())) {
             throw new IllegalArgumentException(
                     "Invalid build tool: '" + buildTool + "'. Must be 'maven' or 'gradle'.");
@@ -75,7 +75,7 @@ public class QuarkusProcessManager {
 
         try {
             Process process = pb.start();
-            QuarkusInstance instance = new QuarkusInstance(normalizedDir, process, executor);
+            QuarkusInstance instance = new QuarkusInstance(normalizedDir, detectedBuildTool, httpPort, process, executor);
             instances.put(normalizedDir, instance);
             if (appLogEnabled.orElse(false)) {
                 instance.enableFileLogging(computeLogFile(normalizedDir));
@@ -84,6 +84,7 @@ public class QuarkusProcessManager {
         } catch (IOException e) {
             throw new RuntimeException("Failed to start Quarkus dev mode: " + e.getMessage(), e);
         }
+        return effectivePort;
     }
 
     public synchronized void stop(String projectDir) {
@@ -106,8 +107,10 @@ public class QuarkusProcessManager {
         }
 
         if (!instance.isAlive()) {
+            String savedBuildTool = instance.getBuildTool();
+            Integer savedHttpPort = instance.getRequestedHttpPort();
             instances.remove(normalizedDir);
-            start(normalizedDir, null, null);
+            start(normalizedDir, savedBuildTool, savedHttpPort);
             LOG.infof("Re-started dead Quarkus instance at: %s", normalizedDir);
         } else {
             instance.restart();
@@ -247,7 +250,6 @@ public class QuarkusProcessManager {
 
     static boolean isPortAvailable(int port) {
         try (ServerSocket ss = new ServerSocket(port)) {
-            ss.setReuseAddress(true);
             return true;
         } catch (IOException e) {
             return false;

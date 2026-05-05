@@ -35,8 +35,11 @@ public class LifecycleTools {
                     + "If omitted, defaults to 8080. When 8080 is already in use, "
                     + "an available port is assigned automatically.", required = false) Integer httpPort) {
         try {
-            processManager.start(projectDir, buildTool, httpPort);
+            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort);
             String message = "Quarkus application starting in dev mode at: " + projectDir;
+            if (effectivePort != null) {
+                message += " (port: " + effectivePort + ")";
+            }
             message += ContainerRuntimeChecker.containerWarning(projectDir);
             return ToolResponse.success(message);
         } catch (Exception e) {
