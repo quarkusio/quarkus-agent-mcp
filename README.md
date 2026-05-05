@@ -458,7 +458,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 
 ## Guides
 
-- [Creating Extension Skills](docs/creating-extension-skills.md) — A practical guide for extension developers to discover, write, and test AI skills for their extensions
+- [Creating Extension Skills](docs/creating-extension-skills.md) - A practical guide for extension developers to discover, write, and test AI skills for their extensions
 
 ## Related Projects
 

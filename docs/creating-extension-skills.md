@@ -1,10 +1,10 @@
 # Creating Extension Skills: A Practical Guide
 
-This guide walks you through discovering what your extension's AI skill should contain by observing how an agent actually uses your extension — and where it struggles.
+This guide walks you through discovering what your extension's AI skill should contain by observing how an agent actually uses your extension - and where it struggles.
 
 ## Overview
 
-The idea is simple: watch an AI agent try to build something with your extension, see where it gets stuck, and turn those learnings into a skill file that ships with your extension. You'll use two separate Claude Code sessions — one to help you author the skill, and one to test it.
+The idea is simple: watch an AI agent try to build something with your extension, see where it gets stuck, and turn those learnings into a skill file that ships with your extension. You'll use two separate Claude Code sessions - one to help you author the skill, and one to test it.
 
 ## Prerequisites
 
@@ -21,35 +21,35 @@ Open two terminal windows. We'll call them **Worker** and **Tester**.
 | Worker   | Opus      | Crafts test prompts, analyzes struggles, writes skills |
 | Tester   | Sonnet    | Simulates a real developer using your extension   |
 
-Using Sonnet for the Tester is intentional — it's the model most developers will use day-to-day, so if the skill helps Sonnet, it helps the majority.
+Using Sonnet for the Tester is intentional - it's the model most developers will use day-to-day, so if the skill helps Sonnet, it helps the majority.
 
 Start both sessions:
 
 ```bash
-# Terminal 1 — Worker (Opus)
+# Terminal 1 - Worker (Opus)
 claude --model opus
 
-# Terminal 2 — Tester (Sonnet, the default)
+# Terminal 2 - Tester (Sonnet, the default)
 claude
 ```
 
 ## Step 1: Create a test prompt
 
-In the **Worker** session, ask it to write a realistic prompt — something a developer would actually ask when building an app with your extension.
+In the **Worker** session, ask it to write a realistic prompt - something a developer would actually ask when building an app with your extension.
 
-> Write me a realistic developer prompt that would test building an application using the `quarkus-my-extension` extension. The prompt should be something a developer would naturally ask — not a test scenario, but a real task. Make it specific enough to exercise the key features of the extension.
+> Write me a realistic developer prompt that would test building an application using the `quarkus-my-extension` extension. The prompt should be something a developer would naturally ask - not a test scenario, but a real task. Make it specific enough to cover the key features of the extension.
 
 The Worker will craft a prompt like:
 
 > "Create a Quarkus application that uses [your extension] to [do something realistic]. It should [specific requirement 1] and [specific requirement 2]."
 
-**Tip:** Start with a straightforward prompt for your first pass. You can create more complex prompts later to exercise edge cases and advanced features.
+**Tip:** Start with a straightforward prompt for your first pass. You can create more complex prompts later to test edge cases and advanced features.
 
 ## Step 2: Run the prompt
 
 Copy the prompt from the Worker and paste it into the **Tester** session. Let the agent work.
 
-Watch it carefully. Don't intervene unless it's completely stuck — you want to see where it naturally struggles.
+Watch it carefully. Don't intervene unless it's completely stuck - you want to see where it naturally struggles.
 
 ## Step 3: Observe and assist
 
@@ -61,13 +61,13 @@ As the Tester works, you'll likely see it:
 - Get stuck on integration patterns with other extensions
 - Make mistakes that the docs cover but aren't obvious
 
-When the agent gets stuck, help it just enough to move forward. Take note of every place where you had to intervene — these are your skill candidates.
+When the agent gets stuck, help it just enough to move forward. Take note of every place where you had to intervene - these are your skill candidates.
 
 ## Step 4: Evaluate the result
 
 Once the task is complete, ask yourself:
 
-**Was it smooth?** If the agent completed the task without issues, you might not need a skill for this prompt. Consider testing with a more complex prompt — one that exercises advanced features, edge cases, or multi-extension integration. Go back to Step 1.
+**Was it smooth?** If the agent completed the task without issues, you might not need a skill for this prompt. Consider testing with a more complex prompt - one that tests advanced features, edge cases, or multi-extension integration. Go back to Step 1.
 
 **Did it struggle?** If you had to intervene, continue to Step 5.
 
@@ -93,7 +93,7 @@ Switch to the **Worker** session. Give it the Tester's feedback and ask it to cr
 >
 > Based on this, create a `quarkus-skill.md` file for our extension. Follow the extension skills guide at https://quarkus.io/guides/dev-mcp#extension-skills for the format and best practices.
 
-**Review the output before testing.** Skills should be concise and actionable — patterns, pitfalls, and testing guidance. Not a tutorial. Remove anything too verbose or overly prescriptive; an over-constrained skill can be worse than no skill at all.
+**Review the output before testing.** Skills should be concise and actionable - patterns, pitfalls, and testing guidance. Not a tutorial. Remove anything too verbose or overly prescriptive; an over-constrained skill can be worse than no skill at all.
 
 ## Step 7: Test the skill as an override
 
@@ -103,12 +103,12 @@ Before shipping the skill with your extension, test it using a user-level overri
 ~/.quarkus/skills/quarkus-my-extension/SKILL.md
 ```
 
-The Quarkus Agent MCP server picks up user-level skills automatically — no restart needed.
+The Quarkus Agent MCP server picks up user-level skills automatically - no restart needed.
 
-**Important:** Open a **new** Tester session for this test. Don't reuse the old one — the conversation history would contaminate the results. You need to prove the skill alone is sufficient.
+**Important:** Open a **new** Tester session for this test. Don't reuse the old one - the conversation history would skew the results. You need to prove the skill alone is sufficient.
 
 ```bash
-# Terminal 2 — fresh Tester session
+# Terminal 2 - fresh Tester session
 claude
 ```
 
@@ -116,7 +116,7 @@ Run the same prompt again. This time the agent should have the skill available a
 
 ## Step 8: Iterate if needed
 
-If the agent still struggles with some aspects, go back to Step 5 — identify new gaps, update the skill, and re-test.
+If the agent still struggles with some aspects, go back to Step 5 - identify new gaps, update the skill, and re-test.
 
 If it works well, you have a validated skill.
 
@@ -128,7 +128,7 @@ Move the skill file into your extension's deployment module:
 my-extension/deployment/src/main/resources/META-INF/quarkus-skill.md
 ```
 
-No `pom.xml` changes are needed — the Quarkus build discovers skill files automatically.
+No `pom.xml` changes are needed - the Quarkus build discovers skill files automatically.
 
 Finally, clean up the override:
 
@@ -140,7 +140,7 @@ For full details on the file format, composition layers, and what makes a good s
 
 ## Tips for better skills
 
-- **Test multiple prompts.** One prompt won't surface all rough edges. Try 2-3 of increasing complexity — basic CRUD, multi-extension integration, and something that exercises a non-obvious config or edge case.
-- **Focus on what the agent can't figure out from docs alone.** Correct annotation combos, required config that isn't obvious, common pitfalls, testing patterns — these are the high-value things for a skill.
+- **Test multiple prompts.** One prompt won't catch all rough edges. Try 2-3 of increasing complexity - basic CRUD, multi-extension integration, and something that hits a non-obvious config or edge case.
+- **Focus on what the agent can't figure out from docs alone.** Correct annotation combos, required config that isn't obvious, common pitfalls, testing patterns - these are the high-value things for a skill.
 - **Keep it concise.** A skill is not a tutorial. If you're writing more than a page, you're probably including too much.
 - **Don't duplicate what the build composes.** Extension description, guide links, config properties, and Dev MCP tools are added automatically. Your skill file should focus on patterns and pitfalls.
