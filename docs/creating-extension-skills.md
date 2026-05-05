@@ -97,11 +97,9 @@ Switch to the **Worker** session. Give it the Tester's feedback and ask it to cr
 
 ## Step 7: Test the skill as an override
 
-Before shipping the skill with your extension, test it using a user-level override. Copy the skill file to:
+Before shipping the skill with your extension, test it as a user-level override. In the **Worker** session, ask it to save the skill:
 
-```
-~/.quarkus/skills/quarkus-my-extension/SKILL.md
-```
+> Save the skill file you just created to `~/.quarkus/skills/quarkus-my-extension/SKILL.md`
 
 The Quarkus Agent MCP server picks up user-level skills automatically - no restart needed.
 
@@ -122,21 +120,11 @@ If it works well, you have a validated skill.
 
 ## Step 9: Ship the skill with your extension
 
-Move the skill file into your extension's deployment module:
+In the **Worker** session, ask it to move the validated skill into your extension:
 
-```
-my-extension/deployment/src/main/resources/META-INF/quarkus-skill.md
-```
+> Move `~/.quarkus/skills/quarkus-my-extension/SKILL.md` to `my-extension/deployment/src/main/resources/META-INF/quarkus-skill.md` and delete the override. See https://quarkus.io/guides/dev-mcp#extension-skills for the expected format.
 
 No `pom.xml` changes are needed - the Quarkus build discovers skill files automatically.
-
-Finally, clean up the override:
-
-```bash
-rm ~/.quarkus/skills/quarkus-my-extension/SKILL.md
-```
-
-For full details on the file format, composition layers, and what makes a good skill, see the [Extension Skills](https://quarkus.io/guides/dev-mcp#extension-skills) section of the Quarkus Dev MCP guide.
 
 ## Tips for better skills
 
