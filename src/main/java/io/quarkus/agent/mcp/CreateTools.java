@@ -205,7 +205,9 @@ public class CreateTools {
                         + "\n8. After code changes, trigger a reload via quarkus_callTool with toolName 'devui-logstream_forceRestart'. Do NOT restart the app manually."
                         + "\n   IMPORTANT: After pom.xml/build.gradle changes (adding dependencies or extensions), you MUST do a full quarkus_stop + quarkus_start. forceRestart only recompiles source -- it does NOT re-resolve dependencies."
                         + "\n9. Update README.md with: app description, features, endpoints, how to run, and links to Quarkus guides."
-                        + "\n10. After core features work, suggest to the user: security, observability, health checks, OpenAPI.");
+                        + "\n10. After core features work, suggest to the user: security, observability, health checks, OpenAPI."
+                        + "\n\nWARNING: NEVER run 'mvn clean' or 'gradle clean' while dev mode is running -- it deletes target/test-classes and breaks the test runner. "
+                        + "If the test runner gets stuck returning 'Tests already in progress', do a full quarkus_stop + quarkus_start cycle to reset it.");
             } catch (Exception startError) {
                 LOG.warnf("Project created but failed to auto-start: %s", startError.getMessage());
                 return ToolResponse.success("Quarkus project created at: " + projectDir
@@ -513,6 +515,8 @@ public class CreateTools {
                     - Use `devui-testing_runTest` with arguments `{"className":"com.example.MyTest"}` to run a specific test class.
                     - Do NOT run Maven/Gradle test commands manually -- the Dev MCP test tools handle compilation, hot reload, and result reporting.
                     - After fixing test failures, re-run tests (via a subagent if supported) to verify the fix.
+                    - **NEVER run `mvn clean` or `gradle clean` while dev mode is running** -- it deletes `target/test-classes` and breaks the test runner with no automatic recovery.
+                    - If the test runner gets stuck returning "Tests already in progress", do a full `quarkus_stop` + `quarkus_start` cycle to reset the test runner state.
 
                     ## Error Handling
 

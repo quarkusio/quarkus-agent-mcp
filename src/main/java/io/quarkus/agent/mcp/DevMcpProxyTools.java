@@ -349,7 +349,9 @@ public class DevMcpProxyTools {
 
     @Tool(name = "quarkus_callTool", description = "Invoke a Dev MCP tool by name on the running Quarkus app. "
             + "Use quarkus_searchTools first to discover tool names and parameters. "
-            + "After structural changes (adding extensions, endpoints), update README.md.")
+            + "After structural changes (adding extensions, endpoints), update README.md. "
+            + "NEVER run 'mvn clean' or 'gradle clean' while dev mode is running -- it deletes target/test-classes and breaks the test runner. "
+            + "If the test runner returns 'Tests already in progress' and won't recover, do a full quarkus_stop + quarkus_start cycle to reset it.")
     ToolResponse callTool(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "The name of the Dev MCP tool to call (as returned by quarkus_searchTools)") String toolName,
