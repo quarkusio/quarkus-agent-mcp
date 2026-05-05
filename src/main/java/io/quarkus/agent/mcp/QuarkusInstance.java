@@ -39,6 +39,8 @@ public class QuarkusInstance {
     static final int MAX_LOG_LINES = 500;
 
     private final String projectDir;
+    private final String buildTool;
+    private final Integer requestedHttpPort;
     private final Process process;
     private final LinkedList<String> logBuffer = new LinkedList<>();
     private final AtomicReference<Status> status = new AtomicReference<>(Status.STARTING);
@@ -46,8 +48,11 @@ public class QuarkusInstance {
     private volatile PrintWriter logWriter;
     private volatile Path logFile;
 
-    public QuarkusInstance(String projectDir, Process process, ExecutorService executor) {
+    public QuarkusInstance(String projectDir, String buildTool, Integer requestedHttpPort, Process process,
+            ExecutorService executor) {
         this.projectDir = projectDir;
+        this.buildTool = buildTool;
+        this.requestedHttpPort = requestedHttpPort;
         this.process = process;
 
         executor.submit(() -> captureStream(process.getInputStream()));
@@ -219,6 +224,14 @@ public class QuarkusInstance {
 
     public int getHttpPort() {
         return httpPort;
+    }
+
+    public String getBuildTool() {
+        return buildTool;
+    }
+
+    public Integer getRequestedHttpPort() {
+        return requestedHttpPort;
     }
 
     public Path getLogFile() {

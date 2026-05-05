@@ -76,7 +76,10 @@ public class CreateTools {
                     + "Some extensions provide useful starter code tailored to the extension; "
                     + "others only generate a basic hello world.") boolean noCode,
             @ToolArg(description = "Whether to skip generating the Maven/Gradle wrapper scripts. "
-                    + "If not specified, ask the user before creating the project.") boolean noWrapper) {
+                    + "If not specified, ask the user before creating the project.") boolean noWrapper,
+            @ToolArg(description = "HTTP port for the Quarkus application when it auto-starts in dev mode (e.g. 8081). "
+                    + "If omitted, defaults to 8080. When 8080 is already in use, "
+                    + "an available port is assigned automatically.", required = false) Integer httpPort) {
         try {
             String resolvedGroupId = (groupId != null && !groupId.isBlank()) ? groupId : "org.acme";
             String resolvedArtifactId = (artifactId != null && !artifactId.isBlank()) ? artifactId : "quarkus-app";
@@ -179,9 +182,10 @@ public class CreateTools {
 
             // Auto-start the app in dev mode
             try {
-                processManager.start(projectDir, buildTool);
+                Integer effectivePort = processManager.start(projectDir, buildTool, httpPort);
                 LOG.infof("Auto-started Quarkus app at: %s", projectDir);
-                return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir
+                String portInfo = effectivePort != null ? " (port: " + effectivePort + ")" : "";
+                return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir + portInfo
                         + ContainerRuntimeChecker.containerWarning(projectDir)
                         + "\n\nNEXT STEPS (follow this order strictly):"
                         + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "

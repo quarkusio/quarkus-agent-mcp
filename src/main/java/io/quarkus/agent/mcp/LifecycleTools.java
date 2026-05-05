@@ -30,10 +30,16 @@ public class LifecycleTools {
             + "RULES: Always write tests. Always keep README.md updated after changes.")
     ToolResponse start(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
-            @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (auto-detected if omitted)", required = false) String buildTool) {
+            @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (auto-detected if omitted)", required = false) String buildTool,
+            @ToolArg(description = "HTTP port for the Quarkus application (e.g. 8081). "
+                    + "If omitted, defaults to 8080. When 8080 is already in use, "
+                    + "an available port is assigned automatically.", required = false) Integer httpPort) {
         try {
-            processManager.start(projectDir, buildTool);
+            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort);
             String message = "Quarkus application starting in dev mode at: " + projectDir;
+            if (effectivePort != null) {
+                message += " (port: " + effectivePort + ")";
+            }
             message += ContainerRuntimeChecker.containerWarning(projectDir);
             return ToolResponse.success(message);
         } catch (Exception e) {
