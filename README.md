@@ -456,6 +456,10 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 }
 ```
 
+## Guides
+
+- [Creating Extension Skills](docs/creating-extension-skills.md) — A practical guide for extension developers to discover, write, and test AI skills for their extensions
+
 ## Related Projects
 
 - [Quarkus Dev MCP](https://github.com/quarkusio/quarkus) — Built-in MCP server inside running Quarkus apps
