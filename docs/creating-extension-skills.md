@@ -75,13 +75,21 @@ Once the task is complete, ask yourself:
 
 In the **Tester** session, ask:
 
-> What did you struggle with while building this application? What was unclear or difficult? What information would have helped you get it right the first time?
+> What did you struggle with while building this application? What was unclear or difficult? What information would have helped you get it right the first time? Were there times you wished you could query or act on the running application?
 
 The agent will tell you things like:
 - "I wasn't sure which annotation to use for X"
 - "I didn't know that Y requires Z configuration"
 - "Testing was difficult because I didn't know about the test utility class"
 - "I tried to do X manually but there's a CDI bean that handles it"
+- "I wanted to check the current state of X but had no way to query it"
+
+These responses point to two different remedies:
+
+- **Skill gap** - the agent lacked knowledge (wrong annotations, missing config, testing patterns). Fix this with a skill file that teaches the right patterns.
+- **Tool gap** - the agent needed to query or act on the running app (inspect state, trigger an action, fetch generated schemas). Fix this with a [Dev MCP tool](https://quarkus.io/guides/dev-mcp#dev-mcp-tools) that exposes that capability at dev time.
+
+A single extension might need both. Skills teach the agent *how* to write code; Dev MCP tools let the agent *interact* with the running app.
 
 ## Step 6: Create the skill
 
@@ -132,3 +140,4 @@ No `pom.xml` changes are needed - the Quarkus build discovers skill files automa
 - **Focus on what the agent can't figure out from docs alone.** Correct annotation combos, required config that isn't obvious, common pitfalls, testing patterns - these are the high-value things for a skill.
 - **Keep it concise.** A skill is not a tutorial. If you're writing more than a page, you're probably including too much.
 - **Don't duplicate what the build composes.** Extension description, guide links, config properties, and Dev MCP tools are added automatically. Your skill file should focus on patterns and pitfalls.
+- **Consider Dev MCP tools, not just skills.** If the agent's problem is "I need to know X about the running app," a skill won't help - it needs a Dev MCP tool. Skills and tools complement each other: skills provide knowledge at coding time, tools provide runtime access. See the [Dev MCP tools guide](https://quarkus.io/guides/dev-mcp#dev-mcp-tools) for how to add tools to your extension.
