@@ -3,7 +3,11 @@
     "quarkus-agent-mcp": {
       "script-ref": "io.quarkus:quarkus-agent-mcp:RELEASE:runner",
       "description": "Standalone MCP server for AI coding agents to manage Quarkus applications",
-      "java-version": "21+"
+      "java-version": "21+",
+       "runtime-options": [
+        "--add-opens",
+        "java.base/java.lang=ALL-UNNAMED"
+      ]
     }
   }
 }
