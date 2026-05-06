@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingSearchResult;
@@ -92,7 +91,7 @@ public class DocSearchTools {
     String pgDatabase;
 
     @Inject
-    EmbeddingModel embeddingModel;
+    EmbeddingModelLoader embeddingModelLoader;
 
     @Inject
     ContainerManager containerManager;
@@ -124,6 +123,24 @@ public class DocSearchTools {
                 return ToolResponse.error("Search query must not be empty.");
             }
 
+            if (embeddingModelLoader.isFailed()) {
+                return ToolResponse.error(
+                        "Embedding model failed to load: " + embeddingModelLoader.getFailureMessage());
+            }
+            if (!embeddingModelLoader.isReady()) {
+                return ToolResponse.success(
+                        "Documentation search is still warming up (loading embedding model). Please retry in a few seconds.");
+            }
+
+            if (containerManager.isDefaultWarmupDone() && containerManager.getDefaultWarmupError() != null) {
+                return ToolResponse.error(
+                        "Documentation search is unavailable: " + containerManager.getDefaultWarmupError());
+            }
+            if (!containerManager.isDefaultReady()) {
+                return ToolResponse.success(
+                        "Documentation search is still warming up (starting doc database). Please retry in a few seconds.");
+            }
+
             String quarkusVersion = null;
             if (projectDir != null && !projectDir.isBlank()) {
                 quarkusVersion = QuarkusVersionDetector.detect(projectDir);
@@ -135,7 +152,7 @@ public class DocSearchTools {
 
             boolean usingFallback = quarkusVersion != null && containerManager.isUsingFallback(quarkusVersion);
 
-            Embedding queryEmbedding = embeddingModel.embed(query).content();
+            Embedding queryEmbedding = embeddingModelLoader.getModel().embed(query).content();
 
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
                     .queryEmbedding(queryEmbedding)

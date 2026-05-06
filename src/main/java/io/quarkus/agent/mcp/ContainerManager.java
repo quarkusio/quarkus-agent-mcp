@@ -41,6 +41,42 @@ public class ContainerManager {
     private final ConcurrentHashMap<String, GenericContainer<?>> containers = new ConcurrentHashMap<>();
     private final Set<String> fallbackVersions = ConcurrentHashMap.newKeySet();
     private volatile Boolean dockerAvailable;
+    private volatile boolean defaultWarmupStarted;
+    private volatile boolean defaultWarmupDone;
+    private volatile String defaultWarmupError;
+
+    /**
+     * Starts the default container in a background thread so the first searchDocs
+     * call doesn't block for container startup.
+     */
+    public void warmUpDefaultAsync() {
+        if (defaultWarmupStarted) {
+            return;
+        }
+        defaultWarmupStarted = true;
+        Thread.ofVirtual().name("container-warmup").start(() -> {
+            try {
+                ensureRunning(null);
+                defaultWarmupDone = true;
+            } catch (Exception e) {
+                LOG.warn("Background container warm-up failed: " + e.getMessage());
+                defaultWarmupError = e.getMessage();
+                defaultWarmupDone = true;
+            }
+        });
+    }
+
+    public boolean isDefaultReady() {
+        return defaultWarmupDone && defaultWarmupError == null;
+    }
+
+    public boolean isDefaultWarmupDone() {
+        return defaultWarmupDone;
+    }
+
+    public String getDefaultWarmupError() {
+        return defaultWarmupError;
+    }
 
     /**
      * Ensure a pgvector container is running for the given Quarkus version.
