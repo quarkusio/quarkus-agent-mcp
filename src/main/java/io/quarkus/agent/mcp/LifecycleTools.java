@@ -74,8 +74,12 @@ public class LifecycleTools {
         }
     }
 
-    @Tool(name = "quarkus_open", description = "Open the running Quarkus application in a browser "
-            + "(equivalent to pressing 'w' in the dev console).")
+    @Tool(name = "quarkus_open", description = "Send 'w' to the dev process stdin to open the application "
+            + "in the local browser. Note: the browser opens on the local machine and is not visible "
+            + "to the agent in remote or headless setups.",
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_open", destructiveHint = false))
     ToolResponse open(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
@@ -91,8 +95,12 @@ public class LifecycleTools {
         }
     }
 
-    @Tool(name = "quarkus_devui", description = "Open the Quarkus Dev UI in a browser "
-            + "(equivalent to pressing 'd' in the dev console).")
+    @Tool(name = "quarkus_devui", description = "Send 'd' to the dev process stdin to open the Quarkus Dev UI "
+            + "in the local browser. Note: the browser opens on the local machine and is not visible "
+            + "to the agent in remote or headless setups.",
+            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
+            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
+            annotations = @Tool.Annotations(title = "quarkus_devui", destructiveHint = false))
     ToolResponse devui(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
