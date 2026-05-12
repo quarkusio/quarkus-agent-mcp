@@ -74,6 +74,40 @@ public class LifecycleTools {
         }
     }
 
+    @Tool(name = "quarkus_open", description = "Open the running Quarkus application in a browser "
+            + "(equivalent to pressing 'w' in the dev console).")
+    ToolResponse open(
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
+        try {
+            QuarkusInstance instance = processManager.getInstance(projectDir);
+            if (instance == null) {
+                return ToolResponse.error("No running instance found for: " + projectDir);
+            }
+            instance.sendInput('w');
+            return ToolResponse.success("Sent 'w' to dev process at: " + projectDir);
+        } catch (Exception e) {
+            LOG.error("Failed to open application at " + projectDir, e);
+            return ToolResponse.error(e.getMessage());
+        }
+    }
+
+    @Tool(name = "quarkus_devui", description = "Open the Quarkus Dev UI in a browser "
+            + "(equivalent to pressing 'd' in the dev console).")
+    ToolResponse devui(
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
+        try {
+            QuarkusInstance instance = processManager.getInstance(projectDir);
+            if (instance == null) {
+                return ToolResponse.error("No running instance found for: " + projectDir);
+            }
+            instance.sendInput('d');
+            return ToolResponse.success("Sent 'd' to dev process at: " + projectDir);
+        } catch (Exception e) {
+            LOG.error("Failed to open Dev UI at " + projectDir, e);
+            return ToolResponse.error(e.getMessage());
+        }
+    }
+
     @Tool(name = "quarkus_status", description = "Get the status of a Quarkus application. "
             + "Returns: not_started, starting, running (with port), crashed, or stopped.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
