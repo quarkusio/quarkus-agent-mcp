@@ -24,11 +24,13 @@ import org.jboss.logging.Logger;
 
 /**
  * MCP tool for semantic search over Quarkus documentation.
- * Uses BGE Small EN v1.5 embeddings + pgvector with pre-indexed docs
- * from chappie-docling-rag.
+ * Uses BGE Small EN v1.5 embeddings + pgvector with RAG SQL fragments
+ * loaded from extension deployment JARs.
  * <p>
- * The pgvector container is started lazily on first search via Testcontainers.
- * The embedding store is created after the container is up, using the dynamic mapped port.
+ * A generic pgvector container is started lazily on first search via Testcontainers.
+ * SQL fragments (from {@code META-INF/quarkus-rag.sql} in deployment JARs) are loaded
+ * into the container by {@link RagSqlLoader}. The embedding store is created after
+ * the container is up, using the dynamic mapped port.
  */
 public class DocSearchTools {
 
@@ -150,8 +152,6 @@ public class DocSearchTools {
             }
             PgVectorEmbeddingStore store = ensureInitialized(quarkusVersion);
 
-            boolean usingFallback = quarkusVersion != null && containerManager.isUsingFallback(quarkusVersion);
-
             Embedding queryEmbedding = embeddingModelLoader.getModel().embed(query).content();
 
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
@@ -188,10 +188,6 @@ public class DocSearchTools {
             }
 
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results);
-            if (usingFallback) {
-                json += "\n\nNote: Version-specific docs for Quarkus " + quarkusVersion
-                        + " are not available. Results are from the latest documentation.";
-            }
             return ToolResponse.success(json);
         } catch (JsonProcessingException e) {
             return ToolResponse.error("Failed to serialize results: " + e.getMessage());
