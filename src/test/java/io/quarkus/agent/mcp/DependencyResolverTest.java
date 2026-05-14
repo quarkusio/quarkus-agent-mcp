@@ -2,7 +2,6 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,10 +17,8 @@ class DependencyResolverTest {
     Path tempDir;
 
     @BeforeEach
-    void clearCache() throws Exception {
-        var field = DependencyResolver.class.getDeclaredField("CACHE");
-        field.setAccessible(true);
-        ((java.util.concurrent.ConcurrentHashMap<?, ?>) field.get(null)).clear();
+    void clearCache() {
+        DependencyResolver.clearAll();
     }
 
     // ── Maven POM parsing (migrated from SkillReaderTest) ────────────────────
