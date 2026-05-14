@@ -50,7 +50,10 @@ public class UpdateTools {
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_update", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
     ToolResponse update(
-            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
+            @ToolArg(description = "Additional OpenRewrite recipe artifacts to include in the update, "
+                    + "in the format 'groupId:artifactId:version' (e.g. 'org.acme:my-recipes:1.0.0'). "
+                    + "Multiple artifacts can be comma-separated.", required = false) String additionalUpdateRecipes) {
         try {
             Path dir = Path.of(projectDir);
             if (!Files.isDirectory(dir)) {
@@ -73,7 +76,11 @@ public class UpdateTools {
             report.append("# Quarkus Project Update Report\n\n");
             report.append("- **Build tool:** ").append(buildInfo.buildTool).append("\n");
             report.append("- **Current version:** ").append(buildInfo.version).append("\n");
-            report.append("- **Latest version:** ").append(latestVersion).append("\n\n");
+            report.append("- **Latest version:** ").append(latestVersion).append("\n");
+            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+                report.append("- **Additional update recipes:** ").append(additionalUpdateRecipes).append("\n");
+            }
+            report.append("\n");
 
             boolean isUpToDate = buildInfo.version.equals(latestVersion);
 
@@ -103,7 +110,7 @@ public class UpdateTools {
             }
 
             // Step 3b: Run quarkus update --dry-run
-            String dryRunReport = runQuarkusUpdateDryRun(projectDir);
+            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes);
             if (dryRunReport != null) {
                 report.append("## Automated Migration Preview (`quarkus update --dry-run`)\n\n");
                 report.append(dryRunReport).append("\n");
@@ -123,7 +130,11 @@ public class UpdateTools {
 
             // Step 4: Recommended actions
             report.append("## Recommended Actions\n\n");
-            report.append("1. Run `quarkus update` to apply automated migrations");
+            report.append("1. Run `quarkus update");
+            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+                report.append(" --additional-update-recipes=").append(additionalUpdateRecipes);
+            }
+            report.append("` to apply automated migrations");
             if (dryRunReport == null) {
                 report.append(" (install the Quarkus CLI first: https://quarkus.io/guides/cli-tooling)");
             }
@@ -269,14 +280,22 @@ public class UpdateTools {
     /**
      * Runs {@code quarkus update --dry-run} and returns the report, or null if CLI not available.
      */
-    private String runQuarkusUpdateDryRun(String projectDir) {
+    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes) {
         // Check if quarkus CLI is available
         if (!isCommandAvailable("quarkus")) {
             return null;
         }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder("quarkus", "update", "--dry-run")
+            List<String> cmd = new ArrayList<>();
+            cmd.add("quarkus");
+            cmd.add("update");
+            cmd.add("--dry-run");
+            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+                cmd.add("--additional-update-recipes=" + additionalUpdateRecipes);
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(cmd)
                     .directory(new File(projectDir))
                     .redirectErrorStream(true);
 

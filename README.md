@@ -260,6 +260,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 - Compares build files against [reference projects](https://github.com/quarkusio/code-with-quarkus-compare)
 - Runs `quarkus update --dry-run` (if CLI available) to preview automated migrations
+- Supports custom OpenRewrite recipes via `additionalUpdateRecipes` (e.g. `org.acme:my-recipes:1.0.0`)
 - Links to the structural diff between versions
 - Recommends manual actions for changes that automated migration doesn't cover
 
@@ -275,7 +276,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required) |
+| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required), `additionalUpdateRecipes` |
 
 ### Extension Skills
 
