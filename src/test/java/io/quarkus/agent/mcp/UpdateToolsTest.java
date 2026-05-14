@@ -2,10 +2,12 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -90,6 +92,35 @@ class UpdateToolsTest {
         // 3.21.2 and 3.21.2.Final — both start with 3.21.2
         assertTrue(versions.indexOf("3.21.2") < versions.indexOf("3.21.2.Final")
                 || versions.indexOf("3.21.2.Final") < versions.indexOf("3.21.2"));
+    }
+
+    @Test
+    void recipeArtifactPatternAcceptsValidFormats() throws Exception {
+        Pattern pattern = getRecipePattern();
+
+        assertTrue(pattern.matcher("org.acme:my-recipes:1.0.0").matches());
+        assertTrue(pattern.matcher("com.example:recipes:2.3.1").matches());
+        assertTrue(pattern.matcher("io.quarkus:quarkus-update-recipes:3.21.2").matches());
+        assertTrue(pattern.matcher("org.acme:a:1.0,com.example:b:2.0").matches());
+        assertTrue(pattern.matcher("org.acme:a:1.0, com.example:b:2.0").matches());
+    }
+
+    @Test
+    void recipeArtifactPatternRejectsInvalidFormats() throws Exception {
+        Pattern pattern = getRecipePattern();
+
+        assertFalse(pattern.matcher("not-a-gav").matches());
+        assertFalse(pattern.matcher("only:two").matches());
+        assertFalse(pattern.matcher("has spaces:in:artifact").matches());
+        assertFalse(pattern.matcher("").matches());
+        assertFalse(pattern.matcher("; rm -rf /").matches());
+        assertFalse(pattern.matcher("org.acme:recipes:1.0 --some-flag").matches());
+    }
+
+    private static Pattern getRecipePattern() throws Exception {
+        Field field = UpdateTools.class.getDeclaredField("RECIPE_ARTIFACT_PATTERN");
+        field.setAccessible(true);
+        return (Pattern) field.get(null);
     }
 
     @Test

@@ -47,6 +47,10 @@ public class UpdateTools {
     private static final Pattern VERSION_PATTERN = Pattern.compile(
             "^[0-9]+\\.[0-9]+\\.[0-9]+([.\\-][A-Za-z0-9]+)*$");
 
+    // Validates additionalUpdateRecipes: comma-separated groupId:artifactId:version entries
+    private static final Pattern RECIPE_ARTIFACT_PATTERN = Pattern.compile(
+            "^[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+(\\s*,\\s*[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+)*$");
+
 
     @Tool(name = "quarkus_update", description = "Check if a Quarkus project is up-to-date and provide an upgrade report. "
             + "Detects the current version, checks for newer releases, compares build files against "
@@ -68,10 +72,17 @@ public class UpdateTools {
             }
 
             // Tool argument takes precedence over configured default
-            if ((additionalUpdateRecipes == null || additionalUpdateRecipes.isBlank())
+            if (!hasValue(additionalUpdateRecipes)
                     && configuredAdditionalRecipes.isPresent()
-                    && !configuredAdditionalRecipes.get().isBlank()) {
+                    && hasValue(configuredAdditionalRecipes.get())) {
                 additionalUpdateRecipes = configuredAdditionalRecipes.get();
+            }
+
+            if (hasValue(additionalUpdateRecipes)
+                    && !RECIPE_ARTIFACT_PATTERN.matcher(additionalUpdateRecipes.trim()).matches()) {
+                return ToolResponse.error(
+                        "Invalid additionalUpdateRecipes format. Expected comma-separated 'groupId:artifactId:version' entries, got: "
+                                + additionalUpdateRecipes);
             }
 
             // Step 1: Detect build tool and version
@@ -91,7 +102,7 @@ public class UpdateTools {
             report.append("- **Build tool:** ").append(buildInfo.buildTool).append("\n");
             report.append("- **Current version:** ").append(buildInfo.version).append("\n");
             report.append("- **Latest version:** ").append(latestVersion).append("\n");
-            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+            if (hasValue(additionalUpdateRecipes)) {
                 report.append("- **Additional update recipes:** ").append(additionalUpdateRecipes).append("\n");
             }
             report.append("\n");
@@ -145,7 +156,7 @@ public class UpdateTools {
             // Step 4: Recommended actions
             report.append("## Recommended Actions\n\n");
             report.append("1. Run `quarkus update");
-            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+            if (hasValue(additionalUpdateRecipes)) {
                 report.append(" --additional-update-recipes=").append(additionalUpdateRecipes);
             }
             report.append("` to apply automated migrations");
@@ -305,7 +316,7 @@ public class UpdateTools {
             cmd.add("quarkus");
             cmd.add("update");
             cmd.add("--dry-run");
-            if (additionalUpdateRecipes != null && !additionalUpdateRecipes.isBlank()) {
+            if (hasValue(additionalUpdateRecipes)) {
                 cmd.add("--additional-update-recipes=" + additionalUpdateRecipes);
             }
 
@@ -353,6 +364,10 @@ public class UpdateTools {
 
     private boolean isCommandAvailable(String command) {
         return ProcessUtils.isCommandAvailable(command);
+    }
+
+    private static boolean hasValue(String s) {
+        return s != null && !s.isBlank();
     }
 
     record BuildInfo(String buildTool, String tagPrefix, String buildFile, String version) {
