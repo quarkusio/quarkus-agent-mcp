@@ -104,7 +104,7 @@ In **Settings → Tools → AI Assistant → MCP Servers** (or the GitHub Copilo
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "quarkus-agent": {
       "type": "stdio",
       "command": "/home/you/.jbang/bin/jbang",
@@ -120,7 +120,7 @@ Alternatively, use the direct download method with an absolute path to `java`:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "quarkus-agent": {
       "type": "stdio",
       "command": "/path/to/java",
@@ -322,13 +322,29 @@ File logging can be enabled permanently by setting `agent-mcp.log.enabled=true`.
 claude mcp add quarkus-agent -e AGENT_MCP_LOG_ENABLED=true -- jbang quarkus-agent-mcp@quarkusio
 ```
 
-**VS Code / Cursor / Windsurf / JetBrains (JSON config):**
+**VS Code / GitHub Copilot:**
 
 ```json
 {
   "servers": {
     "quarkus-agent": {
       "type": "stdio",
+      "command": "jbang",
+      "args": ["quarkus-agent-mcp@quarkusio"],
+      "env": {
+        "AGENT_MCP_LOG_ENABLED": "true"
+      }
+    }
+  }
+}
+```
+
+**Cursor / Windsurf / JetBrains (JSON config):**
+
+```json
+{
+  "mcpServers": {
+    "quarkus-agent": {
       "command": "jbang",
       "args": ["quarkus-agent-mcp@quarkusio"],
       "env": {
