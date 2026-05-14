@@ -462,13 +462,13 @@ public final class SkillReader {
             return List.of();
         }
 
-        List<MavenDependency> deps = parseDependencies(projectDir);
+        List<DependencyResolver.Dependency> deps = DependencyResolver.resolve(projectDir);
         if (deps.isEmpty()) {
             return List.of();
         }
 
         List<SkillInfo> skills = new ArrayList<>();
-        for (MavenDependency dep : deps) {
+        for (DependencyResolver.Dependency dep : deps) {
             if (CORE_GROUP_ID.equals(dep.groupId())) {
                 continue;
             }
@@ -845,109 +845,6 @@ public final class SkillReader {
         String description;
         String guide;
         List<String> categories;
-    }
-
-    // ── pom.xml dependency parsing ──────────────────────────────────────────
-
-    record MavenDependency(String groupId, String artifactId, String version) {
-    }
-
-    /**
-     * Parses direct dependencies from the project's {@code pom.xml}.
-     * Resolves property placeholders like {@code ${some.version}} from the
-     * {@code <properties>} section. Skips dependencies without a resolvable version.
-     */
-    static List<MavenDependency> parseDependencies(String projectDir) {
-        Path pomFile = Path.of(projectDir, "pom.xml");
-        if (!Files.isRegularFile(pomFile)) {
-            return List.of();
-        }
-
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            Document doc = factory.newDocumentBuilder().parse(pomFile.toFile());
-
-            Map<String, String> properties = parseProperties(doc);
-
-            List<MavenDependency> deps = new ArrayList<>();
-            NodeList depNodes = doc.getElementsByTagName("dependency");
-            for (int i = 0; i < depNodes.getLength(); i++) {
-                Element depEl = (Element) depNodes.item(i);
-                // Skip dependencies nested inside <plugin> or <exclusions>
-                if (isNestedInPluginOrExclusion(depEl)) {
-                    continue;
-                }
-                String groupId = getChildText(depEl, "groupId");
-                String artifactId = getChildText(depEl, "artifactId");
-                String version = getChildText(depEl, "version");
-
-                if (groupId == null || artifactId == null) {
-                    continue;
-                }
-
-                groupId = resolveProperty(groupId, properties);
-                artifactId = resolveProperty(artifactId, properties);
-                if (version != null) {
-                    version = resolveProperty(version, properties);
-                }
-
-                // Skip if version couldn't be resolved (BOM-managed, we can't resolve those)
-                if (version == null || version.contains("${")) {
-                    continue;
-                }
-
-                deps.add(new MavenDependency(groupId, artifactId, version));
-            }
-            return deps;
-        } catch (Exception e) {
-            LOG.debugf("Failed to parse pom.xml at %s: %s", pomFile, e.getMessage());
-            return List.of();
-        }
-    }
-
-    private static Map<String, String> parseProperties(Document doc) {
-        Map<String, String> props = new HashMap<>();
-        NodeList propsNodes = doc.getElementsByTagName("properties");
-        if (propsNodes.getLength() > 0) {
-            Element propsEl = (Element) propsNodes.item(0);
-            NodeList children = propsEl.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                if (children.item(i) instanceof Element el) {
-                    props.put(el.getTagName(), el.getTextContent().trim());
-                }
-            }
-        }
-        return props;
-    }
-
-    static String resolveProperty(String value, Map<String, String> properties) {
-        if (value == null || !value.contains("${")) {
-            return value;
-        }
-        String resolved = value;
-        Pattern propPattern = Pattern.compile("\\$\\{([^}]+)}");
-        Matcher m = propPattern.matcher(value);
-        while (m.find()) {
-            String propName = m.group(1);
-            String propValue = properties.get(propName);
-            if (propValue != null) {
-                resolved = resolved.replace(m.group(0), propValue);
-            }
-        }
-        return resolved;
-    }
-
-    private static boolean isNestedInPluginOrExclusion(Element el) {
-        org.w3c.dom.Node parent = el.getParentNode();
-        while (parent instanceof Element parentEl) {
-            String tag = parentEl.getTagName();
-            if ("plugin".equals(tag) || "exclusions".equals(tag) || "dependencyManagement".equals(tag)) {
-                return true;
-            }
-            parent = parentEl.getParentNode();
-        }
-        return false;
     }
 
     /**
