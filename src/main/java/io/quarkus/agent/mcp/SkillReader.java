@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -990,59 +991,37 @@ public final class SkillReader {
      * @param projectDir the project directory (may be null)
      */
     static String resolveMavenRepoBaseUrl(String projectDir) {
-        // 1. Check .mvn/maven.config for a custom settings file
-        if (projectDir != null) {
-            Path customSettings = parseSettingsFromMvnConfig(Path.of(projectDir));
-            if (customSettings != null && Files.isRegularFile(customSettings)) {
-                String mirrorUrl = parseMirrorUrl(customSettings);
-                if (mirrorUrl != null) {
-                    LOG.debugf("Using mirror from .mvn/maven.config settings: %s", mirrorUrl);
-                    return mirrorUrl;
-                }
-            }
-        }
-
-        // 2. Check user-level settings.xml
-        Path userSettings = Path.of(System.getProperty("user.home"), ".m2", "settings.xml");
-        if (Files.isRegularFile(userSettings)) {
-            String mirrorUrl = parseMirrorUrl(userSettings);
-            if (mirrorUrl != null) {
-                LOG.debugf("Using mirror from user settings.xml: %s", mirrorUrl);
-                return mirrorUrl;
-            }
-        }
-
-        // 3. Check global Maven settings.xml
-        Path globalSettings = resolveGlobalSettingsPath();
-        if (globalSettings != null && Files.isRegularFile(globalSettings)) {
-            String mirrorUrl = parseMirrorUrl(globalSettings);
-            if (mirrorUrl != null) {
-                LOG.debugf("Using mirror from global settings.xml: %s", mirrorUrl);
-                return mirrorUrl;
-            }
-        }
-
-        return MAVEN_CENTRAL_BASE;
+        String url = findInSettingsFiles(projectDir, "mirror", SkillReader::parseMirrorUrl);
+        return url != null ? url : MAVEN_CENTRAL_BASE;
     }
 
     /**
-     * Resolves the local Maven repository path by checking settings files in priority order:
+     * Resolves the local Maven repository path by checking settings files in priority order.
+     * Falls back to {@code ~/.m2/repository} if no {@code <localRepository>} is configured.
+     */
+    static Path resolveLocalMavenRepo(String projectDir) {
+        Path repo = findInSettingsFiles(projectDir, "local repository", SkillReader::parseLocalRepository);
+        return repo != null ? repo : Path.of(System.getProperty("user.home"), ".m2", "repository");
+    }
+
+    /**
+     * Walks Maven settings files in priority order, applying the extractor to each:
      * <ol>
      *   <li>{@code .mvn/maven.config} custom settings file</li>
      *   <li>{@code ~/.m2/settings.xml} — user-level settings</li>
      *   <li>{@code ${MAVEN_HOME}/conf/settings.xml} — global Maven settings</li>
      * </ol>
-     * Falls back to {@code ~/.m2/repository} if no {@code <localRepository>} is configured.
+     * Returns the first non-null result, or null if none matched.
      */
-    static Path resolveLocalMavenRepo(String projectDir) {
+    static <T> T findInSettingsFiles(String projectDir, String description, Function<Path, T> extractor) {
         // 1. Check .mvn/maven.config for a custom settings file
         if (projectDir != null) {
             Path customSettings = parseSettingsFromMvnConfig(Path.of(projectDir));
             if (customSettings != null && Files.isRegularFile(customSettings)) {
-                Path localRepo = parseLocalRepository(customSettings);
-                if (localRepo != null) {
-                    LOG.debugf("Using local repository from .mvn/maven.config settings: %s", localRepo);
-                    return localRepo;
+                T result = extractor.apply(customSettings);
+                if (result != null) {
+                    LOG.debugf("Using %s from .mvn/maven.config settings: %s", description, result);
+                    return result;
                 }
             }
         }
@@ -1050,24 +1029,24 @@ public final class SkillReader {
         // 2. Check user-level settings.xml
         Path userSettings = Path.of(System.getProperty("user.home"), ".m2", "settings.xml");
         if (Files.isRegularFile(userSettings)) {
-            Path localRepo = parseLocalRepository(userSettings);
-            if (localRepo != null) {
-                LOG.debugf("Using local repository from user settings.xml: %s", localRepo);
-                return localRepo;
+            T result = extractor.apply(userSettings);
+            if (result != null) {
+                LOG.debugf("Using %s from user settings.xml: %s", description, result);
+                return result;
             }
         }
 
         // 3. Check global Maven settings.xml
         Path globalSettings = resolveGlobalSettingsPath();
         if (globalSettings != null && Files.isRegularFile(globalSettings)) {
-            Path localRepo = parseLocalRepository(globalSettings);
-            if (localRepo != null) {
-                LOG.debugf("Using local repository from global settings.xml: %s", localRepo);
-                return localRepo;
+            T result = extractor.apply(globalSettings);
+            if (result != null) {
+                LOG.debugf("Using %s from global settings.xml: %s", description, result);
+                return result;
             }
         }
 
-        return Path.of(System.getProperty("user.home"), ".m2", "repository");
+        return null;
     }
 
     /**
@@ -1168,7 +1147,8 @@ public final class SkillReader {
             if (nodes.getLength() > 0) {
                 String text = nodes.item(0).getTextContent();
                 if (text != null && !text.trim().isEmpty()) {
-                    return Path.of(text.trim());
+                    String path = text.trim().replace("${user.home}", System.getProperty("user.home"));
+                    return Path.of(path);
                 }
             }
         } catch (Exception e) {
