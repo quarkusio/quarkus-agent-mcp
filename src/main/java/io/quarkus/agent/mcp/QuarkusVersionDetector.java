@@ -154,7 +154,7 @@ public final class QuarkusVersionDetector {
                 "-Dexpression=quarkus.platform.version",
                 "-q", "-DforceStdout", "-N")
                 .directory(dir)
-                .redirectErrorStream(true);
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
         String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
         return parseMavenEvaluateOutput(output);
     }
@@ -165,7 +165,7 @@ public final class QuarkusVersionDetector {
                 gradleCmd, "properties",
                 "-q", "--property", "quarkusPlatformVersion")
                 .directory(dir)
-                .redirectErrorStream(true);
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
         String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
         return parseGradlePropertiesOutput(output);
     }

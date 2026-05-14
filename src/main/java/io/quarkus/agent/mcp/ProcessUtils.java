@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.jboss.logging.Logger;
 
@@ -82,10 +83,21 @@ final class ProcessUtils {
     }
 
     static String runAndCapture(ProcessBuilder pb, long timeout, TimeUnit unit) {
-        Process process = null;
+        Process process;
         try {
             process = pb.start();
-            String output = captureOutput(process);
+        } catch (Exception e) {
+            LOG.debugf("Failed to start process: %s", e.getMessage());
+            return null;
+        }
+        try {
+            CompletableFuture<String> outputFuture = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return captureOutput(process);
+                } catch (IOException e) {
+                    return null;
+                }
+            });
             if (!process.waitFor(timeout, unit)) {
                 process.destroyForcibly();
                 LOG.debugf("Process timed out: %s", String.join(" ", pb.command()));
@@ -95,7 +107,7 @@ final class ProcessUtils {
                 LOG.debugf("Process exited with code %d: %s", process.exitValue(), String.join(" ", pb.command()));
                 return null;
             }
-            return output;
+            return outputFuture.get(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
@@ -103,9 +115,7 @@ final class ProcessUtils {
             LOG.debugf("Failed to run process: %s", e.getMessage());
             return null;
         } finally {
-            if (process != null) {
-                process.destroyForcibly();
-            }
+            process.destroyForcibly();
         }
     }
 
