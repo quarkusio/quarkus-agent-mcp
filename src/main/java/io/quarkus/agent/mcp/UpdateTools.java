@@ -136,7 +136,7 @@ public class UpdateTools {
             }
 
             // Step 3b: Run quarkus update --dry-run
-            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes, buildInfo);
+            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes, buildInfo, latestVersion);
             if (dryRunReport != null) {
                 report.append("## Automated Migration Preview (`quarkus update --dry-run`)\n\n");
                 report.append(dryRunReport).append("\n");
@@ -308,8 +308,9 @@ public class UpdateTools {
      * Falls back to the Maven or Gradle plugin when the Quarkus CLI is unavailable.
      * Returns null only when no suitable build tool can be found.
      */
-    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo) {
-        List<String> cmd = buildUpdateCommand(projectDir, additionalUpdateRecipes, buildInfo);
+    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo,
+            String latestVersion) {
+        List<String> cmd = buildUpdateCommand(projectDir, additionalUpdateRecipes, buildInfo, latestVersion);
         if (cmd == null) {
             return null;
         }
@@ -361,7 +362,8 @@ public class UpdateTools {
      * Builds the command to run the update dry-run.
      * Prefers the Quarkus CLI, then falls back to Maven/Gradle plugin.
      */
-    List<String> buildUpdateCommand(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo) {
+    List<String> buildUpdateCommand(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo,
+            String latestVersion) {
         if (isCommandAvailable("quarkus")) {
             List<String> cmd = new ArrayList<>();
             cmd.add("quarkus");
@@ -375,20 +377,20 @@ public class UpdateTools {
 
         File dir = new File(projectDir);
         if ("Maven".equals(buildInfo.buildTool())) {
-            return buildMavenUpdateCommand(dir, additionalUpdateRecipes, buildInfo.version());
+            return buildMavenUpdateCommand(dir, additionalUpdateRecipes, latestVersion);
         }
         if ("Gradle".equals(buildInfo.buildTool()) || "Gradle Kotlin DSL".equals(buildInfo.buildTool())) {
-            return buildGradleUpdateCommand(dir);
+            return buildGradleUpdateCommand(dir, additionalUpdateRecipes);
         }
 
         return null;
     }
 
-    List<String> buildMavenUpdateCommand(File projectDir, String additionalUpdateRecipes, String version) {
+    List<String> buildMavenUpdateCommand(File projectDir, String additionalUpdateRecipes, String latestVersion) {
         String cmd = ProcessUtils.resolveMavenCommand(projectDir);
         List<String> args = new ArrayList<>();
         args.add(cmd);
-        args.add("io.quarkus.platform:quarkus-maven-plugin:" + version + ":update");
+        args.add("io.quarkus.platform:quarkus-maven-plugin:" + latestVersion + ":update");
         args.add("-DrewriteDryRun=true");
         args.add("-DquarkusRegistryClient=true");
         if (hasValue(additionalUpdateRecipes)) {
@@ -400,9 +402,16 @@ public class UpdateTools {
         return args;
     }
 
-    List<String> buildGradleUpdateCommand(File projectDir) {
+    List<String> buildGradleUpdateCommand(File projectDir, String additionalUpdateRecipes) {
         String cmd = ProcessUtils.resolveGradleCommand(projectDir);
-        return List.of(cmd, "quarkusUpdate");
+        List<String> args = new ArrayList<>();
+        args.add(cmd);
+        args.add("quarkusUpdate");
+        args.add("--rewriteDryRun");
+        if (hasValue(additionalUpdateRecipes)) {
+            args.add("--additionalUpdateRecipes=" + additionalUpdateRecipes);
+        }
+        return args;
     }
 
     private boolean isCommandAvailable(String command) {

@@ -157,14 +157,33 @@ class UpdateToolsTest {
     }
 
     @Test
-    void buildGradleUpdateCommand() {
+    void buildGradleUpdateCommandIncludesDryRun() {
         UpdateTools tools = new UpdateTools();
 
-        List<String> cmd = tools.buildGradleUpdateCommand(tempDir.toFile());
+        List<String> cmd = tools.buildGradleUpdateCommand(tempDir.toFile(), null);
 
         assertNotNull(cmd);
-        assertEquals(2, cmd.size());
         assertTrue(cmd.contains("quarkusUpdate"));
+        assertTrue(cmd.contains("--rewriteDryRun"));
+    }
+
+    @Test
+    void buildGradleUpdateCommandIncludesAdditionalRecipes() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildGradleUpdateCommand(tempDir.toFile(), "org.acme:my-recipes:1.0.0");
+
+        assertTrue(cmd.contains("--rewriteDryRun"));
+        assertTrue(cmd.contains("--additionalUpdateRecipes=org.acme:my-recipes:1.0.0"));
+    }
+
+    @Test
+    void buildGradleUpdateCommandOmitsRecipesWhenNull() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildGradleUpdateCommand(tempDir.toFile(), null);
+
+        assertTrue(cmd.stream().noneMatch(a -> a.startsWith("--additionalUpdateRecipes=")));
     }
 
     @Test
@@ -172,7 +191,7 @@ class UpdateToolsTest {
         UpdateTools tools = new UpdateTools();
         UpdateTools.BuildInfo info = new UpdateTools.BuildInfo("Maven", "maven-", "pom.xml", "3.21.2");
 
-        List<String> cmd = tools.buildUpdateCommand(tempDir.toString(), null, info);
+        List<String> cmd = tools.buildUpdateCommand(tempDir.toString(), null, info, "3.22.0");
 
         assertNotNull(cmd);
         if (ProcessUtils.isCommandAvailable("quarkus")) {
@@ -180,7 +199,7 @@ class UpdateToolsTest {
             assertTrue(cmd.contains("update"));
             assertTrue(cmd.contains("--dry-run"));
         } else {
-            assertEquals("io.quarkus.platform:quarkus-maven-plugin:3.21.2:update", cmd.get(1));
+            assertEquals("io.quarkus.platform:quarkus-maven-plugin:3.22.0:update", cmd.get(1));
         }
     }
 

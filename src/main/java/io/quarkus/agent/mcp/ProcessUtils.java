@@ -15,9 +15,10 @@ final class ProcessUtils {
     }
 
     static boolean isCommandAvailable(String command) {
+        String checker = isWindows() ? "where" : "which";
         Process p = null;
         try {
-            p = new ProcessBuilder("which", command)
+            p = new ProcessBuilder(checker, command)
                     .redirectErrorStream(true)
                     .start();
             p.getInputStream().transferTo(java.io.OutputStream.nullOutputStream());
@@ -39,17 +40,19 @@ final class ProcessUtils {
     }
 
     static String resolveMavenCommand(File projectDir) {
-        File wrapper = isWindows() ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
+        boolean win = isWindows();
+        File wrapper = win ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
         if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
-            return isWindows() ? "mvnw.cmd" : "./mvnw";
+            return win ? "mvnw.cmd" : "./mvnw";
         }
         return "mvn";
     }
 
     static String resolveGradleCommand(File projectDir) {
-        File wrapper = isWindows() ? new File(projectDir, "gradlew.bat") : new File(projectDir, "gradlew");
+        boolean win = isWindows();
+        File wrapper = win ? new File(projectDir, "gradlew.bat") : new File(projectDir, "gradlew");
         if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
-            return isWindows() ? "gradlew.bat" : "./gradlew";
+            return win ? "gradlew.bat" : "./gradlew";
         }
         return "gradle";
     }
