@@ -162,7 +162,7 @@ public final class SkillReader {
         // Layer 1: Scan extension runtime JARs and compose skills on-the-fly
         String version = QuarkusVersionDetector.detect(projectDir);
         if (version != null) {
-            Path m2Repo = Path.of(System.getProperty("user.home"), ".m2", "repository");
+            Path m2Repo = resolveLocalMavenRepo(projectDir);
 
             // 1a: Scan core extension runtime JARs (io.quarkus) by version
             for (SkillInfo skill : scanCoreExtensionSkills(version, m2Repo, metadataOnly)) {
@@ -1026,6 +1026,51 @@ public final class SkillReader {
     }
 
     /**
+     * Resolves the local Maven repository path by checking settings files in priority order:
+     * <ol>
+     *   <li>{@code .mvn/maven.config} custom settings file</li>
+     *   <li>{@code ~/.m2/settings.xml} — user-level settings</li>
+     *   <li>{@code ${MAVEN_HOME}/conf/settings.xml} — global Maven settings</li>
+     * </ol>
+     * Falls back to {@code ~/.m2/repository} if no {@code <localRepository>} is configured.
+     */
+    static Path resolveLocalMavenRepo(String projectDir) {
+        // 1. Check .mvn/maven.config for a custom settings file
+        if (projectDir != null) {
+            Path customSettings = parseSettingsFromMvnConfig(Path.of(projectDir));
+            if (customSettings != null && Files.isRegularFile(customSettings)) {
+                Path localRepo = parseLocalRepository(customSettings);
+                if (localRepo != null) {
+                    LOG.debugf("Using local repository from .mvn/maven.config settings: %s", localRepo);
+                    return localRepo;
+                }
+            }
+        }
+
+        // 2. Check user-level settings.xml
+        Path userSettings = Path.of(System.getProperty("user.home"), ".m2", "settings.xml");
+        if (Files.isRegularFile(userSettings)) {
+            Path localRepo = parseLocalRepository(userSettings);
+            if (localRepo != null) {
+                LOG.debugf("Using local repository from user settings.xml: %s", localRepo);
+                return localRepo;
+            }
+        }
+
+        // 3. Check global Maven settings.xml
+        Path globalSettings = resolveGlobalSettingsPath();
+        if (globalSettings != null && Files.isRegularFile(globalSettings)) {
+            Path localRepo = parseLocalRepository(globalSettings);
+            if (localRepo != null) {
+                LOG.debugf("Using local repository from global settings.xml: %s", localRepo);
+                return localRepo;
+            }
+        }
+
+        return Path.of(System.getProperty("user.home"), ".m2", "repository");
+    }
+
+    /**
      * Parses {@code .mvn/maven.config} in the project directory for a {@code -s}
      * or {@code --settings} flag pointing to a custom settings file.
      * Returns the resolved path, or null if not found.
@@ -1101,6 +1146,29 @@ public final class SkillReader {
                 if (mirrorOf != null && url != null && mirrorOfMatchesCentral(mirrorOf)) {
                     // Strip trailing slash for consistent path joining
                     return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+                }
+            }
+        } catch (Exception e) {
+            LOG.warnf("Failed to parse settings.xml at %s: %s", settingsFile, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Parses {@code settings.xml} for a {@code <localRepository>} element.
+     * Returns the configured path, or null if not found or blank.
+     */
+    static Path parseLocalRepository(Path settingsFile) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            Document doc = factory.newDocumentBuilder().parse(settingsFile.toFile());
+
+            NodeList nodes = doc.getElementsByTagName("localRepository");
+            if (nodes.getLength() > 0) {
+                String text = nodes.item(0).getTextContent();
+                if (text != null && !text.trim().isEmpty()) {
+                    return Path.of(text.trim());
                 }
             }
         } catch (Exception e) {

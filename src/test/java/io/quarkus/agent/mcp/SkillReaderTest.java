@@ -374,6 +374,101 @@ class SkillReaderTest {
         assertNull(url);
     }
 
+    // --- parseLocalRepository tests ---
+
+    @Test
+    void parseLocalRepositoryFromSettingsXml() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <localRepository>/custom/maven/repo</localRepository>
+                </settings>
+                """);
+
+        Path result = SkillReader.parseLocalRepository(settingsFile);
+
+        assertEquals(Path.of("/custom/maven/repo"), result);
+    }
+
+    @Test
+    void parseLocalRepositoryReturnsNullWhenNotConfigured() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <profiles></profiles>
+                </settings>
+                """);
+
+        Path result = SkillReader.parseLocalRepository(settingsFile);
+
+        assertNull(result);
+    }
+
+    @Test
+    void parseLocalRepositoryReturnsNullForEmptyElement() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <localRepository>   </localRepository>
+                </settings>
+                """);
+
+        Path result = SkillReader.parseLocalRepository(settingsFile);
+
+        assertNull(result);
+    }
+
+    @Test
+    void parseLocalRepositoryHandlesMalformedXml() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, "this is not xml");
+
+        Path result = SkillReader.parseLocalRepository(settingsFile);
+
+        assertNull(result);
+    }
+
+    // --- resolveLocalMavenRepo tests ---
+
+    @Test
+    void resolveLocalMavenRepoDefaultsToM2Repository() {
+        Path result = SkillReader.resolveLocalMavenRepo(null);
+
+        assertEquals(Path.of(System.getProperty("user.home"), ".m2", "repository"), result);
+    }
+
+    @Test
+    void resolveLocalMavenRepoReadsFromMvnConfig() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir.resolve(".mvn"));
+        Files.writeString(projectDir.resolve(".mvn/maven.config"), "-s custom-settings.xml");
+        Files.writeString(projectDir.resolve("custom-settings.xml"), """
+                <settings>
+                    <localRepository>/custom/repo</localRepository>
+                </settings>
+                """);
+
+        Path result = SkillReader.resolveLocalMavenRepo(projectDir.toString());
+
+        assertEquals(Path.of("/custom/repo"), result);
+    }
+
+    @Test
+    void resolveLocalMavenRepoFallsThroughLayers() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir.resolve(".mvn"));
+        Files.writeString(projectDir.resolve(".mvn/maven.config"), "-s custom-settings.xml");
+        Files.writeString(projectDir.resolve("custom-settings.xml"), """
+                <settings>
+                    <profiles></profiles>
+                </settings>
+                """);
+
+        Path result = SkillReader.resolveLocalMavenRepo(projectDir.toString());
+
+        assertEquals(Path.of(System.getProperty("user.home"), ".m2", "repository"), result);
+    }
+
     // --- Enhance mode tests ---
 
     @Test
