@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import jakarta.inject.Inject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -17,8 +18,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 /**
@@ -32,6 +35,10 @@ public class UpdateTools {
 
     private static final Logger LOG = Logger.getLogger(UpdateTools.class);
 
+    @Inject
+    @ConfigProperty(name = "agent-mcp.update.additional-recipes")
+    Optional<String> configuredAdditionalRecipes;
+
     private static final String COMPARE_REPO = "quarkusio/code-with-quarkus-compare";
     private static final String RAW_BASE = "https://raw.githubusercontent.com/" + COMPARE_REPO;
     private static final String COMPARE_URL_BASE = "https://github.com/" + COMPARE_REPO + "/compare/";
@@ -39,6 +46,10 @@ public class UpdateTools {
     // Semver-like: 3.21.2, 3.21.2.Final, 3.21.2-SNAPSHOT
     private static final Pattern VERSION_PATTERN = Pattern.compile(
             "^[0-9]+\\.[0-9]+\\.[0-9]+([.\\-][A-Za-z0-9]+)*$");
+
+    // Validates additionalUpdateRecipes: comma-separated groupId:artifactId:version entries
+    private static final Pattern RECIPE_ARTIFACT_PATTERN = Pattern.compile(
+            "^[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+(\\s*,\\s*[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+)*$");
 
 
     @Tool(name = "quarkus_update", description = "Check if a Quarkus project is up-to-date and provide an upgrade report. "
@@ -50,11 +61,28 @@ public class UpdateTools {
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_update", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
     ToolResponse update(
-            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
+            @ToolArg(description = "Additional OpenRewrite recipe artifacts to include in the update, "
+                    + "in the format 'groupId:artifactId:version' (e.g. 'org.acme:my-recipes:1.0.0'). "
+                    + "Multiple artifacts can be comma-separated.", required = false) String additionalUpdateRecipes) {
         try {
             Path dir = Path.of(projectDir);
             if (!Files.isDirectory(dir)) {
                 return ToolResponse.error("Project directory does not exist: " + projectDir);
+            }
+
+            // Tool argument takes precedence over configured default
+            if (!hasValue(additionalUpdateRecipes)
+                    && configuredAdditionalRecipes.isPresent()
+                    && hasValue(configuredAdditionalRecipes.get())) {
+                additionalUpdateRecipes = configuredAdditionalRecipes.get();
+            }
+
+            if (hasValue(additionalUpdateRecipes)
+                    && !RECIPE_ARTIFACT_PATTERN.matcher(additionalUpdateRecipes.trim()).matches()) {
+                return ToolResponse.error(
+                        "Invalid additionalUpdateRecipes format. Expected comma-separated 'groupId:artifactId:version' entries, got: "
+                                + additionalUpdateRecipes);
             }
 
             // Step 1: Detect build tool and version
@@ -73,7 +101,11 @@ public class UpdateTools {
             report.append("# Quarkus Project Update Report\n\n");
             report.append("- **Build tool:** ").append(buildInfo.buildTool).append("\n");
             report.append("- **Current version:** ").append(buildInfo.version).append("\n");
-            report.append("- **Latest version:** ").append(latestVersion).append("\n\n");
+            report.append("- **Latest version:** ").append(latestVersion).append("\n");
+            if (hasValue(additionalUpdateRecipes)) {
+                report.append("- **Additional update recipes:** ").append(additionalUpdateRecipes).append("\n");
+            }
+            report.append("\n");
 
             boolean isUpToDate = buildInfo.version.equals(latestVersion);
 
@@ -103,7 +135,7 @@ public class UpdateTools {
             }
 
             // Step 3b: Run quarkus update --dry-run
-            String dryRunReport = runQuarkusUpdateDryRun(projectDir);
+            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes);
             if (dryRunReport != null) {
                 report.append("## Automated Migration Preview (`quarkus update --dry-run`)\n\n");
                 report.append(dryRunReport).append("\n");
@@ -123,7 +155,11 @@ public class UpdateTools {
 
             // Step 4: Recommended actions
             report.append("## Recommended Actions\n\n");
-            report.append("1. Run `quarkus update` to apply automated migrations");
+            report.append("1. Run `quarkus update");
+            if (hasValue(additionalUpdateRecipes)) {
+                report.append(" --additional-update-recipes=").append(additionalUpdateRecipes);
+            }
+            report.append("` to apply automated migrations");
             if (dryRunReport == null) {
                 report.append(" (install the Quarkus CLI first: https://quarkus.io/guides/cli-tooling)");
             }
@@ -269,14 +305,22 @@ public class UpdateTools {
     /**
      * Runs {@code quarkus update --dry-run} and returns the report, or null if CLI not available.
      */
-    private String runQuarkusUpdateDryRun(String projectDir) {
+    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes) {
         // Check if quarkus CLI is available
         if (!isCommandAvailable("quarkus")) {
             return null;
         }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder("quarkus", "update", "--dry-run")
+            List<String> cmd = new ArrayList<>();
+            cmd.add("quarkus");
+            cmd.add("update");
+            cmd.add("--dry-run");
+            if (hasValue(additionalUpdateRecipes)) {
+                cmd.add("--additional-update-recipes=" + additionalUpdateRecipes);
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(cmd)
                     .directory(new File(projectDir))
                     .redirectErrorStream(true);
 
@@ -320,6 +364,10 @@ public class UpdateTools {
 
     private boolean isCommandAvailable(String command) {
         return ProcessUtils.isCommandAvailable(command);
+    }
+
+    private static boolean hasValue(String s) {
+        return s != null && !s.isBlank();
     }
 
     record BuildInfo(String buildTool, String tagPrefix, String buildFile, String version) {

@@ -260,6 +260,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 - Compares build files against [reference projects](https://github.com/quarkusio/code-with-quarkus-compare)
 - Runs `quarkus update --dry-run` (if CLI available) to preview automated migrations
+- Supports custom OpenRewrite recipes via `additionalUpdateRecipes` (e.g. `org.acme:my-recipes:1.0.0`), either per-call or configured globally with `agent-mcp.update.additional-recipes`
 - Links to the structural diff between versions
 - Recommends manual actions for changes that automated migration doesn't cover
 
@@ -275,7 +276,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required) |
+| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required), `additionalUpdateRecipes` |
 
 ### Extension Skills
 
@@ -372,6 +373,7 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.process.mvn-cmd` | _(auto-detect)_ | Override the Maven command used to start dev mode (e.g. `mvn` to skip wrapper detection) |
 | `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |
 | `agent-mcp.log.enabled` | `false` | Enable file logging on startup — logs are written to `~/.quarkus/agent-mcp/agent-mcp.log` |
+| `agent-mcp.update.additional-recipes` | _(none)_ | Additional OpenRewrite recipe artifacts for `quarkus_update` (e.g. `org.acme:my-recipes:1.0.0`) |
 
 ## Building a Native Image
 
