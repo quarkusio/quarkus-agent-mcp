@@ -419,6 +419,20 @@ class SkillReaderTest {
     }
 
     @Test
+    void parseLocalRepositoryExpandsUserHome() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <localRepository>${user.home}/custom-repo</localRepository>
+                </settings>
+                """);
+
+        Path result = SkillReader.parseLocalRepository(settingsFile);
+
+        assertEquals(Path.of(System.getProperty("user.home"), "custom-repo"), result);
+    }
+
+    @Test
     void parseLocalRepositoryHandlesMalformedXml() throws Exception {
         Path settingsFile = tempDir.resolve("settings.xml");
         Files.writeString(settingsFile, "this is not xml");
