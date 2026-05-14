@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
@@ -91,6 +92,16 @@ public final class QuarkusVersionDetector {
             }
         }
 
+        // Fallback: shell out to Maven/Gradle to resolve inherited properties
+        if (version == null && pomFile.isFile()) {
+            version = detectFromMavenBuildTool(dir);
+        }
+        if (version == null) {
+            if (new File(dir, "build.gradle").isFile() || new File(dir, "build.gradle.kts").isFile()) {
+                version = detectFromGradleBuildTool(dir);
+            }
+        }
+
         if (version == null) {
             return null;
         }
@@ -132,6 +143,56 @@ public final class QuarkusVersionDetector {
             }
         } catch (IOException e) {
             LOG.debugf("Failed to read gradle.properties: %s", e.getMessage());
+        }
+        return null;
+    }
+
+    private static String detectFromMavenBuildTool(File dir) {
+        String mvnCmd = ProcessUtils.resolveMavenCommand(dir);
+        ProcessBuilder pb = new ProcessBuilder(
+                mvnCmd, "help:evaluate",
+                "-Dexpression=quarkus.platform.version",
+                "-q", "-DforceStdout", "-N")
+                .directory(dir)
+                .redirectErrorStream(true);
+        String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
+        return parseMavenEvaluateOutput(output);
+    }
+
+    private static String detectFromGradleBuildTool(File dir) {
+        String gradleCmd = ProcessUtils.resolveGradleCommand(dir);
+        ProcessBuilder pb = new ProcessBuilder(
+                gradleCmd, "properties",
+                "-q", "--property", "quarkusPlatformVersion")
+                .directory(dir)
+                .redirectErrorStream(true);
+        String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
+        return parseGradlePropertiesOutput(output);
+    }
+
+    static String parseMavenEvaluateOutput(String output) {
+        if (output == null) {
+            return null;
+        }
+        String trimmed = output.trim();
+        if (trimmed.isEmpty() || trimmed.equalsIgnoreCase("null") || trimmed.contains("${")) {
+            return null;
+        }
+        return trimmed;
+    }
+
+    static String parseGradlePropertiesOutput(String output) {
+        if (output == null || output.isBlank()) {
+            return null;
+        }
+        for (String line : output.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("quarkusPlatformVersion:")) {
+                String value = trimmed.substring("quarkusPlatformVersion:".length()).trim();
+                if (!value.isEmpty()) {
+                    return value;
+                }
+            }
         }
         return null;
     }
