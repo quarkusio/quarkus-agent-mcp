@@ -230,4 +230,73 @@ class QuarkusVersionDetectorTest {
 
         assertEquals("3.30.1", QuarkusVersionDetector.detect(tempDir.toString()));
     }
+
+    // --- Maven evaluate output parsing ---
+
+    @Test
+    void parseMavenEvaluateOutputExtractsVersion() {
+        assertEquals("3.35.2", QuarkusVersionDetector.parseMavenEvaluateOutput("3.35.2\n"));
+    }
+
+    @Test
+    void parseMavenEvaluateOutputReturnsNullForNullLiteral() {
+        assertNull(QuarkusVersionDetector.parseMavenEvaluateOutput("null\n"));
+    }
+
+    @Test
+    void parseMavenEvaluateOutputReturnsNullForUnresolved() {
+        assertNull(QuarkusVersionDetector.parseMavenEvaluateOutput("${quarkus.platform.version}"));
+    }
+
+    @Test
+    void parseMavenEvaluateOutputReturnsNullForEmpty() {
+        assertNull(QuarkusVersionDetector.parseMavenEvaluateOutput(""));
+    }
+
+    @Test
+    void parseMavenEvaluateOutputReturnsNullForNull() {
+        assertNull(QuarkusVersionDetector.parseMavenEvaluateOutput(null));
+    }
+
+    @Test
+    void parseMavenEvaluateOutputTrimsWhitespace() {
+        assertEquals("3.35.2", QuarkusVersionDetector.parseMavenEvaluateOutput("  3.35.2  \n"));
+    }
+
+    // --- Gradle properties output parsing ---
+
+    @Test
+    void parseGradlePropertiesOutputExtractsVersion() {
+        assertEquals("3.35.2", QuarkusVersionDetector.parseGradlePropertiesOutput("quarkusPlatformVersion: 3.35.2\n"));
+    }
+
+    @Test
+    void parseGradlePropertiesOutputReturnsNullWhenMissing() {
+        assertNull(QuarkusVersionDetector.parseGradlePropertiesOutput("otherProp: value\n"));
+    }
+
+    @Test
+    void parseGradlePropertiesOutputReturnsNullForEmpty() {
+        assertNull(QuarkusVersionDetector.parseGradlePropertiesOutput(""));
+    }
+
+    @Test
+    void parseGradlePropertiesOutputReturnsNullForNull() {
+        assertNull(QuarkusVersionDetector.parseGradlePropertiesOutput(null));
+    }
+
+    @Test
+    void parseGradlePropertiesOutputHandlesNoSpace() {
+        assertEquals("3.35.2", QuarkusVersionDetector.parseGradlePropertiesOutput("quarkusPlatformVersion:3.35.2"));
+    }
+
+    @Test
+    void parseGradlePropertiesOutputHandlesMultipleLines() {
+        String output = """
+                someOtherProperty: foo
+                quarkusPlatformVersion: 3.30.1
+                anotherProperty: bar
+                """;
+        assertEquals("3.30.1", QuarkusVersionDetector.parseGradlePropertiesOutput(output));
+    }
 }

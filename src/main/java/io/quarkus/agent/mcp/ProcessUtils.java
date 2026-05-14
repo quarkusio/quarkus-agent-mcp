@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import org.jboss.logging.Logger;
 
 final class ProcessUtils {
@@ -77,6 +78,34 @@ final class ProcessUtils {
             LOG.warnf("Could not verify wrapper script '%s' against git: %s. "
                     + "Falling back to system build tool.", wrapper.getAbsolutePath(), e.getMessage());
             return false;
+        }
+    }
+
+    static String runAndCapture(ProcessBuilder pb, long timeout, TimeUnit unit) {
+        Process process = null;
+        try {
+            process = pb.start();
+            String output = captureOutput(process);
+            if (!process.waitFor(timeout, unit)) {
+                process.destroyForcibly();
+                LOG.debugf("Process timed out: %s", String.join(" ", pb.command()));
+                return null;
+            }
+            if (process.exitValue() != 0) {
+                LOG.debugf("Process exited with code %d: %s", process.exitValue(), String.join(" ", pb.command()));
+                return null;
+            }
+            return output;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (Exception e) {
+            LOG.debugf("Failed to run process: %s", e.getMessage());
+            return null;
+        } finally {
+            if (process != null) {
+                process.destroyForcibly();
+            }
         }
     }
 
