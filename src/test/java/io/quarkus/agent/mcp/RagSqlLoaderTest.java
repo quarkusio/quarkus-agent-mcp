@@ -11,12 +11,15 @@ class RagSqlLoaderTest {
     @Test
     void discoversAggregatedArtifactForSnapshot() {
         RagSqlLoader loader = new RagSqlLoader();
-        List<String> fragments = loader.discoverSqlFragments("999-SNAPSHOT");
+        List<RagSqlLoader.RagFragment> fragments = loader.discoverSqlFragments("999-SNAPSHOT", null);
 
         assertFalse(fragments.isEmpty(), "Should discover the quarkus-documentation-core-rag artifact");
         assertEquals(1, fragments.size(), "Should find exactly one aggregated fragment");
 
-        String sql = fragments.get(0);
+        RagSqlLoader.RagFragment fragment = fragments.get(0);
+        assertNotNull(fragment.source(), "Fragment should have a source identifier");
+
+        String sql = fragment.sql();
         assertTrue(sql.contains("INSERT INTO rag_documents"), "SQL should contain INSERT statements");
         assertTrue(sql.contains("quarkus-rest"), "SQL should contain REST guide data");
         assertTrue(sql.contains("quarkus-arc"), "SQL should contain CDI guide data");
@@ -48,5 +51,24 @@ class RagSqlLoaderTest {
 
         assertEquals(1, stmts.size());
         assertTrue(stmts.get(0).startsWith("INSERT"));
+    }
+
+    @Test
+    void extractSourceParsesDeleteStatement() {
+        String sql = "DELETE FROM rag_documents WHERE metadata->>'source' = 'quarkus-rest';\n"
+                + "INSERT INTO rag_documents VALUES (1);";
+        assertEquals("quarkus-rest", RagSqlLoader.extractSource(sql, "fallback"));
+    }
+
+    @Test
+    void extractSourceUsesFallbackWhenNoDeletePresent() {
+        String sql = "INSERT INTO rag_documents VALUES (1);";
+        assertEquals("my-extension", RagSqlLoader.extractSource(sql, "my-extension"));
+    }
+
+    @Test
+    void extractSourceHandlesWhitespaceVariations() {
+        String sql = "DELETE FROM rag_documents WHERE metadata ->>'source'  =  'quarkus-hibernate-orm';\n";
+        assertEquals("quarkus-hibernate-orm", RagSqlLoader.extractSource(sql, "fallback"));
     }
 }
