@@ -28,7 +28,8 @@ import org.jboss.logging.Logger;
  * MCP tool for checking and updating Quarkus projects to the latest version.
  * Compares project build files against reference projects from
  * <a href="https://github.com/quarkusio/code-with-quarkus-compare">code-with-quarkus-compare</a>,
- * runs {@code quarkus update --dry-run} if the CLI is available, and produces
+ * runs {@code quarkus update --dry-run} (or the equivalent Maven/Gradle plugin goal
+ * when the CLI is unavailable), and produces
  * a unified upgrade report.
  */
 public class UpdateTools {
@@ -54,7 +55,7 @@ public class UpdateTools {
 
     @Tool(name = "quarkus_update", description = "Check if a Quarkus project is up-to-date and provide an upgrade report. "
             + "Detects the current version, checks for newer releases, compares build files against "
-            + "reference projects, and optionally runs 'quarkus update --dry-run' to preview migrations. "
+            + "reference projects, and runs 'quarkus update --dry-run' (or the equivalent Maven/Gradle plugin goal) to preview migrations. "
             + "IMPORTANT: For existing Quarkus projects, ALWAYS call this tool (via a subagent if supported) BEFORE "
             + "starting any development work to ensure the project is on the latest version.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
@@ -135,7 +136,7 @@ public class UpdateTools {
             }
 
             // Step 3b: Run quarkus update --dry-run
-            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes);
+            String dryRunReport = runQuarkusUpdateDryRun(projectDir, additionalUpdateRecipes, buildInfo);
             if (dryRunReport != null) {
                 report.append("## Automated Migration Preview (`quarkus update --dry-run`)\n\n");
                 report.append(dryRunReport).append("\n");
@@ -303,23 +304,18 @@ public class UpdateTools {
     }
 
     /**
-     * Runs {@code quarkus update --dry-run} and returns the report, or null if CLI not available.
+     * Runs {@code quarkus update --dry-run} and returns the report.
+     * Falls back to the Maven or Gradle plugin when the Quarkus CLI is unavailable.
+     * Returns null only when no suitable build tool can be found.
      */
-    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes) {
-        // Check if quarkus CLI is available
-        if (!isCommandAvailable("quarkus")) {
+    private String runQuarkusUpdateDryRun(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo) {
+        List<String> cmd = buildUpdateCommand(projectDir, additionalUpdateRecipes, buildInfo);
+        if (cmd == null) {
             return null;
         }
 
+        String cmdDescription = String.join(" ", cmd);
         try {
-            List<String> cmd = new ArrayList<>();
-            cmd.add("quarkus");
-            cmd.add("update");
-            cmd.add("--dry-run");
-            if (hasValue(additionalUpdateRecipes)) {
-                cmd.add("--additional-update-recipes=" + additionalUpdateRecipes);
-            }
-
             ProcessBuilder pb = new ProcessBuilder(cmd)
                     .directory(new File(projectDir))
                     .redirectErrorStream(true);
@@ -341,7 +337,6 @@ public class UpdateTools {
             StringBuilder report = new StringBuilder();
             report.append("Console output:\n```\n").append(output.trim()).append("\n```\n\n");
 
-            // Read the generated patch if available
             Path patchFile = Path.of(projectDir, "target", "rewrite", "rewrite.patch");
             if (Files.isRegularFile(patchFile)) {
                 String patch = Files.readString(patchFile, StandardCharsets.UTF_8);
@@ -352,14 +347,62 @@ public class UpdateTools {
             }
 
             if (exitCode != 0) {
-                report.insert(0, "**Note:** `quarkus update --dry-run` exited with code " + exitCode + "\n\n");
+                report.insert(0, "**Note:** `" + cmdDescription + "` exited with code " + exitCode + "\n\n");
             }
 
             return report.toString();
         } catch (Exception e) {
-            LOG.debugf("Failed to run quarkus update --dry-run: %s", e.getMessage());
-            return "Failed to run `quarkus update --dry-run`: " + e.getMessage() + "\n";
+            LOG.debugf("Failed to run update dry-run: %s", e.getMessage());
+            return "Failed to run `" + cmdDescription + "`: " + e.getMessage() + "\n";
         }
+    }
+
+    /**
+     * Builds the command to run the update dry-run.
+     * Prefers the Quarkus CLI, then falls back to Maven/Gradle plugin.
+     */
+    List<String> buildUpdateCommand(String projectDir, String additionalUpdateRecipes, BuildInfo buildInfo) {
+        if (isCommandAvailable("quarkus")) {
+            List<String> cmd = new ArrayList<>();
+            cmd.add("quarkus");
+            cmd.add("update");
+            cmd.add("--dry-run");
+            if (hasValue(additionalUpdateRecipes)) {
+                cmd.add("--additional-update-recipes=" + additionalUpdateRecipes);
+            }
+            return cmd;
+        }
+
+        File dir = new File(projectDir);
+        if ("Maven".equals(buildInfo.buildTool())) {
+            return buildMavenUpdateCommand(dir, additionalUpdateRecipes, buildInfo.version());
+        }
+        if ("Gradle".equals(buildInfo.buildTool()) || "Gradle Kotlin DSL".equals(buildInfo.buildTool())) {
+            return buildGradleUpdateCommand(dir);
+        }
+
+        return null;
+    }
+
+    List<String> buildMavenUpdateCommand(File projectDir, String additionalUpdateRecipes, String version) {
+        String cmd = ProcessUtils.resolveMavenCommand(projectDir);
+        List<String> args = new ArrayList<>();
+        args.add(cmd);
+        args.add("io.quarkus.platform:quarkus-maven-plugin:" + version + ":update");
+        args.add("-DrewriteDryRun=true");
+        args.add("-DquarkusRegistryClient=true");
+        if (hasValue(additionalUpdateRecipes)) {
+            args.add("-DadditionalUpdateRecipes=" + additionalUpdateRecipes);
+        }
+        args.add("-e");
+        args.add("-N");
+        args.add("-ntp");
+        return args;
+    }
+
+    List<String> buildGradleUpdateCommand(File projectDir) {
+        String cmd = ProcessUtils.resolveGradleCommand(projectDir);
+        return List.of(cmd, "quarkusUpdate");
     }
 
     private boolean isCommandAvailable(String command) {

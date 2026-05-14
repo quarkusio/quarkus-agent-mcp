@@ -124,6 +124,67 @@ class UpdateToolsTest {
     }
 
     @Test
+    void buildMavenUpdateCommandIncludesRequiredFlags() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildMavenUpdateCommand(tempDir.toFile(), null, "3.21.2");
+
+        assertNotNull(cmd);
+        assertEquals("io.quarkus.platform:quarkus-maven-plugin:3.21.2:update", cmd.get(1));
+        assertTrue(cmd.contains("-DrewriteDryRun=true"));
+        assertTrue(cmd.contains("-DquarkusRegistryClient=true"));
+        assertTrue(cmd.contains("-e"));
+        assertTrue(cmd.contains("-N"));
+        assertTrue(cmd.contains("-ntp"));
+    }
+
+    @Test
+    void buildMavenUpdateCommandIncludesAdditionalRecipes() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildMavenUpdateCommand(tempDir.toFile(), "org.acme:my-recipes:1.0.0", "3.21.2");
+
+        assertTrue(cmd.contains("-DadditionalUpdateRecipes=org.acme:my-recipes:1.0.0"));
+    }
+
+    @Test
+    void buildMavenUpdateCommandOmitsRecipesWhenNull() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildMavenUpdateCommand(tempDir.toFile(), null, "3.21.2");
+
+        assertTrue(cmd.stream().noneMatch(a -> a.startsWith("-DadditionalUpdateRecipes=")));
+    }
+
+    @Test
+    void buildGradleUpdateCommand() {
+        UpdateTools tools = new UpdateTools();
+
+        List<String> cmd = tools.buildGradleUpdateCommand(tempDir.toFile());
+
+        assertNotNull(cmd);
+        assertEquals(2, cmd.size());
+        assertTrue(cmd.contains("quarkusUpdate"));
+    }
+
+    @Test
+    void buildUpdateCommandPrefersQuarkusCli() {
+        UpdateTools tools = new UpdateTools();
+        UpdateTools.BuildInfo info = new UpdateTools.BuildInfo("Maven", "maven-", "pom.xml", "3.21.2");
+
+        List<String> cmd = tools.buildUpdateCommand(tempDir.toString(), null, info);
+
+        assertNotNull(cmd);
+        if (ProcessUtils.isCommandAvailable("quarkus")) {
+            assertEquals("quarkus", cmd.get(0));
+            assertTrue(cmd.contains("update"));
+            assertTrue(cmd.contains("--dry-run"));
+        } else {
+            assertEquals("io.quarkus.platform:quarkus-maven-plugin:3.21.2:update", cmd.get(1));
+        }
+    }
+
+    @Test
     void fetchLatestVersionReturnsVersion() {
         // This test requires network access — it fetches real tags from GitHub
         String latest = UpdateTools.fetchLatestVersion("maven-");
