@@ -371,10 +371,11 @@ public class DevMcpProxyTools {
             JsonNode response = callDevMcp(port, "tools/call", params);
             ToolResponse result = extractToolResult(response);
 
-            // Remind agent to update README after structural changes
+            // Invalidate dependency cache and remind agent after structural changes
             if (!result.isError() && toolName != null
                     && (toolName.contains("extension") || toolName.contains("add")
                             || toolName.contains("remove"))) {
+                DependencyResolver.invalidate(projectDir);
                 String resultText = extractTextFromResult(result);
                 return ToolResponse.success(resultText
                         + "\n\nREMINDER: Update README.md to reflect this change (features, extensions, guide links)."

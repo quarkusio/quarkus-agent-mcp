@@ -2,7 +2,6 @@ package io.quarkus.agent.mcp;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -73,6 +72,10 @@ public final class DependencyResolver {
         if (projectDir != null) {
             CACHE.remove(projectDir);
         }
+    }
+
+    static void clearAll() {
+        CACHE.clear();
     }
 
     private static List<Dependency> doResolve(String projectDir) {
@@ -169,14 +172,28 @@ public final class DependencyResolver {
 
     private static List<Dependency> resolveViaMaven(File dir) {
         String mvnCmd = ProcessUtils.resolveMavenCommand(dir);
-        ProcessBuilder pb = new ProcessBuilder(
-                mvnCmd, "dependency:list",
-                "-DincludeScope=compile",
-                "-q", "-DoutputFile=/dev/stdout", "-N")
-                .directory(dir)
-                .redirectError(ProcessBuilder.Redirect.DISCARD);
-        String output = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
-        return parseMavenDependencyList(output);
+        try {
+            Path tempFile = Files.createTempFile("mvn-deps-", ".txt");
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                        mvnCmd, "dependency:list",
+                        "-DincludeScope=compile",
+                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath(), "-N")
+                        .directory(dir)
+                        .redirectError(ProcessBuilder.Redirect.DISCARD);
+                String ignored = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
+                if (ignored == null) {
+                    return List.of();
+                }
+                String output = Files.readString(tempFile);
+                return parseMavenDependencyList(output);
+            } finally {
+                Files.deleteIfExists(tempFile);
+            }
+        } catch (IOException e) {
+            LOG.debugf("Failed to create temp file for Maven dependency resolution: %s", e.getMessage());
+            return List.of();
+        }
     }
 
     static List<Dependency> parseMavenDependencyList(String output) {
