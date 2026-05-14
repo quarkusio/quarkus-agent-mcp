@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import jakarta.inject.Inject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -17,8 +18,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 /**
@@ -31,6 +34,10 @@ import org.jboss.logging.Logger;
 public class UpdateTools {
 
     private static final Logger LOG = Logger.getLogger(UpdateTools.class);
+
+    @Inject
+    @ConfigProperty(name = "agent-mcp.update.additional-recipes")
+    Optional<String> configuredAdditionalRecipes;
 
     private static final String COMPARE_REPO = "quarkusio/code-with-quarkus-compare";
     private static final String RAW_BASE = "https://raw.githubusercontent.com/" + COMPARE_REPO;
@@ -58,6 +65,13 @@ public class UpdateTools {
             Path dir = Path.of(projectDir);
             if (!Files.isDirectory(dir)) {
                 return ToolResponse.error("Project directory does not exist: " + projectDir);
+            }
+
+            // Tool argument takes precedence over configured default
+            if ((additionalUpdateRecipes == null || additionalUpdateRecipes.isBlank())
+                    && configuredAdditionalRecipes.isPresent()
+                    && !configuredAdditionalRecipes.get().isBlank()) {
+                additionalUpdateRecipes = configuredAdditionalRecipes.get();
             }
 
             // Step 1: Detect build tool and version
