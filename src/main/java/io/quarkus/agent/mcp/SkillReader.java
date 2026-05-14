@@ -565,6 +565,12 @@ public final class SkillReader {
     static ExtensionMetadata parseExtensionYaml(String yaml) {
         ExtensionMetadata meta = new ExtensionMetadata();
 
+        // Unfold YAML double-quoted string line continuations (\<newline><whitespace>)
+        // and unescape \<space> to a literal space, so multi-line values like
+        // "REST\<LF>  \ Client" become "REST Client"
+        yaml = yaml.replaceAll("\\\\\n\\s*", "");
+        yaml = yaml.replace("\\ ", " ");
+
         Matcher m = YAML_NAME.matcher(yaml);
         if (m.find()) {
             meta.name = m.group(1).trim();

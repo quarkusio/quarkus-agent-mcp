@@ -1281,6 +1281,24 @@ class SkillReaderTest {
     }
 
     @Test
+    void parseExtensionYamlUnfoldsMultilineDescription() {
+        String yaml = """
+                ---
+                name: "REST Client"
+                description: "Type-safe HTTP client for consuming REST APIs using MicroProfile REST\\
+                  \\ Client"
+                artifact: "io.quarkus:quarkus-rest-client:3.35.2"
+                ...
+                """;
+
+        SkillReader.ExtensionMetadata meta = SkillReader.parseExtensionYaml(yaml);
+
+        assertEquals("REST Client", meta.name);
+        assertEquals("Type-safe HTTP client for consuming REST APIs using MicroProfile REST Client",
+                meta.description);
+    }
+
+    @Test
     void parseExtensionYamlHandlesMinimalContent() {
         SkillReader.ExtensionMetadata meta = SkillReader.parseExtensionYaml("name: Foo\n");
 
