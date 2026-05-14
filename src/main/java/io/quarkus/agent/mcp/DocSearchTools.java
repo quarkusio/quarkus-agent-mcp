@@ -102,9 +102,11 @@ public class DocSearchTools {
     ObjectMapper mapper;
 
     private static final String DEFAULT_VERSION_KEY = "__default__";
+    private static final long INCREMENTAL_CHECK_INTERVAL_MS = 60_000;
 
     private final Object initLock = new Object();
     private final ConcurrentHashMap<String, PgVectorEmbeddingStore> embeddingStores = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> lastIncrementalCheck = new ConcurrentHashMap<>();
 
     @Tool(name = "quarkus_searchDocs", description = "Search Quarkus documentation for APIs, annotations, "
             + "configuration, and best practices. Use this for ANY Quarkus-related question -- "
@@ -150,7 +152,12 @@ public class DocSearchTools {
                     LOG.infof("Using Quarkus %s docs for project at %s", quarkusVersion, projectDir);
                 }
             }
-            PgVectorEmbeddingStore store = ensureInitialized(quarkusVersion);
+            PgVectorEmbeddingStore store = ensureInitialized(quarkusVersion, projectDir);
+
+            // Check for newly added extensions (rate-limited)
+            if (projectDir != null && !projectDir.isBlank()) {
+                maybeLoadIncrementalRagData(quarkusVersion, projectDir);
+            }
 
             Embedding queryEmbedding = embeddingModelLoader.getModel().embed(query).content();
 
@@ -197,7 +204,7 @@ public class DocSearchTools {
         }
     }
 
-    private PgVectorEmbeddingStore ensureInitialized(String quarkusVersion) {
+    private PgVectorEmbeddingStore ensureInitialized(String quarkusVersion, String projectDir) {
         String key = quarkusVersion != null ? quarkusVersion : DEFAULT_VERSION_KEY;
 
         PgVectorEmbeddingStore existing = embeddingStores.get(key);
@@ -206,13 +213,12 @@ public class DocSearchTools {
         }
 
         synchronized (initLock) {
-            // Double-check after acquiring lock
             existing = embeddingStores.get(key);
             if (existing != null) {
                 return existing;
             }
 
-            containerManager.ensureRunning(quarkusVersion);
+            containerManager.ensureRunning(quarkusVersion, projectDir);
 
             String host = containerManager.getHost(quarkusVersion);
             int port = containerManager.getMappedPort(quarkusVersion);
@@ -234,6 +240,22 @@ public class DocSearchTools {
 
             embeddingStores.put(key, store);
             return store;
+        }
+    }
+
+    private void maybeLoadIncrementalRagData(String quarkusVersion, String projectDir) {
+        String key = projectDir + ":" + (quarkusVersion != null ? quarkusVersion : "default");
+        long now = System.currentTimeMillis();
+        Long lastCheck = lastIncrementalCheck.get(key);
+        if (lastCheck != null && (now - lastCheck) < INCREMENTAL_CHECK_INTERVAL_MS) {
+            return;
+        }
+        lastIncrementalCheck.put(key, now);
+
+        try {
+            containerManager.loadIncrementalRagData(quarkusVersion, projectDir);
+        } catch (Exception e) {
+            LOG.debugf("Incremental RAG check failed: %s", e.getMessage());
         }
     }
 

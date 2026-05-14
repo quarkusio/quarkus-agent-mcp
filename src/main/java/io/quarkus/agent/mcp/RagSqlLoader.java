@@ -18,17 +18,25 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 
 /**
  * Discovers {@code META-INF/quarkus-rag.sql} fragments from extension deployment JARs
  * in the local Maven repository and loads them into a pgvector database.
- * Follows the same JAR scanning pattern as {@link SkillReader}.
+ * <p>
+ * Supports incremental loading: when new extensions are added to a project,
+ * only the new extension's SQL is loaded without reloading existing data.
+ * Non-core extensions (Quarkiverse, third-party) are discovered by parsing
+ * the project's {@code pom.xml}, following the same pattern as {@link SkillReader}.
  */
 @ApplicationScoped
 public class RagSqlLoader {
@@ -36,6 +44,7 @@ public class RagSqlLoader {
     private static final Logger LOG = Logger.getLogger(RagSqlLoader.class);
 
     private static final String RAG_SQL_PATH = "META-INF/quarkus-rag.sql";
+    private static final String RAG_DATA_SQL_PATH = "META-INF/quarkus-rag-data.sql";
     private static final String DEPLOYMENT_SUFFIX = "-deployment";
     private static final String CORE_GROUP_ID = "io.quarkus";
     private static final String RAG_DOCUMENTS_TABLE = "rag_documents";
@@ -52,81 +61,138 @@ public class RagSqlLoader {
             CREATE INDEX IF NOT EXISTS idx_rag_embedding ON rag_documents
                 USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)""";
 
-    private final Set<String> loadedVersions = ConcurrentHashMap.newKeySet();
+    private static final String AGGREGATED_ARTIFACT_ID = "quarkus-documentation-core-rag";
+    private static final String AGGREGATED_GROUP_PATH = "io/quarkus";
+
+    private static final Pattern SOURCE_PATTERN = Pattern.compile(
+            "metadata\\s*->>\\s*'source'\\s*=\\s*'([^']+)'");
+
+    record RagFragment(String source, String sql) {
+    }
+
+    private final Map<String, Set<String>> loadedSources = new ConcurrentHashMap<>();
 
     /**
      * Ensures RAG data is loaded for the given Quarkus version.
-     * Discovers SQL fragments from extension JARs, creates the schema if needed,
-     * and loads the data. Skips if already loaded for this version.
+     * Discovers SQL fragments from core and non-core extension JARs,
+     * filters out already-loaded sources, and loads only new data.
+     * On first call for a version with a reused container, seeds tracking
+     * from the database to avoid redundant loading.
      */
-    public void ensureLoaded(String quarkusVersion, String host, int port,
-            String database, String user, String password) {
+    public void ensureLoaded(String quarkusVersion, String projectDir,
+            String host, int port, String database, String user, String password) {
         String versionKey = quarkusVersion != null ? quarkusVersion : "default";
-        if (loadedVersions.contains(versionKey)) {
-            return;
-        }
 
         String resolvedVersion = quarkusVersion != null ? quarkusVersion : detectLatestInstalledVersion();
         if (resolvedVersion == null) {
             LOG.warn("Could not determine Quarkus version for RAG loading — no SQL fragments will be loaded");
-            loadedVersions.add(versionKey);
             return;
         }
 
-        List<String> fragments = discoverSqlFragments(resolvedVersion);
-        if (fragments.isEmpty()) {
+        List<RagFragment> allFragments = discoverSqlFragments(resolvedVersion, projectDir);
+        if (allFragments.isEmpty()) {
             LOG.infof("No RAG SQL fragments found for Quarkus %s", resolvedVersion);
-            loadedVersions.add(versionKey);
             return;
         }
 
         String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + database;
-        loadSql(jdbcUrl, user, password, fragments, resolvedVersion);
-        loadedVersions.add(versionKey);
-    }
 
-    private static final String AGGREGATED_ARTIFACT_ID = "quarkus-documentation-core-rag";
-    private static final String AGGREGATED_GROUP_PATH = "io/quarkus";
+        Set<String> alreadyLoaded = loadedSources.computeIfAbsent(versionKey,
+                k -> ConcurrentHashMap.newKeySet());
+
+        // On first call for this version, seed from the database (handles container reuse)
+        if (alreadyLoaded.isEmpty()) {
+            Set<String> existingSources = queryExistingSources(jdbcUrl, user, password);
+            alreadyLoaded.addAll(existingSources);
+        }
+
+        List<RagFragment> newFragments = allFragments.stream()
+                .filter(f -> !alreadyLoaded.contains(f.source()))
+                .toList();
+
+        if (newFragments.isEmpty()) {
+            LOG.debugf("All %d RAG source(s) already loaded for %s", allFragments.size(), versionKey);
+            return;
+        }
+
+        loadSql(jdbcUrl, user, password, newFragments, resolvedVersion);
+
+        for (RagFragment f : newFragments) {
+            alreadyLoaded.add(f.source());
+        }
+    }
 
     /**
      * Discovers RAG SQL fragments from extension deployment JARs in ~/.m2/repository.
-     * If the aggregated artifact is not found locally, downloads it from Maven Central.
+     * Checks for the aggregated core artifact first, then scans individual core JARs
+     * as a fallback. Always scans non-core extension JARs from the project's pom.xml.
      */
-    List<String> discoverSqlFragments(String quarkusVersion) {
+    List<RagFragment> discoverSqlFragments(String quarkusVersion, String projectDir) {
         Path m2Repo = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
-        List<String> fragments = new ArrayList<>();
+        List<RagFragment> fragments = new ArrayList<>();
 
-        // 1. Check for aggregated artifact locally
+        // 1. Core docs: aggregated artifact (preferred) or individual JARs (fallback)
         Path aggregatedJarPath = resolveAggregatedJarPath(quarkusVersion, m2Repo);
-        if (Files.isRegularFile(aggregatedJarPath)) {
-            String sql = readSqlFromJar(aggregatedJarPath);
-            if (sql != null) {
-                fragments.add(sql);
-                LOG.infof("Found aggregated RAG SQL artifact locally for Quarkus %s", quarkusVersion);
-                return fragments;
-            }
-        }
-
-        // 2. Download aggregated artifact from Maven Central if not found locally
-        if (fragments.isEmpty()) {
+        RagFragment aggregated = readFragmentFromJar(aggregatedJarPath, "quarkus-documentation");
+        if (aggregated != null) {
+            fragments.add(aggregated);
+            LOG.infof("Found aggregated RAG SQL artifact locally for Quarkus %s", quarkusVersion);
+        } else {
+            // Try downloading from Maven Central
             Path downloaded = downloadFromMavenCentral(quarkusVersion, aggregatedJarPath);
             if (downloaded != null) {
-                String sql = readSqlFromJar(downloaded);
-                if (sql != null) {
-                    fragments.add(sql);
+                aggregated = readFragmentFromJar(downloaded, "quarkus-documentation");
+                if (aggregated != null) {
+                    fragments.add(aggregated);
                     LOG.infof("Downloaded aggregated RAG SQL artifact for Quarkus %s", quarkusVersion);
-                    return fragments;
                 }
             }
         }
 
-        // 3. Scan individual core extension deployment JARs
-        if (Files.isDirectory(m2Repo)) {
+        // Fall back to individual core extension JARs if no aggregated artifact
+        if (aggregated == null && Files.isDirectory(m2Repo)) {
             fragments.addAll(scanCoreExtensionJars(m2Repo, quarkusVersion));
         }
 
+        // 2. Non-core extensions: always scan (Quarkiverse, third-party)
+        fragments.addAll(scanNonCoreExtensionJars(m2Repo, projectDir));
+
         LOG.infof("Discovered %d RAG SQL fragment(s) for Quarkus %s", fragments.size(), quarkusVersion);
+        return fragments;
+    }
+
+    private List<RagFragment> scanNonCoreExtensionJars(Path m2Repo, String projectDir) {
+        if (projectDir == null) {
+            return List.of();
+        }
+
+        List<DependencyResolver.Dependency> deps = DependencyResolver.resolve(projectDir);
+        if (deps.isEmpty()) {
+            return List.of();
+        }
+
+        List<RagFragment> fragments = new ArrayList<>();
+        for (DependencyResolver.Dependency dep : deps) {
+            if (CORE_GROUP_ID.equals(dep.groupId())) {
+                continue;
+            }
+            String groupPath = dep.groupId().replace('.', '/');
+            Path deploymentJar = m2Repo.resolve(groupPath)
+                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX)
+                    .resolve(dep.version())
+                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX + "-" + dep.version() + ".jar");
+
+            if (!Files.isRegularFile(deploymentJar)) {
+                continue;
+            }
+
+            RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
+            if (fragment != null) {
+                fragments.add(fragment);
+                LOG.debugf("Found RAG SQL in non-core extension %s", dep.artifactId());
+            }
+        }
         return fragments;
     }
 
@@ -182,19 +248,21 @@ public class RagSqlLoader {
         }
     }
 
-    private List<String> scanCoreExtensionJars(Path m2Repo, String version) {
+    private List<RagFragment> scanCoreExtensionJars(Path m2Repo, String version) {
         Path quarkusDir = m2Repo.resolve("io/quarkus");
         if (!Files.isDirectory(quarkusDir)) {
             return List.of();
         }
 
-        List<String> fragments = new ArrayList<>();
+        List<RagFragment> fragments = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(quarkusDir,
                 entry -> Files.isDirectory(entry)
                         && entry.getFileName().toString().startsWith("quarkus-")
                         && entry.getFileName().toString().endsWith(DEPLOYMENT_SUFFIX))) {
             for (Path extDir : stream) {
                 String deploymentArtifactId = extDir.getFileName().toString();
+                String artifactId = deploymentArtifactId.substring(0,
+                        deploymentArtifactId.length() - DEPLOYMENT_SUFFIX.length());
                 Path deploymentJar = extDir.resolve(version)
                         .resolve(deploymentArtifactId + "-" + version + ".jar");
 
@@ -202,9 +270,9 @@ public class RagSqlLoader {
                     continue;
                 }
 
-                String sql = readSqlFromJar(deploymentJar);
-                if (sql != null) {
-                    fragments.add(sql);
+                RagFragment fragment = readFragmentFromJar(deploymentJar, artifactId);
+                if (fragment != null) {
+                    fragments.add(fragment);
                     LOG.debugf("Found RAG SQL in %s", deploymentArtifactId);
                 }
             }
@@ -215,10 +283,12 @@ public class RagSqlLoader {
         return fragments;
     }
 
-    private String readSqlFromJar(Path jarPath) {
+    private RagFragment readFragmentFromJar(Path jarPath, String fallbackSource) {
+        if (!Files.isRegularFile(jarPath)) {
+            return null;
+        }
         try (JarFile jar = new JarFile(jarPath.toFile())) {
-            // Check data file first (aggregated artifact), then individual fragment
-            JarEntry entry = jar.getJarEntry("META-INF/quarkus-rag-data.sql");
+            JarEntry entry = jar.getJarEntry(RAG_DATA_SQL_PATH);
             if (entry == null) {
                 entry = jar.getJarEntry(RAG_SQL_PATH);
             }
@@ -226,57 +296,80 @@ public class RagSqlLoader {
                 return null;
             }
 
+            String sql;
             try (InputStream is = jar.getInputStream(entry)) {
-                return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             }
+            String source = extractSource(sql, fallbackSource);
+            return new RagFragment(source, sql);
         } catch (IOException e) {
             LOG.debugf("Failed to read RAG SQL from %s: %s", jarPath, e.getMessage());
             return null;
         }
     }
 
+    static String extractSource(String sql, String fallbackSource) {
+        Matcher m = SOURCE_PATTERN.matcher(sql);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return fallbackSource;
+    }
+
+    private Set<String> queryExistingSources(String jdbcUrl, String user, String password) {
+        Set<String> sources = new HashSet<>();
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, user, password);
+                Statement stmt = conn.createStatement()) {
+            // Table might not exist yet
+            stmt.execute(CREATE_EXTENSION_DDL);
+            stmt.execute(CREATE_TABLE_DDL);
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT DISTINCT metadata->>'source' FROM " + RAG_DOCUMENTS_TABLE)) {
+                while (rs.next()) {
+                    String source = rs.getString(1);
+                    if (source != null) {
+                        sources.add(source);
+                    }
+                }
+            }
+            if (!sources.isEmpty()) {
+                LOG.infof("Container already has RAG data for %d source(s)", sources.size());
+            }
+        } catch (SQLException e) {
+            LOG.debugf("Failed to query existing RAG sources: %s", e.getMessage());
+        }
+        return sources;
+    }
+
     private void loadSql(String jdbcUrl, String user, String password,
-            List<String> fragments, String version) {
+            List<RagFragment> fragments, String version) {
         LOG.infof("Loading %d RAG SQL fragment(s) for Quarkus %s...", fragments.size(), version);
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, user, password)) {
             conn.setAutoCommit(false);
 
             try (Statement stmt = conn.createStatement()) {
-                // Create schema if needed
                 stmt.execute(CREATE_EXTENSION_DDL);
                 stmt.execute(CREATE_TABLE_DDL);
 
-                // Check if data already exists (container might be reused)
-                try (ResultSet rs = stmt.executeQuery(
-                        "SELECT COUNT(*) FROM " + RAG_DOCUMENTS_TABLE)) {
-                    if (rs.next() && rs.getLong(1) > 0) {
-                        LOG.infof("RAG data already loaded (%d rows) — skipping", rs.getLong(1));
-                        conn.rollback();
-                        return;
-                    }
-                }
-
-                // Load each fragment
-                for (String fragment : fragments) {
-                    for (String statement : splitSqlStatements(fragment)) {
+                for (RagFragment fragment : fragments) {
+                    for (String statement : splitSqlStatements(fragment.sql())) {
                         if (!statement.isBlank()) {
                             stmt.execute(statement);
                         }
                     }
+                    LOG.debugf("Loaded RAG source: %s", fragment.source());
                 }
 
-                // Create index after bulk insert
                 stmt.execute(CREATE_INDEX_DDL);
             }
 
             conn.commit();
 
-            // Log final count
             try (Statement stmt = conn.createStatement();
                     ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + RAG_DOCUMENTS_TABLE)) {
                 if (rs.next()) {
-                    LOG.infof("RAG data loaded: %d documents for Quarkus %s", rs.getLong(1), version);
+                    LOG.infof("RAG data loaded: %d total documents for Quarkus %s", rs.getLong(1), version);
                 }
             }
         } catch (SQLException e) {

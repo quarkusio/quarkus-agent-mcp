@@ -75,9 +75,10 @@ The SQL file will be placed in `META-INF/quarkus-rag.sql` inside your deployment
 The MCP server searches for RAG SQL in this order:
 
 1. **Aggregated artifact** — checks for `io.quarkus:quarkus-documentation-core-rag:{version}` in `~/.m2/repository`. Downloads from Maven Central if not found locally (release versions only).
-2. **Individual extension JARs** — scans `~/.m2/repository/io/quarkus/quarkus-*-deployment/{version}/` for JARs containing `META-INF/quarkus-rag.sql`.
+2. **Individual core extension JARs** — if no aggregated artifact is found, scans `~/.m2/repository/io/quarkus/quarkus-*-deployment/{version}/` for JARs containing `META-INF/quarkus-rag.sql`.
+3. **Non-core extension JARs** — always parses the project's `pom.xml` to find Quarkiverse and third-party dependencies, then checks their deployment JARs for `META-INF/quarkus-rag.sql`.
 
-If the aggregated artifact is found, individual extension JARs are not scanned (the aggregated artifact already contains all core extension docs). Quarkiverse and third-party extension JARs are always discovered independently.
+Loading is incremental — when you add an extension to a project, the MCP server automatically discovers and loads its documentation without restarting. Each SQL fragment is identified by its source name, and only new sources are loaded.
 
 ## Verifying your contribution
 

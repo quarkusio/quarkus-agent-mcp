@@ -69,6 +69,9 @@ public class DevMcpProxyTools {
     @Inject
     ObjectMapper mapper;
 
+    @Inject
+    ContainerManager containerManager;
+
     @ConfigProperty(name = "agent-mcp.local-skills-dir")
     Optional<String> localSkillsDir;
 
@@ -459,6 +462,18 @@ public class DevMcpProxyTools {
                     && (toolName.contains("extension") || toolName.contains("add")
                             || toolName.contains("remove"))) {
                 DependencyResolver.invalidate(projectDir);
+
+                // Load any new extension's RAG documentation in the background
+                if (containerManager.isDefaultReady()) {
+                    String qVersion = QuarkusVersionDetector.detect(projectDir);
+                    Thread.ofVirtual().name("rag-incremental-load").start(() -> {
+                        try {
+                            containerManager.loadIncrementalRagData(qVersion, projectDir);
+                        } catch (Exception e) {
+                            LOG.debugf("Background incremental RAG load failed: %s", e.getMessage());
+                        }
+                    });
+                }
                 String resultText = extractTextFromResult(result);
                 return ToolResponse.success(resultText
                         + "\n\nREMINDER: Update README.md to reflect this change (features, extensions, guide links)."

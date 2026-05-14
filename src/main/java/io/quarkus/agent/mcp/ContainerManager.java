@@ -56,7 +56,7 @@ public class ContainerManager {
         defaultWarmupStarted = true;
         Thread.ofVirtual().name("container-warmup").start(() -> {
             try {
-                ensureRunning(null);
+                ensureRunning(null, null);
                 defaultWarmupDone = true;
             } catch (Exception e) {
                 LOG.warn("Background container warm-up failed: " + e.getMessage());
@@ -83,8 +83,9 @@ public class ContainerManager {
      * Starts a generic pgvector container if needed, then loads RAG SQL fragments.
      *
      * @param quarkusVersion the Quarkus version for docs, or null for default
+     * @param projectDir     the project directory for non-core extension discovery, or null
      */
-    public synchronized void ensureRunning(String quarkusVersion) {
+    public synchronized void ensureRunning(String quarkusVersion, String projectDir) {
         checkDockerAvailable();
 
         String versionKey = quarkusVersion != null ? quarkusVersion : "default";
@@ -96,13 +97,31 @@ public class ContainerManager {
 
         try {
             startContainer(versionKey);
-            loadRagData(versionKey, quarkusVersion);
+            loadRagData(versionKey, quarkusVersion, projectDir);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Failed to start documentation container (" + image + "). "
                             + "Ensure Docker/Podman is running. Error: " + e.getMessage(),
                     e);
         }
+    }
+
+    /**
+     * Loads any new RAG SQL fragments into an already-running container.
+     * Called after extensions are added to a project to pick up their docs.
+     */
+    public void loadIncrementalRagData(String quarkusVersion, String projectDir) {
+        String versionKey = quarkusVersion != null ? quarkusVersion : "default";
+        GenericContainer<?> container = containers.get(versionKey);
+        if (container == null || !container.isRunning()) {
+            LOG.debugf("No running container for version %s — skipping incremental RAG load", versionKey);
+            return;
+        }
+
+        ragSqlLoader.ensureLoaded(
+                quarkusVersion, projectDir,
+                container.getHost(), container.getMappedPort(5432),
+                pgDatabase, pgUser, pgPassword);
     }
 
     /**
@@ -162,12 +181,11 @@ public class ContainerManager {
                 versionKey, container.getMappedPort(5432));
     }
 
-    private void loadRagData(String versionKey, String quarkusVersion) {
+    private void loadRagData(String versionKey, String quarkusVersion, String projectDir) {
         GenericContainer<?> container = containers.get(versionKey);
         ragSqlLoader.ensureLoaded(
-                quarkusVersion,
-                container.getHost(),
-                container.getMappedPort(5432),
+                quarkusVersion, projectDir,
+                container.getHost(), container.getMappedPort(5432),
                 pgDatabase, pgUser, pgPassword);
     }
 
