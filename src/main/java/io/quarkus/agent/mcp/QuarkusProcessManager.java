@@ -189,63 +189,15 @@ public class QuarkusProcessManager {
     }
 
     private ProcessBuilder createMavenProcessBuilder(File projectDir) {
-        String cmd;
-        if (mvnCmd.isPresent()) {
-            cmd = mvnCmd.get();
-        } else {
-            File wrapper = isWindows() ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
-            if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
-                cmd = isWindows() ? "mvnw.cmd" : "./mvnw";
-            } else {
-                cmd = "mvn";
-            }
-        }
+        String cmd = mvnCmd.orElseGet(() -> ProcessUtils.resolveMavenCommand(projectDir));
         return new ProcessBuilder(cmd, "quarkus:dev", "-Dquarkus.console.basic=true",
                 "-Dquarkus.dev-mcp.enabled=true");
     }
 
     private ProcessBuilder createGradleProcessBuilder(File projectDir) {
-        String cmd;
-        if (gradleCmd.isPresent()) {
-            cmd = gradleCmd.get();
-        } else {
-            File wrapper = isWindows() ? new File(projectDir, "gradlew.bat") : new File(projectDir, "gradlew");
-            if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
-                cmd = isWindows() ? "gradlew.bat" : "./gradlew";
-            } else {
-                cmd = "gradle";
-            }
-        }
+        String cmd = gradleCmd.orElseGet(() -> ProcessUtils.resolveGradleCommand(projectDir));
         return new ProcessBuilder(cmd, "quarkusDev", "-Dquarkus.console.basic=true",
                 "-Dquarkus.dev-mcp.enabled=true");
-    }
-
-    /**
-     * Returns true if the wrapper is tracked by git (trusted), false if verification
-     * failed and the caller should fall back to the system build tool.
-     * Throws if the wrapper is explicitly untracked (potential supply-chain attack).
-     */
-    private boolean verifyTrustedWrapper(File wrapper) {
-        try {
-            Process p = new ProcessBuilder("git", "ls-files", "--error-unmatch", wrapper.getName())
-                    .directory(wrapper.getParentFile())
-                    .redirectErrorStream(true)
-                    .start();
-            p.getInputStream().transferTo(java.io.OutputStream.nullOutputStream());
-            int exit = p.waitFor();
-            if (exit != 0) {
-                throw new IllegalStateException(
-                        "Wrapper script '" + wrapper.getAbsolutePath() + "' is NOT tracked by git. "
-                                + "It could be malicious. Add it to git or use the system-installed build tool.");
-            }
-            return true;
-        } catch (IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            LOG.warnf("Could not verify wrapper script '%s' against git: %s. "
-                    + "Falling back to system build tool.", wrapper.getAbsolutePath(), e.getMessage());
-            return false;
-        }
     }
 
     static boolean isPortAvailable(int port) {
@@ -272,7 +224,4 @@ public class QuarkusProcessManager {
         return Path.of(System.getProperty("user.home"), ".quarkus", "apps", dirName, "quarkus-dev.log");
     }
 
-    private boolean isWindows() {
-        return System.getProperty("os.name", "").toLowerCase().contains("win");
-    }
 }
