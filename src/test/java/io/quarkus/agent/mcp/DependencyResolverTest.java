@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -214,7 +215,7 @@ class DependencyResolverTest {
                    io.quarkus:quarkus-rest:jar:3.21.2:runtime
                 """;
 
-        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(output);
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
 
         assertEquals(3, deps.size());
         assertEquals("io.quarkiverse.jberet", deps.get(0).groupId());
@@ -245,7 +246,7 @@ class DependencyResolverTest {
                 another line
                 """;
 
-        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(output);
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
 
         assertEquals(1, deps.size());
         assertEquals("quarkus-arc", deps.get(0).artifactId());
@@ -389,5 +390,36 @@ class DependencyResolverTest {
     @Test
     void resolveReturnsEmptyForDirectoryWithoutBuildFiles() {
         assertTrue(DependencyResolver.resolve(tempDir.toString()).isEmpty());
+    }
+
+    @Test
+    void parseMavenDependencyListNormal() {
+        String output = """
+                The following files have been resolved:
+                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile
+                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile
+                """;
+        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
+        assertEquals(2, dependencies.size());
+        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2]]", dependencies.toString());
+    }
+
+    @Test
+    void parseMavenDependencyListFull() {
+        String output = """
+                The following files have been resolved:
+                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile[36m -- module x.my.dep[0;1;33m (auto)[m
+                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile[36m -- module quarkus.datasource.common[0;1;33m (auto)[m
+                   io.smallrye:smallrye-context-propagation-jta:jar:2.3.0:compile[36m -- module smallrye.context.propagation.jta[0;1;33m (auto)[m
+                   jakarta.transaction:jakarta.transaction-api:jar:2.0.1:compile[36m -- module jakarta.transaction[m
+                   io.smallrye.stork:stork-configuration-generator:jar:2.7.9:provided[36m -- module io.smallrye.stork.config.generator[m
+                """;
+        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
+        assertEquals(5, dependencies.size());
+        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2], Dependency[groupId=io.smallrye, artifactId=smallrye-context-propagation-jta, version=2.3.0], Dependency[groupId=jakarta.transaction, artifactId=jakarta.transaction-api, version=2.0.1], Dependency[groupId=io.smallrye.stork, artifactId=stork-configuration-generator, version=2.7.9]]", dependencies.toString());
+    }
+
+    private String normalizeEOL(String s) {
+        return s.replace("\r\n", "\n").replace("\n", System.lineSeparator());
     }
 }

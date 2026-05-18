@@ -37,8 +37,9 @@ public final class DependencyResolver {
     private static final ConcurrentHashMap<String, List<Dependency>> CACHE = new ConcurrentHashMap<>();
 
     // Maven dependency:list output: "   groupId:artifactId:type:version:scope"
+    // may be suffixed with any additional characters, like in "jakarta.transaction:jakarta.transaction-api:jar:2.0.1:compile[36m -- module jakarta.transaction[m"
     private static final Pattern MAVEN_DEP_LINE = Pattern.compile(
-            "^\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+$");
+            "^\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+.*$");
 
     // Gradle direct dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
     // Also handles "-> resolvedVersion" and constraint markers like (c), (*), (n)
@@ -201,7 +202,7 @@ public final class DependencyResolver {
             return List.of();
         }
         List<Dependency> deps = new ArrayList<>();
-        for (String line : output.split("\n")) {
+        for (String line : output.split(System.lineSeparator())) {
             Matcher m = MAVEN_DEP_LINE.matcher(line);
             if (m.matches()) {
                 deps.add(new Dependency(m.group(1), m.group(2), m.group(3)));

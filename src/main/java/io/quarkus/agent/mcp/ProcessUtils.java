@@ -47,7 +47,7 @@ final class ProcessUtils {
         if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
             return win ? "mvnw.cmd" : "./mvnw";
         }
-        return "mvn";
+        return win ? "mvn.cmd" : "mvn";
     }
 
     static String resolveGradleCommand(File projectDir) {
@@ -56,7 +56,7 @@ final class ProcessUtils {
         if (wrapper.exists() && verifyTrustedWrapper(wrapper)) {
             return win ? "gradlew.bat" : "./gradlew";
         }
-        return "gradle";
+        return win ? "gradle.bat" : "gradle";
     }
 
     static boolean verifyTrustedWrapper(File wrapper) {
