@@ -19,9 +19,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 /**
- * Resolves project dependencies with their versions.
- * Tries fast local XML/properties parsing first, then falls back to
- * shelling out to Maven/Gradle for inherited or BOM-managed versions.
+ * Resolves project dependencies (both direct and transitive) with their versions.
+ * Tries fast local XML/properties parsing first for direct dependencies, then falls back to
+ * shelling out to Maven/Gradle for the full dependency tree including transitives.
  * Results are cached per project directory.
  */
 public final class DependencyResolver {
@@ -40,17 +40,23 @@ public final class DependencyResolver {
     private static final Pattern MAVEN_DEP_LINE = Pattern.compile(
             "^\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+$");
 
-    // Gradle direct dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
+    // Maven dependency:tree output: "[+|\-] groupId:artifactId:type:version:scope"
+    // Handles tree structure with +-, |, and \ characters
+    private static final Pattern MAVEN_TREE_LINE = Pattern.compile(
+            "^[+|\\\\\\s-]+\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+$");
+
+    // Gradle dependency (direct and transitive): "[+|\|\\-] group:artifact:version"
+    // Handles tree structure with +---, \---, |, and spaces for indentation
     // Also handles "-> resolvedVersion" and constraint markers like (c), (*), (n)
     private static final Pattern GRADLE_DEP_LINE = Pattern.compile(
-            "^[+\\\\]---\\s+(\\S+):(\\S+):(\\S+?)(?:\\s+->\\s+(\\S+))?(?:\\s+\\(.*\\))?\\s*$");
+            "^[+|\\\\\\s-]+\\s+(\\S+):(\\S+):(\\S+?)(?:\\s+->\\s+(\\S+))?(?:\\s+\\(.*\\))?\\s*$");
 
-    // Gradle direct dependency without version (BOM-managed): "+--- group:artifact (c)" or similar
+    // Gradle dependency without version (BOM-managed): "[+|\|\\-] group:artifact (c)" or similar
     private static final Pattern GRADLE_DEP_NO_VERSION = Pattern.compile(
-            "^[+\\\\]---\\s+(\\S+):(\\S+)(?:\\s+\\(.*\\))?\\s*$");
+            "^[+|\\\\\\s-]+\\s+(\\S+):(\\S+)(?:\\s+\\(.*\\))?\\s*$");
 
     /**
-     * Resolve all direct dependencies for the given project directory.
+     * Resolve all dependencies (direct and transitive) for the given project directory.
      * Returns a cached result if available. All returned dependencies
      * have non-null groupId, artifactId, and version.
      */
@@ -176,9 +182,10 @@ public final class DependencyResolver {
             Path tempFile = Files.createTempFile("mvn-deps-", ".txt");
             try {
                 ProcessBuilder pb = new ProcessBuilder(
-                        mvnCmd, "dependency:list",
+                        mvnCmd, "dependency:tree",
                         "-DincludeScope=compile",
-                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath(), "-N")
+                        "-DoutputType=text",
+                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath())
                         .directory(dir)
                         .redirectError(ProcessBuilder.Redirect.DISCARD);
                 String ignored = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
@@ -186,7 +193,7 @@ public final class DependencyResolver {
                     return List.of();
                 }
                 String output = Files.readString(tempFile);
-                return parseMavenDependencyList(output);
+                return parseMavenDependencyTree(output);
             } finally {
                 Files.deleteIfExists(tempFile);
             }
@@ -210,23 +217,40 @@ public final class DependencyResolver {
         return deps;
     }
 
+    static List<Dependency> parseMavenDependencyTree(String output) {
+        if (output == null || output.isBlank()) {
+            return List.of();
+        }
+        List<Dependency> deps = new ArrayList<>();
+        for (String line : output.split("\n")) {
+            Matcher m = MAVEN_TREE_LINE.matcher(line);
+            if (m.matches()) {
+                deps.add(new Dependency(m.group(1), m.group(2), m.group(3)));
+            }
+        }
+        return deps;
+    }
+
     /**
      * Merges XML-parsed deps with build-tool-resolved deps.
-     * Uses the XML parse as the source of which dependencies are direct,
-     * and fills in missing versions from the build-tool output.
+     * Returns all build tool dependencies (direct and transitive).
+     * If a dependency was in the XML parse with a version, uses that version,
+     * otherwise uses the version from the build tool.
      */
     private static List<Dependency> mergeMavenResults(List<Dependency> xmlDeps, List<Dependency> buildToolDeps) {
-        Map<String, String> versionLookup = new HashMap<>();
-        for (Dependency dep : buildToolDeps) {
-            versionLookup.put(dep.groupId() + ":" + dep.artifactId(), dep.version());
+        // Build a map of XML dependencies that have versions
+        Map<String, String> xmlVersions = new HashMap<>();
+        for (Dependency dep : xmlDeps) {
+            if (dep.version() != null) {
+                xmlVersions.put(dep.groupId() + ":" + dep.artifactId(), dep.version());
+            }
         }
 
+        // Return all build tool dependencies, preferring XML versions where available
         List<Dependency> merged = new ArrayList<>();
-        for (Dependency dep : xmlDeps) {
-            String version = dep.version();
-            if (version == null) {
-                version = versionLookup.get(dep.groupId() + ":" + dep.artifactId());
-            }
+        for (Dependency dep : buildToolDeps) {
+            String key = dep.groupId() + ":" + dep.artifactId();
+            String version = xmlVersions.getOrDefault(key, dep.version());
             if (version != null) {
                 merged.add(new Dependency(dep.groupId(), dep.artifactId(), version));
             }
@@ -254,10 +278,7 @@ public final class DependencyResolver {
         }
         List<Dependency> deps = new ArrayList<>();
         for (String line : output.split("\n")) {
-            // Only parse root-level dependencies (no leading spaces before +--- or \---)
-            if (!line.startsWith("+---") && !line.startsWith("\\---")) {
-                continue;
-            }
+            // Parse all dependencies (direct and transitive) from the tree
             Matcher m = GRADLE_DEP_LINE.matcher(line);
             if (m.matches()) {
                 String version = m.group(4) != null ? m.group(4) : m.group(3);

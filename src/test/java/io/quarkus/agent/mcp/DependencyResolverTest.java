@@ -251,6 +251,54 @@ class DependencyResolverTest {
         assertEquals("quarkus-arc", deps.get(0).artifactId());
     }
 
+    // ── Maven dependency:tree output parsing ─────────────────────────────────
+
+    @Test
+    void parseMavenDependencyTreeExtractsAllDeps() {
+        String output = """
+                com.example:my-app:jar:1.0-SNAPSHOT
+                +- io.quarkus:quarkus-rest:jar:3.21.2:compile
+                |  +- io.quarkus:quarkus-core:jar:3.21.2:compile
+                |  \\- io.smallrye:smallrye-common:jar:2.0:compile
+                \\- io.quarkus:quarkus-arc:jar:3.21.2:compile
+                """;
+
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyTree(output);
+
+        assertEquals(4, deps.size());
+        assertEquals("io.quarkus", deps.get(0).groupId());
+        assertEquals("quarkus-rest", deps.get(0).artifactId());
+        assertEquals("3.21.2", deps.get(0).version());
+        assertEquals("quarkus-core", deps.get(1).artifactId());
+        assertEquals("smallrye-common", deps.get(2).artifactId());
+        assertEquals("quarkus-arc", deps.get(3).artifactId());
+    }
+
+    @Test
+    void parseMavenDependencyTreeHandlesEmptyOutput() {
+        assertTrue(DependencyResolver.parseMavenDependencyTree("").isEmpty());
+    }
+
+    @Test
+    void parseMavenDependencyTreeHandlesNullOutput() {
+        assertTrue(DependencyResolver.parseMavenDependencyTree(null).isEmpty());
+    }
+
+    @Test
+    void parseMavenDependencyTreeIgnoresNonDependencyLines() {
+        String output = """
+                com.example:my-app:jar:1.0-SNAPSHOT
+                some random text
+                +- io.quarkus:quarkus-arc:jar:3.21.2:compile
+                another line
+                """;
+
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyTree(output);
+
+        assertEquals(1, deps.size());
+        assertEquals("quarkus-arc", deps.get(0).artifactId());
+    }
+
     // ── Gradle dependency tree parsing ───────────────────────────────────────
 
     @Test
@@ -287,7 +335,7 @@ class DependencyResolverTest {
     }
 
     @Test
-    void parseGradleDependencyTreeIgnoresTransitiveDeps() {
+    void parseGradleDependencyTreeIncludesTransitiveDeps() {
         String output = """
                 runtimeClasspath
                 +--- io.quarkus:quarkus-rest:3.21.2
@@ -298,9 +346,11 @@ class DependencyResolverTest {
 
         List<DependencyResolver.Dependency> deps = DependencyResolver.parseGradleDependencyTree(output);
 
-        assertEquals(2, deps.size());
+        assertEquals(4, deps.size());
         assertEquals("quarkus-rest", deps.get(0).artifactId());
-        assertEquals("quarkus-arc", deps.get(1).artifactId());
+        assertEquals("quarkus-core", deps.get(1).artifactId());
+        assertEquals("smallrye-common", deps.get(2).artifactId());
+        assertEquals("quarkus-arc", deps.get(3).artifactId());
     }
 
     @Test
