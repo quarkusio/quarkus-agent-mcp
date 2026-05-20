@@ -183,6 +183,7 @@ public final class DependencyResolver {
             try {
                 ProcessBuilder pb = new ProcessBuilder(
                         mvnCmd, "dependency:tree",
+                        "-N",
                         "-DincludeScope=compile",
                         "-DoutputType=text",
                         "-q", "-DoutputFile=" + tempFile.toAbsolutePath())
