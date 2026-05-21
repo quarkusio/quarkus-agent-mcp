@@ -1,3 +1,6 @@
+Looking at the merge conflict, I need to keep both sides: the HEAD side adds two new `parseMavenDependencyList` tests with ANSI color handling plus a helper method, while the other side adds a cache test for the transitive flag.
+
+```java
 package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -252,6 +255,33 @@ class DependencyResolverTest {
         assertEquals("quarkus-arc", deps.get(0).artifactId());
     }
 
+    @Test
+    void parseMavenDependencyListNormal() {
+        String output = """
+                The following files have been resolved:
+                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile
+                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile
+                """;
+        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
+        assertEquals(2, dependencies.size());
+        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2]]", dependencies.toString());
+    }
+
+    @Test
+    void parseMavenDependencyListFull() {
+        String output = """
+                The following files have been resolved:
+                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile[36m -- module x.my.dep[0;1;33m (auto)[m
+                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile[36m -- module quarkus.datasource.common[0;1;33m (auto)[m
+                   io.smallrye:smallrye-context-propagation-jta:jar:2.3.0:compile[36m -- module smallrye.context.propagation.jta[0;1;33m (auto)[m
+                   jakarta.transaction:jakarta.transaction-api:jar:2.0.1:compile[36m -- module jakarta.transaction[m
+                   io.smallrye.stork:stork-configuration-generator:jar:2.7.9:provided[36m -- module io.smallrye.stork.config.generator[m
+                """;
+        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
+        assertEquals(5, dependencies.size());
+        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2], Dependency[groupId=io.smallrye, artifactId=smallrye-context-propagation-jta, version=2.3.0], Dependency[groupId=jakarta.transaction, artifactId=jakarta.transaction-api, version=2.0.1], Dependency[groupId=io.smallrye.stork, artifactId=stork-configuration-generator, version=2.7.9]]", dependencies.toString());
+    }
+
     // ── Gradle dependency tree parsing ───────────────────────────────────────
 
     @Test
@@ -331,6 +361,47 @@ class DependencyResolverTest {
         assertTrue(DependencyResolver.parseGradleDependencyTree(null).isEmpty());
     }
 
+    @Test
+    void parseGradleDependencyTreeIncludesTransitiveDeps() {
+        String output = """
+                runtimeClasspath
+                +--- io.quarkus:quarkus-rest:3.21.2
+                |    +--- io.quarkus:quarkus-core:3.21.2
+                |    \\--- io.smallrye:smallrye-common:2.0
+                \\--- io.quarkus:quarkus-arc:3.21.2
+                     +--- io.quarkus:quarkus-core:3.21.2
+                """;
+
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseGradleDependencyTree(output, true);
+
+        assertEquals(4, deps.size());
+        assertEquals("quarkus-rest", deps.get(0).artifactId());
+        assertEquals("quarkus-core", deps.get(1).artifactId());
+        assertEquals("smallrye-common", deps.get(2).artifactId());
+        assertEquals("quarkus-arc", deps.get(3).artifactId());
+        // quarkus-core appears twice in tree but should only appear once in result
+    }
+
+    @Test
+    void parseGradleDependencyTreeDeduplicatesTransitiveDeps() {
+        String output = """
+                runtimeClasspath
+                +--- io.quarkus:quarkus-rest:3.21.2
+                |    +--- io.quarkus:quarkus-core:3.21.2
+                \\--- io.quarkus:quarkus-arc:3.21.2
+                     +--- io.quarkus:quarkus-core:3.21.2
+                """;
+
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseGradleDependencyTree(output, true);
+
+        // quarkus-core appears twice but should only be in the result once
+        assertEquals(3, deps.size());
+        long coreCount = deps.stream()
+                .filter(d -> "quarkus-core".equals(d.artifactId()))
+                .count();
+        assertEquals(1, coreCount);
+    }
+
     // ── Cache ────────────────────────────────────────────────────────────────
 
     @Test
@@ -393,33 +464,32 @@ class DependencyResolverTest {
     }
 
     @Test
-    void parseMavenDependencyListNormal() {
-        String output = """
-                The following files have been resolved:
-                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile
-                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile
-                """;
-        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
-        assertEquals(2, dependencies.size());
-        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2]]", dependencies.toString());
-    }
+    void resolveCachesSeparatelyForTransitiveFlag() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-rest</artifactId>
+                            <version>3.21.2</version>
+                        </dependency>
+                    </dependencies>
+                </project>
+                """);
 
-    @Test
-    void parseMavenDependencyListFull() {
-        String output = """
-                The following files have been resolved:
-                   com.x.y.quarkus:x-my-dep:jar:1.0.0-SNAPSHOT:compile[36m -- module x.my.dep[0;1;33m (auto)[m
-                   io.quarkus:quarkus-datasource-common:jar:3.35.2:compile[36m -- module quarkus.datasource.common[0;1;33m (auto)[m
-                   io.smallrye:smallrye-context-propagation-jta:jar:2.3.0:compile[36m -- module smallrye.context.propagation.jta[0;1;33m (auto)[m
-                   jakarta.transaction:jakarta.transaction-api:jar:2.0.1:compile[36m -- module jakarta.transaction[m
-                   io.smallrye.stork:stork-configuration-generator:jar:2.7.9:provided[36m -- module io.smallrye.stork.config.generator[m
-                """;
-        List<DependencyResolver.Dependency> dependencies = DependencyResolver.parseMavenDependencyList(normalizeEOL(output));
-        assertEquals(5, dependencies.size());
-        assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2], Dependency[groupId=io.smallrye, artifactId=smallrye-context-propagation-jta, version=2.3.0], Dependency[groupId=jakarta.transaction, artifactId=jakarta.transaction-api, version=2.0.1], Dependency[groupId=io.smallrye.stork, artifactId=stork-configuration-generator, version=2.7.9]]", dependencies.toString());
+        // Resolve with includeTransitive=false, then with includeTransitive=true
+        // They should have separate cache entries
+        List<DependencyResolver.Dependency> direct = DependencyResolver.resolve(tempDir.toString(), false);
+        List<DependencyResolver.Dependency> transitive = DependencyResolver.resolve(tempDir.toString(), true);
+
+        assertEquals(1, direct.size());
+        // transitive would have more deps if we actually ran maven, but in this test
+        // we just verify the cache key is different by checking both calls succeed
+        assertNotNull(transitive);
     }
 
     private String normalizeEOL(String s) {
         return s.replace("\r\n", "\n").replace("\n", System.lineSeparator());
     }
 }
+```

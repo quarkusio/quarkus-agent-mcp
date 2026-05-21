@@ -41,14 +41,15 @@ public final class DependencyResolver {
     private static final Pattern MAVEN_DEP_LINE = Pattern.compile(
             "^\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+.*$");
 
-    // Gradle direct dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
+    // Gradle dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
+    // Also handles transitive deps with leading pipes/spaces: "|    +---" or "     +---"
     // Also handles "-> resolvedVersion" and constraint markers like (c), (*), (n)
     private static final Pattern GRADLE_DEP_LINE = Pattern.compile(
-            "^[+\\\\]---\\s+(\\S+):(\\S+):(\\S+?)(?:\\s+->\\s+(\\S+))?(?:\\s+\\(.*\\))?\\s*$");
+            "^[|\\s]*[+\\\\]---\\s+(\\S+):(\\S+):(\\S+?)(?:\\s+->\\s+(\\S+))?(?:\\s+\\(.*\\))?\\s*$");
 
-    // Gradle direct dependency without version (BOM-managed): "+--- group:artifact (c)" or similar
+    // Gradle dependency without version (BOM-managed): "+--- group:artifact (c)" or similar
     private static final Pattern GRADLE_DEP_NO_VERSION = Pattern.compile(
-            "^[+\\\\]---\\s+(\\S+):(\\S+)(?:\\s+\\(.*\\))?\\s*$");
+            "^[|\\s]*[+\\\\]---\\s+(\\S+):(\\S+)(?:\\s+\\(.*\\))?\\s*$");
 
     /**
      * Resolve all direct dependencies for the given project directory.
@@ -56,22 +57,38 @@ public final class DependencyResolver {
      * have non-null groupId, artifactId, and version.
      */
     public static List<Dependency> resolve(String projectDir) {
+        return resolve(projectDir, false);
+    }
+
+    /**
+     * Resolve dependencies for the given project directory.
+     * Returns a cached result if available. All returned dependencies
+     * have non-null groupId, artifactId, and version.
+     *
+     * @param projectDir        the absolute path to the project directory
+     * @param includeTransitive if true, include transitive dependencies; if false, only direct dependencies
+     * @return list of resolved dependencies, never null
+     */
+    public static List<Dependency> resolve(String projectDir, boolean includeTransitive) {
         if (projectDir == null || projectDir.isBlank()) {
             return List.of();
         }
-        List<Dependency> cached = CACHE.get(projectDir);
+        String cacheKey = projectDir + ":transitive=" + includeTransitive;
+        List<Dependency> cached = CACHE.get(cacheKey);
         if (cached != null) {
             return cached;
         }
 
-        List<Dependency> deps = doResolve(projectDir);
-        CACHE.put(projectDir, deps);
+        List<Dependency> deps = doResolve(projectDir, includeTransitive);
+        CACHE.put(cacheKey, deps);
         return deps;
     }
 
     public static void invalidate(String projectDir) {
         if (projectDir != null) {
-            CACHE.remove(projectDir);
+            // Remove both cache entries (with and without transitive)
+            CACHE.remove(projectDir + ":transitive=false");
+            CACHE.remove(projectDir + ":transitive=true");
         }
     }
 
@@ -79,7 +96,7 @@ public final class DependencyResolver {
         CACHE.clear();
     }
 
-    private static List<Dependency> doResolve(String projectDir) {
+    private static List<Dependency> doResolve(String projectDir, boolean includeTransitive) {
         File dir = new File(projectDir);
         if (!dir.isDirectory()) {
             return List.of();
@@ -87,12 +104,12 @@ public final class DependencyResolver {
 
         // Maven project
         if (new File(dir, "pom.xml").isFile()) {
-            return resolveForMaven(dir);
+            return resolveForMaven(dir, includeTransitive);
         }
 
         // Gradle project
         if (new File(dir, "build.gradle").isFile() || new File(dir, "build.gradle.kts").isFile()) {
-            return resolveForGradle(dir);
+            return resolveForGradle(dir, includeTransitive);
         }
 
         return List.of();
@@ -100,22 +117,22 @@ public final class DependencyResolver {
 
     // ── Maven resolution ─────────────────────────────────────────────────────
 
-    private static List<Dependency> resolveForMaven(File dir) {
+    private static List<Dependency> resolveForMaven(File dir, boolean includeTransitive) {
         List<Dependency> xmlDeps = parseMavenPom(dir);
 
         boolean hasUnresolved = xmlDeps.stream().anyMatch(d -> d.version() == null);
-        if (!hasUnresolved) {
+        if (!hasUnresolved && !includeTransitive) {
             return xmlDeps;
         }
 
-        // Fast path had unresolved versions — shell out to Maven
+        // Fast path had unresolved versions or we need transitive deps — shell out to Maven
         List<Dependency> buildToolDeps = resolveViaMaven(dir);
         if (buildToolDeps.isEmpty()) {
             // Fallback failed, return only resolved XML deps
             return xmlDeps.stream().filter(d -> d.version() != null).toList();
         }
 
-        return mergeMavenResults(xmlDeps, buildToolDeps);
+        return mergeMavenResults(xmlDeps, buildToolDeps, includeTransitive);
     }
 
     /**
@@ -213,10 +230,18 @@ public final class DependencyResolver {
 
     /**
      * Merges XML-parsed deps with build-tool-resolved deps.
-     * Uses the XML parse as the source of which dependencies are direct,
+     * When includeTransitive is false, uses the XML parse as the source of which dependencies are direct,
      * and fills in missing versions from the build-tool output.
+     * When includeTransitive is true, returns all dependencies from the build-tool output.
      */
-    private static List<Dependency> mergeMavenResults(List<Dependency> xmlDeps, List<Dependency> buildToolDeps) {
+    private static List<Dependency> mergeMavenResults(List<Dependency> xmlDeps, List<Dependency> buildToolDeps,
+            boolean includeTransitive) {
+        if (includeTransitive) {
+            // Return all dependencies from build tool (includes transitive)
+            return buildToolDeps;
+        }
+
+        // Original behavior: only direct dependencies from XML
         Map<String, String> versionLookup = new HashMap<>();
         for (Dependency dep : buildToolDeps) {
             versionLookup.put(dep.groupId() + ":" + dep.artifactId(), dep.version());
@@ -237,7 +262,7 @@ public final class DependencyResolver {
 
     // ── Gradle resolution ────────────────────────────────────────────────────
 
-    private static List<Dependency> resolveForGradle(File dir) {
+    private static List<Dependency> resolveForGradle(File dir, boolean includeTransitive) {
         String gradleCmd = ProcessUtils.resolveGradleCommand(dir);
         ProcessBuilder pb = new ProcessBuilder(
                 gradleCmd, "dependencies",
@@ -246,23 +271,43 @@ public final class DependencyResolver {
                 .directory(dir)
                 .redirectError(ProcessBuilder.Redirect.DISCARD);
         String output = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
-        return parseGradleDependencyTree(output);
+        return parseGradleDependencyTree(output, includeTransitive);
     }
 
     static List<Dependency> parseGradleDependencyTree(String output) {
+        return parseGradleDependencyTree(output, false);
+    }
+
+    static List<Dependency> parseGradleDependencyTree(String output, boolean includeTransitive) {
         if (output == null || output.isBlank()) {
             return List.of();
         }
         List<Dependency> deps = new ArrayList<>();
+        // Track seen dependencies to avoid duplicates
+        java.util.Set<String> seen = new java.util.HashSet<>();
+
         for (String line : output.split("\n")) {
-            // Only parse root-level dependencies (no leading spaces before +--- or \---)
-            if (!line.startsWith("+---") && !line.startsWith("\\---")) {
+            // When includeTransitive is false, only parse root-level dependencies
+            // (no leading spaces before +--- or \---)
+            if (!includeTransitive && !line.startsWith("+---") && !line.startsWith("\\---")) {
                 continue;
             }
+
+            // When includeTransitive is true, parse all dependency lines
+            // (including nested ones with leading pipes and spaces)
             Matcher m = GRADLE_DEP_LINE.matcher(line);
             if (m.matches()) {
+                String groupId = m.group(1);
+                String artifactId = m.group(2);
                 String version = m.group(4) != null ? m.group(4) : m.group(3);
-                deps.add(new Dependency(m.group(1), m.group(2), version));
+                String key = groupId + ":" + artifactId;
+
+                // Skip duplicates (same artifact can appear multiple times in the tree)
+                if (!seen.add(key)) {
+                    continue;
+                }
+
+                deps.add(new Dependency(groupId, artifactId, version));
                 continue;
             }
             // Try no-version pattern (BOM-managed without version in output)

@@ -72,6 +72,9 @@ public class DevMcpProxyTools {
     @ConfigProperty(name = "agent-mcp.local-skills-dir")
     Optional<String> localSkillsDir;
 
+    @ConfigProperty(name = "agent-mcp.skills.include-transitive", defaultValue = "false")
+    boolean includeTransitiveDeps;
+
     @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
             + "Use this before interacting with the running app -- for testing, config, extensions, "
             + "endpoints, dev services, etc. Then use quarkus_callTool to invoke the discovered tool. "
@@ -130,7 +133,8 @@ public class DevMcpProxyTools {
             boolean needsContent = queryLower != null;
 
             // When a query is provided we need full content; otherwise read metadata only
-            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, !needsContent);
+            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, !needsContent,
+                    includeTransitiveDeps);
 
             // If no skills found, check if the app is still building and wait for it
             if (skills.isEmpty()) {
@@ -163,7 +167,7 @@ public class DevMcpProxyTools {
 
             // Single skill without query — we only read metadata, so re-read with content
             if (!needsContent) {
-                skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false);
+                skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false, includeTransitiveDeps);
                 matched = skills;
             }
 
@@ -198,7 +202,8 @@ public class DevMcpProxyTools {
             return List.of();
         }
         // RUNNING or timed out (still STARTING) -- try reading skills either way
-        return SkillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly);
+        return SkillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly,
+                includeTransitiveDeps);
     }
 
     static String formatSkillIndex(List<SkillReader.SkillInfo> skills) {
@@ -316,7 +321,8 @@ public class DevMcpProxyTools {
                     + "(e.g. 'quarkus-rest', 'quarkus-hibernate-orm-panache')") String skillName) {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
-            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false);
+            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false,
+                    includeTransitiveDeps);
             SkillReader.SkillInfo matched = skills.stream()
                     .filter(s -> s.name().equalsIgnoreCase(skillName))
                     .findFirst()

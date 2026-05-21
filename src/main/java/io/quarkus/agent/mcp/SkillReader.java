@@ -145,7 +145,7 @@ public final class SkillReader {
      * @return list of available skills, never null
      */
     public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir) {
-        return readSkills(projectDir, localSkillsDir, false);
+        return readSkills(projectDir, localSkillsDir, false, false);
     }
 
     /**
@@ -157,6 +157,20 @@ public final class SkillReader {
      * @return list of available skills, never null
      */
     public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly) {
+        return readSkills(projectDir, localSkillsDir, metadataOnly, false);
+    }
+
+    /**
+     * Reads available skills for a project using the three-layer override chain.
+     *
+     * @param projectDir        the absolute path to the Quarkus project
+     * @param localSkillsDir    optional user-level directory to scan for SKILL.md files, or null for the default
+     * @param metadataOnly      if true, only extract frontmatter (name, description, mode) — content will be null
+     * @param includeTransitive if true, include skills from transitive dependencies; if false, only direct dependencies
+     * @return list of available skills, never null
+     */
+    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
+            boolean includeTransitive) {
         // Use a map keyed by skill name so each layer can override the previous
         Map<String, SkillInfo> skillsByName = new LinkedHashMap<>();
 
@@ -171,7 +185,7 @@ public final class SkillReader {
             }
 
             // 1b: Scan non-core extension runtime JARs (Quarkiverse, custom) from pom.xml
-            for (SkillInfo skill : scanNonCoreExtensionSkills(projectDir, m2Repo, metadataOnly)) {
+            for (SkillInfo skill : scanNonCoreExtensionSkills(projectDir, m2Repo, metadataOnly, includeTransitive)) {
                 skillsByName.putIfAbsent(skill.name(), skill);
             }
 
@@ -457,13 +471,20 @@ public final class SkillReader {
      * Parses the project's pom.xml for dependencies with a groupId other
      * than io.quarkus, looks up deployment, runtime, and dev JARs, and
      * composes skills on-the-fly.
+     *
+     * @param projectDir        the absolute path to the Quarkus project
+     * @param m2Repo            the local Maven repository path
+     * @param metadataOnly      if true, only extract frontmatter — content will be null
+     * @param includeTransitive if true, include skills from transitive dependencies; if false, only direct dependencies
+     * @return list of skills found in non-core extensions, never null
      */
-    static List<SkillInfo> scanNonCoreExtensionSkills(String projectDir, Path m2Repo, boolean metadataOnly) {
+    static List<SkillInfo> scanNonCoreExtensionSkills(String projectDir, Path m2Repo, boolean metadataOnly,
+            boolean includeTransitive) {
         if (projectDir == null) {
             return List.of();
         }
 
-        List<DependencyResolver.Dependency> deps = DependencyResolver.resolve(projectDir);
+        List<DependencyResolver.Dependency> deps = DependencyResolver.resolve(projectDir, includeTransitive);
         if (deps.isEmpty()) {
             return List.of();
         }

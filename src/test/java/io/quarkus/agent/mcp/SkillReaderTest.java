@@ -1439,7 +1439,7 @@ class SkillReaderTest {
                 "name: LangChain4j OpenAI\ndescription: \"LangChain4j OpenAI extension\"\nmetadata:\n  categories:\n  - \"ai\"\n");
 
         List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
-                projectDir.toString(), m2Repo, false);
+                projectDir.toString(), m2Repo, false, false);
 
         assertEquals(1, skills.size());
         assertEquals("quarkus-langchain4j-openai", skills.get(0).name());
@@ -1469,7 +1469,7 @@ class SkillReaderTest {
         createCoreExtension(m2Repo, "quarkus-rest", "3.21.2", "### REST", "name: REST\n");
 
         List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
-                projectDir.toString(), m2Repo, false);
+                projectDir.toString(), m2Repo, false, false);
 
         assertTrue(skills.isEmpty());
     }
@@ -1493,7 +1493,7 @@ class SkillReaderTest {
                 """);
 
         List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(
-                projectDir.toString(), m2Repo, false);
+                projectDir.toString(), m2Repo, false, false);
 
         assertTrue(skills.isEmpty());
     }
@@ -1502,7 +1502,7 @@ class SkillReaderTest {
     void scanNonCoreExtensionSkillsReturnsEmptyForNullProjectDir() {
         Path m2Repo = tempDir.resolve("m2-repo");
 
-        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(null, m2Repo, false);
+        List<SkillReader.SkillInfo> skills = SkillReader.scanNonCoreExtensionSkills(null, m2Repo, false, false);
 
         assertTrue(skills.isEmpty());
     }
