@@ -178,6 +178,25 @@ Ask your agent to build a Quarkus application using natural language. The agent 
 >
 > **Agent:** _(writes the code following patterns from skills, then runs tests using `quarkus_callTool` — via a subagent if supported)_
 
+### Working on an existing Quarkus app
+
+Ask your agent to modify an existing Quarkus application using natural language. The preferred existing-project entry point is `quarkus_prepare_existing_app` (alias of `quarkus_update`), followed by `quarkus_start`, `quarkus_skills`, and the Dev MCP tools.
+
+**Example conversation:**
+
+> **You:** Add a GitLab merge-request status endpoint to this existing Quarkus service
+>
+> **Agent:** _(uses `quarkus_prepare_existing_app` or `quarkus_update` first to check project state and version drift before editing)_
+>
+> **Agent:** _(uses `quarkus_start` to run the app in dev mode, then `quarkus_searchDocs` and `quarkus_searchTools` query `extension` to discover extension options)_
+>
+> **Agent:** _(presents extension options, waits for user choice, loads `quarkus_skills`, then implements and tests via `quarkus_callTool`)_
+
+If you are retrofitting an existing repository, add the MCP server configuration for your editor/workspace first, then keep the project workflow instructions in the repo root:
+
+- Add the server in your editor MCP config (for GitHub Copilot in VS Code, `.vscode/mcp.json`).
+- Optionally add `AGENTS.md` or `CLAUDE.md` with the Quarkus workflow instructions so any agent working in the repo sees the expected process.
+
 ### Development workflow
 
 The MCP server guides the agent through the optimal Quarkus development workflow:
@@ -185,9 +204,10 @@ The MCP server guides the agent through the optimal Quarkus development workflow
 ```
 NEW PROJECT                           EXISTING PROJECT
 
-1. quarkus_create                     1. quarkus_update
+1. quarkus_create                     1. quarkus_prepare_existing_app
    → scaffolds + auto-starts             → checks version, suggests upgrades
    → generates CLAUDE.md + .mcp.json
+                                        → alias of quarkus_update
                                       2. quarkus_start
 2. quarkus_skills                        → starts dev mode
    → learn extension patterns
@@ -256,7 +276,7 @@ On first use, a Docker/Podman container with the pre-indexed documentation is st
 
 ### Update checking
 
-For existing projects, `quarkus_update` checks if the Quarkus version is current and provides a full upgrade report:
+For existing projects, `quarkus_prepare_existing_app` (alias of `quarkus_update`) is the preferred first step. It checks if the Quarkus version is current and provides a full upgrade report:
 
 - Compares build files against [reference projects](https://github.com/quarkusio/code-with-quarkus-compare)
 - Runs `quarkus update --dry-run` (if CLI available) to preview automated migrations
@@ -276,6 +296,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
+| `quarkus_prepare_existing_app` | Preferred first step for editing an existing app; alias of `quarkus_update` | `projectDir` (required), `additionalUpdateRecipes` |
 | `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required), `additionalUpdateRecipes` |
 
 ### Extension Skills
@@ -290,7 +311,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_start` | Start a Quarkus app in dev mode | `projectDir` (required), `buildTool` |
+| `quarkus_start` | Start a Quarkus app in dev mode, typically right after `quarkus_prepare_existing_app` | `projectDir` (required), `buildTool` |
 | `quarkus_stop` | Graceful shutdown | `projectDir` (required) |
 | `quarkus_restart` | Force restart (usually not needed — hot reload is automatic) | `projectDir` (required) |
 | `quarkus_status` | Get app state | `projectDir` (required) |

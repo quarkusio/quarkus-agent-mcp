@@ -63,7 +63,7 @@ public final class ProjectFiles {
 
                     **STOP before writing ANY code.** For every feature or capability the user requests:
 
-                    1. **Search for Quarkus extensions** that provide the capability using `quarkus_searchDocs` and `quarkus_searchTools query='extension'`.
+                    1. **Search for Quarkus extensions** that provide the capability using `quarkus_searchDocs`.
                        Do NOT rely on a fixed list of extensions -- always search dynamically, as available extensions change across Quarkus versions and platform BOMs.
                     2. **Present ALL matching extensions to the user** with a recommended default marked. Wait for the user to choose before proceeding.
                        Do NOT silently pick an extension when multiple options exist.

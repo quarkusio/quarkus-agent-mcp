@@ -73,7 +73,7 @@ public class DevMcpProxyTools {
     Optional<String> localSkillsDir;
 
     @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
-            + "Use this before interacting with the running app -- for testing, config, extensions, "
+            + "For existing projects, call this after quarkus_start and before interacting with the running app -- for testing, config, extensions, "
             + "endpoints, dev services, etc. Then use quarkus_callTool to invoke the discovered tool. "
             + "The tool list is DYNAMIC -- it changes when extensions are added or removed. "
             + "Re-call this after any extension change to discover newly available tools.",
@@ -108,7 +108,7 @@ public class DevMcpProxyTools {
 
     @Tool(name = "quarkus_skills", description = "Get coding skills, patterns, testing guidelines, and configuration reference "
             + "for the Quarkus extensions used in the project. "
-            + "ALWAYS call this BEFORE writing code or tests to learn the correct Quarkus patterns for each extension. "
+            + "ALWAYS call this BEFORE writing code or tests, including when modifying an existing feature, to learn the correct Quarkus patterns for each extension. "
             + "Does NOT require the app to be running -- reads from built extension JARs. "
             + "If the app is still building (just created), this will wait for the build to complete. "
             + "Skills may include an 'Available Dev MCP Tools' section listing extension-specific Dev MCP tools "

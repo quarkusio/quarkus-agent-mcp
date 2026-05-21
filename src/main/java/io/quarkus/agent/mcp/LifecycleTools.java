@@ -26,8 +26,10 @@ public class LifecycleTools {
     ObjectMapper mapper;
 
     @Tool(name = "quarkus_start", description = "Start a Quarkus application in dev mode. "
+            + "Use this immediately after quarkus_update or quarkus_prepare_existing_app when the user asks to work on an existing Quarkus project. "
             + "Auto-detects Maven or Gradle. Hot reload is triggered when the app is accessed. "
-            + "RULES: Always write tests. Always keep README.md updated after changes.")
+            + "RULES: Always write tests. Always keep README.md updated after changes.",
+            annotations = @Tool.Annotations(title = "Start Quarkus app in dev mode", destructiveHint = false))
     ToolResponse start(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (auto-detected if omitted)", required = false) String buildTool,

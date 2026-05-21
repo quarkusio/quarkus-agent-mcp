@@ -2,8 +2,10 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.quarkiverse.mcp.server.Tool;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Pattern;
@@ -202,5 +204,23 @@ class CreateToolsValidationTest {
         assertFalse(VALID_VERSION.matcher("evil.com/backdoor:latest").matches());
         assertFalse(VALID_VERSION.matcher("").matches());
         assertFalse(VALID_VERSION.matcher("3.21.2; echo pwned").matches());
+    }
+
+    @Test
+    void createToolsExposeAppCreationGuidance() throws Exception {
+        Method create = CreateTools.class.getDeclaredMethod("create", String.class, String.class, String.class, String.class,
+                String.class, String.class, Boolean.class, boolean.class, boolean.class, Integer.class);
+        Tool createTool = create.getAnnotation(Tool.class);
+        assertNotNull(createTool);
+        assertTrue(createTool.description().contains("create, scaffold, bootstrap"),
+                "quarkus_create should advertise creation/scaffolding guidance");
+
+        Method createApp = CreateTools.class.getDeclaredMethod("createApp", String.class, String.class, String.class,
+                String.class, String.class, String.class, Boolean.class, boolean.class, boolean.class, Integer.class);
+        Tool createAppTool = createApp.getAnnotation(Tool.class);
+        assertNotNull(createAppTool);
+        assertEquals("quarkus_create_app", createAppTool.name());
+        assertTrue(createAppTool.description().contains("create an app"),
+                "alias should match natural app-creation phrasing");
     }
 }

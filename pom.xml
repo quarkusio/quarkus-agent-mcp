@@ -5,7 +5,7 @@
     <artifactId>quarkus-agent-mcp</artifactId>
     <version>1.0.12-SNAPSHOT</version>
     <name>Quarkus Agent MCP</name>
-    <description>Standalone MCP server for AI coding agents to manage Quarkus applications</description>
+    <description>Standalone MCP server for AI coding agents to create, scaffold, edit, and manage Quarkus applications</description>
     <url>https://github.com/quarkusio/quarkus-agent-mcp</url>
 
     <licenses>
@@ -151,7 +151,7 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5</artifactId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

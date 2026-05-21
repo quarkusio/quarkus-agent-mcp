@@ -3,11 +3,13 @@ package io.quarkus.agent.mcp;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import io.quarkiverse.mcp.server.Tool;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -213,5 +215,21 @@ class UpdateToolsTest {
                     "Expected semver-like version, got: " + latest);
         }
         // Don't fail if network is unavailable
+    }
+
+    @Test
+    void updateToolsExposeExistingAppGuidance() throws Exception {
+        Method update = UpdateTools.class.getDeclaredMethod("update", String.class, String.class);
+        Tool updateTool = update.getAnnotation(Tool.class);
+        assertNotNull(updateTool);
+        assertTrue(updateTool.description().contains("edit, extend, modify, debug, maintain"),
+                "quarkus_update should advertise existing-app guidance");
+
+        Method prepare = UpdateTools.class.getDeclaredMethod("prepareExistingApp", String.class, String.class);
+        Tool prepareTool = prepare.getAnnotation(Tool.class);
+        assertNotNull(prepareTool);
+        assertEquals("quarkus_prepare_existing_app", prepareTool.name());
+        assertTrue(prepareTool.description().contains("existing Quarkus or Java app"),
+                "alias should match existing-app phrasing");
     }
 }
