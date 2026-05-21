@@ -196,7 +196,7 @@ public final class DependencyResolver {
                 ProcessBuilder pb = new ProcessBuilder(
                         mvnCmd, "dependency:list",
                         "-DincludeScope=compile",
-                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath(), "-N")
+                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath())
                         .directory(dir)
                         .redirectError(ProcessBuilder.Redirect.DISCARD);
                 String ignored = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
