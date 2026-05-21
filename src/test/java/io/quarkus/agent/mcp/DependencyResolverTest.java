@@ -1,6 +1,3 @@
-Looking at the merge conflict, I need to keep both sides: the HEAD side adds two new `parseMavenDependencyList` tests with ANSI color handling plus a helper method, while the other side adds a cache test for the transitive flag.
-
-```java
 package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -492,4 +489,3 @@ class DependencyResolverTest {
         return s.replace("\r\n", "\n").replace("\n", System.lineSeparator());
     }
 }
-```
