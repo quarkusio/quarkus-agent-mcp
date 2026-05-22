@@ -40,6 +40,10 @@ public class UpdateTools {
     @ConfigProperty(name = "agent-mcp.update.additional-recipes")
     Optional<String> configuredAdditionalRecipes;
 
+    @Inject
+    @ConfigProperty(name = "agent-mcp.update.enabled", defaultValue = "true")
+    boolean updateEnabled;
+
     private static final String COMPARE_REPO = "quarkusio/code-with-quarkus-compare";
     private static final String RAW_BASE = "https://raw.githubusercontent.com/" + COMPARE_REPO;
     private static final String COMPARE_URL_BASE = "https://github.com/" + COMPARE_REPO + "/compare/";
@@ -66,6 +70,13 @@ public class UpdateTools {
             @ToolArg(description = "Additional OpenRewrite recipe artifacts to include in the update, "
                     + "in the format 'groupId:artifactId:version' (e.g. 'org.acme:my-recipes:1.0.0'). "
                     + "Multiple artifacts can be comma-separated.", required = false) String additionalUpdateRecipes) {
+        if (!updateEnabled) {
+            return ToolResponse.success(
+                "# Quarkus Update Skipped\n\n"
+                + "Update checks are disabled for this server (`agent-mcp.update.enabled=false`).\n"
+                + "Your organization manages Quarkus version upgrades centrally.");
+        }
+
         try {
             Path dir = Path.of(projectDir);
             if (!Files.isDirectory(dir)) {

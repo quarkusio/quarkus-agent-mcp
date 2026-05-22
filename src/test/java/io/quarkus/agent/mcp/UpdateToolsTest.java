@@ -2,12 +2,15 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.quarkiverse.mcp.server.ToolResponse;
+import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,6 +18,13 @@ class UpdateToolsTest {
 
     @TempDir
     Path tempDir;
+
+    @BeforeEach
+    void clearVersionCache() throws Exception {
+        var field = QuarkusVersionDetector.class.getDeclaredField("VERSION_CACHE");
+        field.setAccessible(true);
+        ((ConcurrentHashMap<?, ?>) field.get(null)).clear();
+    }
 
     @Test
     void detectBuildInfoMaven() throws Exception {
@@ -38,6 +48,24 @@ class UpdateToolsTest {
     }
 
     @Test
+    void detectBuildInfoMavenWithPropertyReference() throws Exception {
+        String pom = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+            <properties>
+            <quarkus.version>3.21.2</quarkus.version>
+            <quarkus.platform.version>${quarkus.version}</quarkus.platform.version>
+            </properties>
+            </project>
+            """;
+        Files.writeString(tempDir.resolve("pom.xml"), pom);
+
+        UpdateTools.BuildInfo info = UpdateTools.detectBuildInfo(tempDir);
+        
+        assertNull(info, "Property references should not be accepted as version");
+    }
+
+    @Test
     void detectBuildInfoGradle() throws Exception {
         Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }");
         Files.writeString(tempDir.resolve("gradle.properties"), "quarkusPlatformVersion=3.32.4");
@@ -49,6 +77,19 @@ class UpdateToolsTest {
         assertEquals("gradle-", info.tagPrefix());
         assertEquals("build.gradle", info.buildFile());
         assertEquals("3.32.4", info.version());
+    }
+
+    @Test
+    void detectBuildInfoGradleWithPropertyReference() throws Exception {
+        Files.writeString(tempDir.resolve("build.gradle"), "plugins { id 'java' }");
+        Files.writeString(tempDir.resolve("gradle.properties"), """
+            quarkusVersion=3.32.4
+            quarkusPlatformVersion=${quarkusVersion}
+            """);
+
+        UpdateTools.BuildInfo info = UpdateTools.detectBuildInfo(tempDir);
+        
+        assertNull(info, "Property references should not be accepted as version");
     }
 
     @Test
@@ -213,5 +254,58 @@ class UpdateToolsTest {
                     "Expected semver-like version, got: " + latest);
         }
         // Don't fail if network is unavailable
+    }
+
+    @Test
+    void updateReturnsSkipMessageWhenDisabled() throws Exception {
+        UpdateTools tools = new UpdateTools();
+        Field field = UpdateTools.class.getDeclaredField("updateEnabled");
+        field.setAccessible(true);
+        field.set(tools, false);
+
+        String pom = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+            <properties>
+            <quarkus.platform.version>3.21.2</quarkus.platform.version>
+            </properties>
+            </project>
+            """;
+        Files.writeString(tempDir.resolve("pom.xml"), pom);
+
+        ToolResponse response = tools.update(tempDir.toString(), null);
+
+        assertFalse(response.isError(),
+            "Response should be a success (not error) when update is disabled");
+        String content = response.firstContent().asText().text();
+        assertTrue(content.contains("disabled"),
+            "Response should mention that updates are disabled, got: " + content);
+    }
+
+    @Test
+    void updateReturnsSkipMessageWhenDisabledWithPropertyReference() throws Exception {
+        UpdateTools tools = new UpdateTools();
+        Field field = UpdateTools.class.getDeclaredField("updateEnabled");
+        field.setAccessible(true);
+        field.set(tools, false);
+
+        String pom = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project>
+            <properties>
+            <quarkus.version>3.21.2</quarkus.version>
+            <quarkus.platform.version>${quarkus.version}</quarkus.platform.version>
+            </properties>
+            </project>
+            """;
+        Files.writeString(tempDir.resolve("pom.xml"), pom);
+
+        ToolResponse response = tools.update(tempDir.toString(), null);
+
+        assertFalse(response.isError(),
+            "Response should be a success (not error) when update is disabled");
+        String content = response.firstContent().asText().text();
+        assertTrue(content.contains("disabled"),
+            "Response should mention that updates are disabled, got: " + content);
     }
 }

@@ -390,6 +390,7 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |
 | `agent-mcp.log.enabled` | `false` | Enable file logging on startup — logs are written to `~/.quarkus/agent-mcp/agent-mcp.log` |
 | `agent-mcp.update.additional-recipes` | _(none)_ | Additional OpenRewrite recipe artifacts for `quarkus_update` (e.g. `org.acme:my-recipes:1.0.0`) |
+| `agent-mcp.update.enabled` | `true` | Set to `false` to disable `quarkus_update` checks (e.g. when Quarkus version is managed centrally by your organization via Renovate) |
 
 ## Building a Native Image
 

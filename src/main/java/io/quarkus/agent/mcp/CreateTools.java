@@ -480,7 +480,7 @@ public class CreateTools {
 
                     ## Required Workflow
 
-                    1. **Use quarkus_update (via a subagent if supported) when returning to this project** -- checks if the Quarkus version is up-to-date and suggests upgrades.
+                    1. **Use quarkus_update (via a subagent if supported) when returning to this project** -- checks if the Quarkus version is up-to-date and suggests upgrades. If your organization manages Quarkus versions centrally (e.g. via Renovate), you can disable this by setting `agent-mcp.update.enabled=false`.
                     2. **Use quarkus_skills BEFORE writing any code or tests** -- it contains extension-specific patterns, testing approaches, and common pitfalls that prevent mistakes. Skills may also list **Available Dev MCP Tools** specific to each extension (e.g. OpenAPI schema retrieval, scheduler job management) -- use these via `quarkus_callTool`. Call this EVERY time you are about to add or modify a feature, not just at project creation.
                     3. **Use quarkus_searchDocs for Quarkus documentation** -- do NOT use generic documentation tools (Context7, web search). The Quarkus doc search is version-aware and more accurate.
                     4. **Use quarkus_searchTools to discover Dev MCP tools** on the running app for testing, config changes, and extension management. The tool list is **dynamic** -- it changes when extensions are added or removed. Re-call `quarkus_searchTools` after any extension change to discover newly available tools. Note: some extension-specific tools are also documented in the skills output (see step 2).
