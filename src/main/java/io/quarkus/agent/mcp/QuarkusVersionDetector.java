@@ -4,11 +4,18 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.jboss.logging.Logger;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 /**
  * Detects the Quarkus version used by a project from its build files.
@@ -42,6 +49,19 @@ public final class QuarkusVersionDetector {
     // Gradle: quarkusPlatformVersion=3.21.2 (in gradle.properties)
     private static final Pattern GRADLE_PLATFORM_VERSION = Pattern.compile(
             "quarkusPlatformVersion\\s*=\\s*(.+)");
+
+    // Maven dependency:list output line for io.quarkus:quarkus-core
+    private static final Pattern MAVEN_QUARKUS_CORE_DEP = Pattern.compile(
+            "^\\s+io\\.quarkus:quarkus-core:\\S+:(\\S+):\\S+.*$");
+
+    // Gradle dependency tree output line for io.quarkus:quarkus-core
+    private static final Pattern GRADLE_QUARKUS_CORE_DEP = Pattern.compile(
+            "^[+\\\\]---\\s+io\\.quarkus:quarkus-core:(\\S+?)(?:\\s+->\\s+(\\S+))?(?:\\s+\\(.*\\))?\\s*$");
+
+    private static final Pattern MAVEN_PROPERTY_REF = Pattern.compile("\\$\\{([^}]+)}");
+
+    private static final String QUARKUS_CORE_GROUP = "io.quarkus";
+    private static final String QUARKUS_CORE_ARTIFACT = "quarkus-core";
 
     /**
      * Detect the Quarkus version from the given project directory.
@@ -99,6 +119,23 @@ public final class QuarkusVersionDetector {
         if (version == null) {
             if (new File(dir, "build.gradle").isFile() || new File(dir, "build.gradle.kts").isFile()) {
                 version = detectFromGradleBuildTool(dir);
+            }
+        }
+
+        // Fallback: detect from quarkus-core dependency in pom.xml (fast, local XML parse)
+        if (version == null && pomFile.isFile()) {
+            version = detectFromMavenQuarkusCoreDep(pomFile);
+        }
+
+        // Fallback: shell out to Maven dependency:list and find quarkus-core version
+        if (version == null && pomFile.isFile()) {
+            version = detectFromMavenDependencyList(dir);
+        }
+
+        // Fallback: shell out to Gradle dependencies and find quarkus-core version
+        if (version == null) {
+            if (new File(dir, "build.gradle").isFile() || new File(dir, "build.gradle.kts").isFile()) {
+                version = detectFromGradleDependencyTree(dir);
             }
         }
 
@@ -193,6 +230,148 @@ public final class QuarkusVersionDetector {
                     return value;
                 }
             }
+        }
+        return null;
+    }
+
+    private static String detectFromMavenQuarkusCoreDep(File pomFile) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            Document doc = factory.newDocumentBuilder().parse(pomFile);
+
+            Map<String, String> properties = parsePropertiesFromDoc(doc);
+
+            NodeList depNodes = doc.getElementsByTagName("dependency");
+            for (int i = 0; i < depNodes.getLength(); i++) {
+                Element depEl = (Element) depNodes.item(i);
+                if (shouldSkipDependency(depEl)) {
+                    continue;
+                }
+                String groupId = getChildText(depEl, "groupId");
+                String artifactId = getChildText(depEl, "artifactId");
+                String version = getChildText(depEl, "version");
+
+                if (groupId != null) {
+                    groupId = resolveProperty(groupId, properties);
+                }
+                if (artifactId != null) {
+                    artifactId = resolveProperty(artifactId, properties);
+                }
+                if (version != null) {
+                    version = resolveProperty(version, properties);
+                }
+
+                if (QUARKUS_CORE_GROUP.equals(groupId) && QUARKUS_CORE_ARTIFACT.equals(artifactId)
+                        && version != null && !version.contains("${")) {
+                    LOG.debugf("Found quarkus-core dependency version %s in pom.xml", version);
+                    return version;
+                }
+            }
+        } catch (Exception e) {
+            LOG.debugf("Failed to parse pom.xml for quarkus-core dependency: %s", e.getMessage());
+        }
+        return null;
+    }
+
+    private static String detectFromMavenDependencyList(File dir) {
+        String mvnCmd = ProcessUtils.resolveMavenCommand(dir);
+        ProcessBuilder pb = new ProcessBuilder(
+                mvnCmd, "dependency:list",
+                "-DincludeScope=compile",
+                "-q", "-DforceStdout", "-N")
+                .directory(dir)
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
+        String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
+        return parseMavenDependencyListForQuarkusCore(output);
+    }
+
+    static String parseMavenDependencyListForQuarkusCore(String output) {
+        if (output == null || output.isBlank()) {
+            return null;
+        }
+        for (String line : output.split("\\r?\\n")) {
+            Matcher m = MAVEN_QUARKUS_CORE_DEP.matcher(line);
+            if (m.matches()) {
+                return m.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static String detectFromGradleDependencyTree(File dir) {
+        String gradleCmd = ProcessUtils.resolveGradleCommand(dir);
+        ProcessBuilder pb = new ProcessBuilder(
+                gradleCmd, "dependencies",
+                "--configuration", "runtimeClasspath",
+                "-q", "--console=plain")
+                .directory(dir)
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
+        String output = ProcessUtils.runAndCapture(pb, 30, TimeUnit.SECONDS);
+        return parseGradleDependencyTreeForQuarkusCore(output);
+    }
+
+    static String parseGradleDependencyTreeForQuarkusCore(String output) {
+        if (output == null || output.isBlank()) {
+            return null;
+        }
+        for (String line : output.split("\n")) {
+            Matcher m = GRADLE_QUARKUS_CORE_DEP.matcher(line);
+            if (m.matches()) {
+                return m.group(2) != null ? m.group(2) : m.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, String> parsePropertiesFromDoc(Document doc) {
+        Map<String, String> props = new HashMap<>();
+        NodeList propsNodes = doc.getElementsByTagName("properties");
+        if (propsNodes.getLength() > 0) {
+            Element propsEl = (Element) propsNodes.item(0);
+            NodeList children = propsEl.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                if (children.item(i) instanceof Element el) {
+                    props.put(el.getTagName(), el.getTextContent().trim());
+                }
+            }
+        }
+        return props;
+    }
+
+    private static String resolveProperty(String value, Map<String, String> properties) {
+        if (value == null || !value.contains("${")) {
+            return value;
+        }
+        String resolved = value;
+        Matcher m = MAVEN_PROPERTY_REF.matcher(value);
+        while (m.find()) {
+            String propName = m.group(1);
+            String propValue = properties.get(propName);
+            if (propValue != null) {
+                resolved = resolved.replace(m.group(0), propValue);
+            }
+        }
+        return resolved;
+    }
+
+    private static boolean shouldSkipDependency(Element el) {
+        Node parent = el.getParentNode();
+        while (parent instanceof Element parentEl) {
+            String tag = parentEl.getTagName();
+            if ("plugin".equals(tag) || "exclusions".equals(tag) || "dependencyManagement".equals(tag)) {
+                return true;
+            }
+            parent = parentEl.getParentNode();
+        }
+        return false;
+    }
+
+    private static String getChildText(Element parent, String tagName) {
+        NodeList children = parent.getElementsByTagName(tagName);
+        if (children.getLength() > 0) {
+            String text = children.item(0).getTextContent();
+            return text != null ? text.trim() : null;
         }
         return null;
     }

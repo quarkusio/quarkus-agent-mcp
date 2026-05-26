@@ -299,4 +299,215 @@ class QuarkusVersionDetectorTest {
                 """;
         assertEquals("3.30.1", QuarkusVersionDetector.parseGradlePropertiesOutput(output));
     }
+
+    // --- Fallback: quarkus-core dependency in pom.xml ---
+
+    @Test
+    void detectFromQuarkusCoreDependency() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-core</artifactId>
+                      <version>3.21.2</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertEquals("3.21.2", QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void detectFromQuarkusCoreDependencyWithPropertyResolution() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <properties>
+                    <quarkus.version>3.21.2</quarkus.version>
+                  </properties>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-core</artifactId>
+                      <version>${quarkus.version}</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertEquals("3.21.2", QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void platformVersionTakesPrecedenceOverQuarkusCore() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <properties>
+                    <quarkus.platform.version>3.21.2</quarkus.platform.version>
+                  </properties>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-core</artifactId>
+                      <version>3.20.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertEquals("3.21.2", QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void quarkusCoreFallbackIgnoresUnresolvedProperty() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-core</artifactId>
+                      <version>${unresolved.version}</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertNull(QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void quarkusCoreFallbackIgnoresPluginDependencies() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <build>
+                    <plugins>
+                      <plugin>
+                        <dependencies>
+                          <dependency>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-core</artifactId>
+                            <version>3.21.2</version>
+                          </dependency>
+                        </dependencies>
+                      </plugin>
+                    </plugins>
+                  </build>
+                </project>
+                """);
+
+        assertNull(QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void quarkusCoreFallbackIgnoresDependencyManagement() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>io.quarkus</groupId>
+                        <artifactId>quarkus-core</artifactId>
+                        <version>3.21.2</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                </project>
+                """);
+
+        assertNull(QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    @Test
+    void quarkusCoreFallbackIgnoresDifferentGroupId() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.custom</groupId>
+                      <artifactId>quarkus-core</artifactId>
+                      <version>3.21.2</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertNull(QuarkusVersionDetector.detect(tempDir.toString()));
+    }
+
+    // --- Maven dependency:list output parsing for quarkus-core ---
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreExtractsVersion() {
+        String output = """
+                   io.quarkus:quarkus-core:jar:3.21.2:compile
+                   io.quarkus:quarkus-arc:jar:3.21.2:compile
+                """;
+        assertEquals("3.21.2", QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(output));
+    }
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreReturnsNullWhenMissing() {
+        String output = """
+                   io.quarkus:quarkus-arc:jar:3.21.2:compile
+                """;
+        assertNull(QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(output));
+    }
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreReturnsNullForNull() {
+        assertNull(QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(null));
+    }
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreReturnsNullForEmpty() {
+        assertNull(QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(""));
+    }
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreHandlesAnsiEscape() {
+        String output = " io.quarkus:quarkus-core:jar:3.21.2:compile\u001B[36m -- module io.quarkus\u001B[m";
+        assertEquals("3.21.2", QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(output));
+    }
+
+    @Test
+    void parseMavenDependencyListForQuarkusCoreHandlesWindowsLineEndings() {
+        String output = "   io.quarkus:quarkus-arc:jar:3.21.2:compile\r\n   io.quarkus:quarkus-core:jar:3.21.2:compile\r\n";
+        assertEquals("3.21.2", QuarkusVersionDetector.parseMavenDependencyListForQuarkusCore(output));
+    }
+
+    // --- Gradle dependency tree output parsing for quarkus-core ---
+
+    @Test
+    void parseGradleDependencyTreeForQuarkusCoreExtractsVersion() {
+        String output = """
+                +--- io.quarkus:quarkus-core:3.21.2
+                +--- io.quarkus:quarkus-arc:3.21.2
+                """;
+        assertEquals("3.21.2", QuarkusVersionDetector.parseGradleDependencyTreeForQuarkusCore(output));
+    }
+
+    @Test
+    void parseGradleDependencyTreeForQuarkusCoreResolvesVersionOverride() {
+        String output = "+--- io.quarkus:quarkus-core:3.20.0 -> 3.21.2";
+        assertEquals("3.21.2", QuarkusVersionDetector.parseGradleDependencyTreeForQuarkusCore(output));
+    }
+
+    @Test
+    void parseGradleDependencyTreeForQuarkusCoreReturnsNullWhenMissing() {
+        String output = """
+                +--- io.quarkus:quarkus-arc:3.21.2
+                """;
+        assertNull(QuarkusVersionDetector.parseGradleDependencyTreeForQuarkusCore(output));
+    }
+
+    @Test
+    void parseGradleDependencyTreeForQuarkusCoreReturnsNullForNull() {
+        assertNull(QuarkusVersionDetector.parseGradleDependencyTreeForQuarkusCore(null));
+    }
+
+    @Test
+    void parseGradleDependencyTreeForQuarkusCoreReturnsNullForEmpty() {
+        assertNull(QuarkusVersionDetector.parseGradleDependencyTreeForQuarkusCore(""));
+    }
 }
