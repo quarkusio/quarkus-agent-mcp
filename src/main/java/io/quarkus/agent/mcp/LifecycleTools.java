@@ -33,9 +33,11 @@ public class LifecycleTools {
             @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (auto-detected if omitted)", required = false) String buildTool,
             @ToolArg(description = "HTTP port for the Quarkus application (e.g. 8081). "
                     + "If omitted, defaults to 8080. When 8080 is already in use, "
-                    + "an available port is assigned automatically.", required = false) Integer httpPort) {
+                    + "an available port is assigned automatically.", required = false) Integer httpPort,
+            @ToolArg(description = "Comma-separated Maven profile(s) to activate (e.g. 'myprofile' or 'p1,p2'). "
+                    + "Ignored for Gradle builds.", required = false) String mavenProfiles) {
         try {
-            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort);
+            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles);
             String message = "Quarkus application starting in dev mode at: " + projectDir;
             if (effectivePort != null) {
                 message += " (port: " + effectivePort + ")";

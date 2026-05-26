@@ -7,7 +7,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,7 +45,7 @@ public class QuarkusProcessManager {
     static final int DEFAULT_HTTP_PORT = 8080;
     private static final int MAX_PORT_SCAN = 100;
 
-    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort) {
+    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort, String mavenProfiles) {
         if (buildTool != null && !VALID_BUILD_TOOLS.contains(buildTool.toLowerCase())) {
             throw new IllegalArgumentException(
                     "Invalid build tool: '" + buildTool + "'. Must be 'maven' or 'gradle'.");
@@ -71,11 +73,11 @@ public class QuarkusProcessManager {
         }
 
         String detectedBuildTool = buildTool != null ? buildTool : detectBuildTool(normalizedDir);
-        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort);
+        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort, mavenProfiles);
 
         try {
             Process process = pb.start();
-            QuarkusInstance instance = new QuarkusInstance(normalizedDir, detectedBuildTool, httpPort, process, executor);
+            QuarkusInstance instance = new QuarkusInstance(normalizedDir, detectedBuildTool, httpPort, mavenProfiles, process, executor);
             instances.put(normalizedDir, instance);
             if (appLogEnabled.orElse(false)) {
                 instance.enableFileLogging(computeLogFile(normalizedDir));
@@ -109,8 +111,9 @@ public class QuarkusProcessManager {
         if (!instance.isAlive()) {
             String savedBuildTool = instance.getBuildTool();
             Integer savedHttpPort = instance.getRequestedHttpPort();
+            String savedMavenProfiles = instance.getMavenProfiles();
             instances.remove(normalizedDir);
-            start(normalizedDir, savedBuildTool, savedHttpPort);
+            start(normalizedDir, savedBuildTool, savedHttpPort, savedMavenProfiles);
             LOG.infof("Re-started dead Quarkus instance at: %s", normalizedDir);
         } else {
             instance.restart();
@@ -165,7 +168,7 @@ public class QuarkusProcessManager {
                 "Cannot detect build tool at: " + projectDir + ". No pom.xml or build.gradle found.");
     }
 
-    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort) {
+    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort, String mavenProfiles) {
         File dir = new File(projectDir);
         if (!dir.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + projectDir);
@@ -175,7 +178,7 @@ public class QuarkusProcessManager {
         if ("gradle".equalsIgnoreCase(buildTool)) {
             pb = createGradleProcessBuilder(dir);
         } else {
-            pb = createMavenProcessBuilder(dir);
+            pb = createMavenProcessBuilder(dir, mavenProfiles);
         }
 
         if (httpPort != null) {
@@ -188,10 +191,14 @@ public class QuarkusProcessManager {
         return pb;
     }
 
-    private ProcessBuilder createMavenProcessBuilder(File projectDir) {
+    private ProcessBuilder createMavenProcessBuilder(File projectDir, String mavenProfiles) {
         String cmd = mvnCmd.orElseGet(() -> ProcessUtils.resolveMavenCommand(projectDir));
-        return new ProcessBuilder(cmd, "quarkus:dev", "-Dquarkus.console.basic=true",
-                "-Dquarkus.dev-mcp.enabled=true");
+        var command = new ArrayList<>(List.of(cmd, "quarkus:dev",
+                "-Dquarkus.console.basic=true", "-Dquarkus.dev-mcp.enabled=true"));
+        if (mavenProfiles != null && !mavenProfiles.isBlank()) {
+            command.add("-P" + mavenProfiles.trim());
+        }
+        return new ProcessBuilder(command);
     }
 
     private ProcessBuilder createGradleProcessBuilder(File projectDir) {

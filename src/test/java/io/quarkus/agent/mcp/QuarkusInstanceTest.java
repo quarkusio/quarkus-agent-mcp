@@ -24,7 +24,7 @@ class QuarkusInstanceTest {
     @Test
     void initialStatusIsStarting() throws Exception {
         process = new ProcessBuilder("sleep", "10").start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         assertEquals(QuarkusInstance.Status.STARTING, instance.getStatus());
         assertEquals(-1, instance.getHttpPort());
@@ -37,7 +37,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         // Wait for the stream reader to process the output
         Thread.sleep(500);
@@ -51,7 +51,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: https://localhost:8443' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -63,7 +63,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'installed features: [cdi, rest]' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -76,7 +76,7 @@ class QuarkusInstanceTest {
     void detectsCrashOnProcessExit() throws Exception {
         process = new ProcessBuilder("bash", "-c", "echo 'starting' && exit 1")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         // Wait for process to exit and monitor to detect it
         Thread.sleep(500);
@@ -88,7 +88,7 @@ class QuarkusInstanceTest {
     @Test
     void stopSetsStatusToStopped() throws Exception {
         process = new ProcessBuilder("sleep", "30").start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         instance.stop();
 
@@ -102,7 +102,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "for i in $(seq 1 10); do echo \"line $i\"; done && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -115,7 +115,7 @@ class QuarkusInstanceTest {
     @Test
     void getRecentLogsReturnsEmptyForNoLogs() throws Exception {
         process = new ProcessBuilder("sleep", "10").start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         assertEquals("", instance.getRecentLogs(50));
     }
@@ -125,7 +125,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://0.0.0.0:9090' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -137,7 +137,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: not-a-url' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -149,7 +149,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080 (some extra text)' && sleep 5")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 
@@ -161,7 +161,7 @@ class QuarkusInstanceTest {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && cat")
                 .start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
         assertEquals(8080, instance.getHttpPort());
@@ -176,7 +176,7 @@ class QuarkusInstanceTest {
     @Test
     void restartThrowsIfProcessDead() throws Exception {
         process = new ProcessBuilder("bash", "-c", "exit 0").start();
-        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, process, executor);
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
 
         Thread.sleep(500);
 

@@ -33,17 +33,17 @@ class QuarkusProcessManagerTest {
 
     @Test
     void startThrowsForNullProjectDir() {
-        assertThrows(IllegalArgumentException.class, () -> manager.start(null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> manager.start(null, null, null, null));
     }
 
     @Test
     void startThrowsForEmptyProjectDir() {
-        assertThrows(IllegalArgumentException.class, () -> manager.start("", null, null));
+        assertThrows(IllegalArgumentException.class, () -> manager.start("", null, null, null));
     }
 
     @Test
     void startThrowsForBlankProjectDir() {
-        assertThrows(IllegalArgumentException.class, () -> manager.start("   ", null, null));
+        assertThrows(IllegalArgumentException.class, () -> manager.start("   ", null, null, null));
     }
 
     @Test
@@ -76,7 +76,7 @@ class QuarkusProcessManagerTest {
     void throwsWhenNoBuildToolDetected() {
         // tempDir has no pom.xml or build.gradle
         assertThrows(IllegalArgumentException.class,
-                () -> manager.start(tempDir.toString(), null, null));
+                () -> manager.start(tempDir.toString(), null, null, null));
     }
 
     @Test
@@ -85,25 +85,25 @@ class QuarkusProcessManagerTest {
         Files.writeString(file, "not a directory");
 
         assertThrows(IllegalArgumentException.class,
-                () -> manager.start(file.toString(), "maven", null));
+                () -> manager.start(file.toString(), "maven", null, null));
     }
 
     @Test
     void startThrowsForPortZero() {
         assertThrows(IllegalArgumentException.class,
-                () -> manager.start(tempDir.toString(), "maven", 0));
+                () -> manager.start(tempDir.toString(), "maven", 0, null));
     }
 
     @Test
     void startThrowsForNegativePort() {
         assertThrows(IllegalArgumentException.class,
-                () -> manager.start(tempDir.toString(), "maven", -1));
+                () -> manager.start(tempDir.toString(), "maven", -1, null));
     }
 
     @Test
     void startThrowsForPortAbove65535() {
         assertThrows(IllegalArgumentException.class,
-                () -> manager.start(tempDir.toString(), "maven", 70000));
+                () -> manager.start(tempDir.toString(), "maven", 70000, null));
     }
 
     @Test
@@ -111,9 +111,9 @@ class QuarkusProcessManagerTest {
         Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
         initOptionalFields();
         Method m = QuarkusProcessManager.class.getDeclaredMethod(
-                "createProcessBuilder", String.class, String.class, Integer.class);
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
         m.setAccessible(true);
-        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", 9090);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", 9090, (String) null);
         assertTrue(pb.command().contains("-Dquarkus.http.port=9090"));
         assertTrue(pb.command().contains("-Dquarkus.http.test-port=0"));
     }
@@ -123,11 +123,55 @@ class QuarkusProcessManagerTest {
         Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
         initOptionalFields();
         Method m = QuarkusProcessManager.class.getDeclaredMethod(
-                "createProcessBuilder", String.class, String.class, Integer.class);
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
         m.setAccessible(true);
-        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null);
         assertFalse(pb.command().stream().anyMatch(arg -> arg.startsWith("-Dquarkus.http.port=")));
         assertFalse(pb.command().stream().anyMatch(arg -> arg.startsWith("-Dquarkus.http.test-port=")));
+    }
+
+    @Test
+    void processBuilderIncludesMavenProfile() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields();
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, "myprofile");
+        assertTrue(pb.command().contains("-Pmyprofile"));
+    }
+
+    @Test
+    void processBuilderIncludesMultipleMavenProfiles() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields();
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, "p1,p2");
+        assertTrue(pb.command().contains("-Pp1,p2"));
+    }
+
+    @Test
+    void processBuilderOmitsProfileArgWhenNull() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields();
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null);
+        assertFalse(pb.command().stream().anyMatch(arg -> arg.startsWith("-P")));
+    }
+
+    @Test
+    void processBuilderOmitsProfileArgWhenBlank() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields();
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, "   ");
+        assertFalse(pb.command().stream().anyMatch(arg -> arg.startsWith("-P")));
     }
 
     private void initOptionalFields() throws Exception {
