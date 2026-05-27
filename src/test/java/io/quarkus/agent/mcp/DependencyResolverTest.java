@@ -518,15 +518,23 @@ class DependencyResolverTest {
                 </project>
                 """);
 
-        // Resolve with includeTransitive=false, then with includeTransitive=true
-        // They should have separate cache entries
+        // Populate both cache entries
+        DependencyResolver.resolve(tempDir.toString(), false);
+        DependencyResolver.resolve(tempDir.toString(), true);
+
+        // Delete the pom so a fresh resolve would return empty
+        Files.delete(tempDir.resolve("pom.xml"));
+
+        // Both should still return cached results (pom is gone but cache is warm)
         List<DependencyResolver.Dependency> direct = DependencyResolver.resolve(tempDir.toString(), false);
         List<DependencyResolver.Dependency> transitive = DependencyResolver.resolve(tempDir.toString(), true);
-
         assertEquals(1, direct.size());
-        // transitive would have more deps if we actually ran maven, but in this test
-        // we just verify the cache key is different by checking both calls succeed
-        assertNotNull(transitive);
+        assertEquals(1, transitive.size());
+
+        // Invalidating should clear BOTH cache entries
+        DependencyResolver.invalidate(tempDir.toString());
+        assertTrue(DependencyResolver.resolve(tempDir.toString(), false).isEmpty());
+        assertTrue(DependencyResolver.resolve(tempDir.toString(), true).isEmpty());
     }
 
     @Test
