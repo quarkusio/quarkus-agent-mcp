@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -279,6 +278,51 @@ class DependencyResolverTest {
         assertEquals("[Dependency[groupId=com.x.y.quarkus, artifactId=x-my-dep, version=1.0.0-SNAPSHOT], Dependency[groupId=io.quarkus, artifactId=quarkus-datasource-common, version=3.35.2], Dependency[groupId=io.smallrye, artifactId=smallrye-context-propagation-jta, version=2.3.0], Dependency[groupId=jakarta.transaction, artifactId=jakarta.transaction-api, version=2.0.1], Dependency[groupId=io.smallrye.stork, artifactId=stork-configuration-generator, version=2.7.9]]", dependencies.toString());
     }
 
+    @Test
+    void parseMavenDependencyListWithInfoPrefix() {
+        String output = """
+                [INFO] Scanning for projects...
+                [INFO]
+                [INFO] ---------------< org.acme:module-a >---------------
+                [INFO] Building module-a 1.0.0-SNAPSHOT
+                [INFO]
+                [INFO] The following files have been resolved:
+                [INFO]    io.quarkus:quarkus-rest:jar:3.21.2:compile
+                [INFO]    io.quarkus:quarkus-arc:jar:3.21.2:compile
+                [INFO]
+                [INFO] ---------------< org.acme:module-b >---------------
+                [INFO] Building module-b 1.0.0-SNAPSHOT
+                [INFO]
+                [INFO] The following files have been resolved:
+                [INFO]    io.quarkus:quarkus-arc:jar:3.21.2:compile
+                [INFO]    io.quarkus:quarkus-hibernate-orm:jar:3.21.2:compile
+                [INFO]
+                [INFO] BUILD SUCCESS
+                """;
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(output);
+
+        assertEquals(3, deps.size());
+        assertEquals("quarkus-rest", deps.get(0).artifactId());
+        assertEquals("quarkus-arc", deps.get(1).artifactId());
+        assertEquals("quarkus-hibernate-orm", deps.get(2).artifactId());
+    }
+
+    @Test
+    void parseMavenDependencyListDeduplicatesAcrossModules() {
+        String output = """
+                [INFO]    io.quarkus:quarkus-arc:jar:3.21.2:compile
+                [INFO]    io.quarkus:quarkus-rest:jar:3.21.2:compile
+                [INFO]    io.quarkus:quarkus-arc:jar:3.21.2:compile
+                """;
+        List<DependencyResolver.Dependency> deps = DependencyResolver.parseMavenDependencyList(output);
+
+        assertEquals(2, deps.size());
+        long arcCount = deps.stream()
+                .filter(d -> "quarkus-arc".equals(d.artifactId()))
+                .count();
+        assertEquals(1, arcCount);
+    }
+
     // ── Gradle dependency tree parsing ───────────────────────────────────────
 
     @Test
@@ -483,6 +527,35 @@ class DependencyResolverTest {
         // transitive would have more deps if we actually ran maven, but in this test
         // we just verify the cache key is different by checking both calls succeed
         assertNotNull(transitive);
+    }
+
+    @Test
+    void resolveDoesNotCacheEmptyResults() {
+        // Resolving a dir without build files returns empty and should NOT be cached,
+        // so a retry is possible after the build tool becomes available
+        List<DependencyResolver.Dependency> first = DependencyResolver.resolve(tempDir.toString());
+        assertTrue(first.isEmpty());
+
+        // A second call should re-resolve (not return a cached empty list)
+        // We verify this indirectly: if we now create a pom.xml, the next call finds it
+        try {
+            Files.writeString(tempDir.resolve("pom.xml"), """
+                    <project>
+                        <dependencies>
+                            <dependency>
+                                <groupId>io.quarkus</groupId>
+                                <artifactId>quarkus-rest</artifactId>
+                                <version>3.21.2</version>
+                            </dependency>
+                        </dependencies>
+                    </project>
+                    """);
+        } catch (IOException e) {
+            fail("Failed to write pom.xml: " + e.getMessage());
+        }
+
+        List<DependencyResolver.Dependency> second = DependencyResolver.resolve(tempDir.toString());
+        assertEquals(1, second.size());
     }
 
     private String normalizeEOL(String s) {
