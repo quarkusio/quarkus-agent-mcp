@@ -6,8 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -36,10 +38,12 @@ public final class DependencyResolver {
 
     private static final ConcurrentHashMap<String, List<Dependency>> CACHE = new ConcurrentHashMap<>();
 
-    // Maven dependency:list output: "   groupId:artifactId:type:version:scope"
-    // may be suffixed with any additional characters, like in "jakarta.transaction:jakarta.transaction-api:jar:2.0.1:compile[36m -- module jakarta.transaction[m"
+    // Maven dependency:list output, either from stdout with [INFO] prefix
+    // ("[INFO]    groupId:artifactId:type:version:scope") or from -DoutputFile
+    // ("   groupId:artifactId:type:version:scope").
+    // May be suffixed with ANSI codes and module info.
     private static final Pattern MAVEN_DEP_LINE = Pattern.compile(
-            "^\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+.*$");
+            "^(?:\\[INFO\\])?\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+.*$");
 
     // Gradle dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
     // Also handles transitive deps with leading pipes/spaces: "|    +---" or "     +---"
@@ -80,7 +84,9 @@ public final class DependencyResolver {
         }
 
         List<Dependency> deps = doResolve(projectDir, includeTransitive);
-        CACHE.put(cacheKey, deps);
+        if (!deps.isEmpty()) {
+            CACHE.put(cacheKey, deps);
+        }
         return deps;
     }
 
@@ -127,8 +133,8 @@ public final class DependencyResolver {
 
         // Fast path had unresolved versions or we need transitive deps — shell out to Maven
         List<Dependency> buildToolDeps = resolveViaMaven(dir);
-        if (buildToolDeps.isEmpty()) {
-            // Fallback failed, return only resolved XML deps
+        if (buildToolDeps == null || buildToolDeps.isEmpty()) {
+            // Build tool resolution failed or returned nothing — return only resolved XML deps
             return xmlDeps.stream().filter(d -> d.version() != null).toList();
         }
 
@@ -195,13 +201,25 @@ public final class DependencyResolver {
             try {
                 ProcessBuilder pb = new ProcessBuilder(
                         mvnCmd, "dependency:list",
-                        "-DincludeScope=compile",
-                        "-q", "-DoutputFile=" + tempFile.toAbsolutePath())
+                        "-DincludeScope=compile")
                         .directory(dir)
+                        .redirectOutput(tempFile.toFile())
                         .redirectError(ProcessBuilder.Redirect.DISCARD);
-                String ignored = ProcessUtils.runAndCapture(pb, 60, TimeUnit.SECONDS);
-                if (ignored == null) {
-                    return List.of();
+                Process process = pb.start();
+                try {
+                    if (!process.waitFor(180, TimeUnit.SECONDS)) {
+                        process.destroyForcibly();
+                        LOG.debugf("Maven dependency:list timed out for %s", dir);
+                        return null;
+                    }
+                    if (process.exitValue() != 0) {
+                        LOG.debugf("Maven dependency:list exited with code %d for %s", process.exitValue(), dir);
+                        return null;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    process.destroyForcibly();
+                    return null;
                 }
                 String output = Files.readString(tempFile);
                 return parseMavenDependencyList(output);
@@ -209,8 +227,8 @@ public final class DependencyResolver {
                 Files.deleteIfExists(tempFile);
             }
         } catch (IOException e) {
-            LOG.debugf("Failed to create temp file for Maven dependency resolution: %s", e.getMessage());
-            return List.of();
+            LOG.debugf("Failed Maven dependency resolution for %s: %s", dir, e.getMessage());
+            return null;
         }
     }
 
@@ -219,10 +237,14 @@ public final class DependencyResolver {
             return List.of();
         }
         List<Dependency> deps = new ArrayList<>();
-        for (String line : output.split(System.lineSeparator())) {
+        Set<String> seen = new HashSet<>();
+        for (String line : output.split("\\R")) {
             Matcher m = MAVEN_DEP_LINE.matcher(line);
             if (m.matches()) {
-                deps.add(new Dependency(m.group(1), m.group(2), m.group(3)));
+                String key = m.group(1) + ":" + m.group(2);
+                if (seen.add(key)) {
+                    deps.add(new Dependency(m.group(1), m.group(2), m.group(3)));
+                }
             }
         }
         return deps;
@@ -284,7 +306,7 @@ public final class DependencyResolver {
         }
         List<Dependency> deps = new ArrayList<>();
         // Track seen dependencies to avoid duplicates
-        java.util.Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
 
         for (String line : output.split("\n")) {
             // When includeTransitive is false, only parse root-level dependencies
