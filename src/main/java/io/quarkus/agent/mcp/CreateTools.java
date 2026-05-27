@@ -79,7 +79,9 @@ public class CreateTools {
                     + "If not specified, ask the user before creating the project.") boolean noWrapper,
             @ToolArg(description = "HTTP port for the Quarkus application when it auto-starts in dev mode (e.g. 8081). "
                     + "If omitted, defaults to 8080. When 8080 is already in use, "
-                    + "an available port is assigned automatically.", required = false) Integer httpPort) {
+                    + "an available port is assigned automatically.", required = false) Integer httpPort,
+            @ToolArg(description = "Comma-separated Maven profile(s) to activate when the app auto-starts in dev mode "
+                    + "(e.g. 'myprofile' or 'p1,p2'). Ignored for Gradle builds.", required = false) String mavenProfiles) {
         try {
             String resolvedGroupId = (groupId != null && !groupId.isBlank()) ? groupId : "org.acme";
             String resolvedArtifactId = (artifactId != null && !artifactId.isBlank()) ? artifactId : "quarkus-app";
@@ -182,7 +184,7 @@ public class CreateTools {
 
             // Auto-start the app in dev mode
             try {
-                Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, null);
+                Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles);
                 LOG.infof("Auto-started Quarkus app at: %s", projectDir);
                 String portInfo = effectivePort != null ? " (port: " + effectivePort + ")" : "";
                 return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir + portInfo
