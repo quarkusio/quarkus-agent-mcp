@@ -281,6 +281,7 @@ On first use, a Docker/Podman container with the pre-indexed documentation is st
 | `quarkus_status` | Get app state | `projectDir` (required) |
 | `quarkus_logs` | Get recent log output | `projectDir` (required), `lines` |
 | `quarkus_list` | List all managed instances | _(none)_ |
+| `quarkus_browser` | Open the app or Dev UI in the local browser | `projectDir` (required), `target` (`app` or `devui`) |
 
 ### Dev MCP Proxy
 
@@ -342,13 +343,12 @@ claude mcp add quarkus-agent -e AGENT_MCP_LOG_ENABLED=true -- jbang quarkus-agen
 
 Logs are written to `~/.quarkus/agent-mcp/agent-mcp.log`.
 
-The agent can also toggle file logging on-the-fly using these tools:
+The agent can also manage file logging on-the-fly:
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_agent_log_enable` | Enable file logging to `~/.quarkus/agent-mcp/agent-mcp.log` | _(none)_ |
-| `quarkus_agent_log_disable` | Disable file logging (the log file is preserved) | _(none)_ |
-| `quarkus_agent_log` | Read the last N lines from the log file | `lines` |
+| `quarkus_agent_log` | Enable, disable, or read the MCP server log file | `action` (`enable`, `disable`, `read`), `lines` |
+| `quarkus_app_log` | Enable, disable, or read a managed app's log file | `projectDir` (required), `action` (`enable`, `disable`, `read`), `lines` |
 
 ## Architecture
 

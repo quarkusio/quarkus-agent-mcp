@@ -76,44 +76,24 @@ public class LifecycleTools {
         }
     }
 
-    @Tool(name = "quarkus_open", description = "Send 'w' to the dev process stdin to open the application "
-            + "in the local browser. Note: the browser opens on the local machine and is not visible "
-            + "to the agent in remote or headless setups.",
-            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
-            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
-            annotations = @Tool.Annotations(title = "quarkus_open", destructiveHint = false))
-    ToolResponse open(
-            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
+    @Tool(name = "quarkus_browser", description = "Open the application or Dev UI in the local browser. "
+            + "Sends a keystroke to the dev process stdin. "
+            + "Note: the browser opens on the local machine and is not visible to the agent in remote or headless setups.",
+            annotations = @Tool.Annotations(title = "quarkus_browser", destructiveHint = false))
+    ToolResponse browser(
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
+            @ToolArg(description = "What to open: 'app' (default) or 'devui'", required = false) String target) {
         try {
             QuarkusInstance instance = processManager.getInstance(projectDir);
             if (instance == null) {
                 return ToolResponse.error("No running instance found for: " + projectDir);
             }
-            instance.sendInput('w');
-            return ToolResponse.success("Sent 'w' to dev process at: " + projectDir);
+            boolean devui = "devui".equalsIgnoreCase(target != null ? target.strip() : "");
+            instance.sendInput(devui ? 'd' : 'w');
+            String label = devui ? "Dev UI" : "application";
+            return ToolResponse.success("Opening " + label + " in browser for: " + projectDir);
         } catch (Exception e) {
-            LOG.error("Failed to open application at " + projectDir, e);
-            return ToolResponse.error(e.getMessage());
-        }
-    }
-
-    @Tool(name = "quarkus_devui", description = "Send 'd' to the dev process stdin to open the Quarkus Dev UI "
-            + "in the local browser. Note: the browser opens on the local machine and is not visible "
-            + "to the agent in remote or headless setups.",
-            // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
-            // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
-            annotations = @Tool.Annotations(title = "quarkus_devui", destructiveHint = false))
-    ToolResponse devui(
-            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
-        try {
-            QuarkusInstance instance = processManager.getInstance(projectDir);
-            if (instance == null) {
-                return ToolResponse.error("No running instance found for: " + projectDir);
-            }
-            instance.sendInput('d');
-            return ToolResponse.success("Sent 'd' to dev process at: " + projectDir);
-        } catch (Exception e) {
-            LOG.error("Failed to open Dev UI at " + projectDir, e);
+            LOG.error("Failed to open browser at " + projectDir, e);
             return ToolResponse.error(e.getMessage());
         }
     }
