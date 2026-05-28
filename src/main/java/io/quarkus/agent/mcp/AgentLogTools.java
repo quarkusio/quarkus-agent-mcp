@@ -49,7 +49,9 @@ public class AgentLogTools {
         return switch (effectiveAction) {
             case "enable" -> enableLogging();
             case "disable" -> disableLogging();
-            default -> readLog(lines);
+            case "read" -> readLog(lines);
+            default -> ToolResponse.error("Unknown action: '" + effectiveAction
+                    + "'. Use 'enable', 'disable', or 'read'.");
         };
     }
 

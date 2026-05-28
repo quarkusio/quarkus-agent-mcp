@@ -34,7 +34,9 @@ public class AppLogTools {
         return switch (effectiveAction) {
             case "enable" -> enableAppLogging(projectDir);
             case "disable" -> disableAppLogging(projectDir);
-            default -> readAppLog(projectDir, lines);
+            case "read" -> readAppLog(projectDir, lines);
+            default -> ToolResponse.error("Unknown action: '" + effectiveAction
+                    + "'. Use 'enable', 'disable', or 'read'.");
         };
     }
 
