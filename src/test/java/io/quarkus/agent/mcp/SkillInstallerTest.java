@@ -19,7 +19,23 @@ class SkillInstallerTest {
     Path tempDir;
 
     @Test
-    void parseTreeResponseExtractsSkillPaths() {
+    void validateRepoAcceptsValidFormats() {
+        SkillInstaller.validateRepo("quarkusio/skills");
+        SkillInstaller.validateRepo("my-org/my-repo");
+        SkillInstaller.validateRepo("user.name/repo_name");
+    }
+
+    @Test
+    void validateRepoRejectsInvalidFormats() {
+        assertThrows(IllegalArgumentException.class, () -> SkillInstaller.validateRepo("no-slash"));
+        assertThrows(IllegalArgumentException.class, () -> SkillInstaller.validateRepo("too/many/slashes"));
+        assertThrows(IllegalArgumentException.class, () -> SkillInstaller.validateRepo("has spaces/repo"));
+        assertThrows(IllegalArgumentException.class, () -> SkillInstaller.validateRepo("../traversal/attack"));
+        assertThrows(IllegalArgumentException.class, () -> SkillInstaller.validateRepo(""));
+    }
+
+    @Test
+    void parseTreeResponseExtractsSkillPaths() throws Exception {
         String json = """
                 {
                   "tree": [
@@ -48,7 +64,7 @@ class SkillInstallerTest {
     }
 
     @Test
-    void parseTreeResponseExcludesNonMdFiles() {
+    void parseTreeResponseExcludesNonMdFiles() throws Exception {
         String json = """
                 {
                   "tree": [
@@ -66,7 +82,7 @@ class SkillInstallerTest {
     }
 
     @Test
-    void parseTreeResponseExcludesDirectoryEntries() {
+    void parseTreeResponseExcludesDirectoryEntries() throws Exception {
         String json = """
                 {
                   "tree": [
@@ -83,7 +99,7 @@ class SkillInstallerTest {
     }
 
     @Test
-    void parseTreeResponseHandlesEmptyTree() {
+    void parseTreeResponseHandlesEmptyTree() throws Exception {
         String json = """
                 {"tree": []}
                 """;
@@ -169,6 +185,23 @@ class SkillInstallerTest {
     }
 
     @Test
+    void isUserCustomizedReturnsFalseWhenModeWithCommunitySource() throws IOException {
+        Path skillDir = tempDir.resolve("my-skill");
+        Files.createDirectories(skillDir);
+        Files.writeString(skillDir.resolve("SKILL.md"), """
+                ---
+                name: my-skill
+                mode: enhance
+                source: community
+                ---
+
+                Community skill that ships with mode.
+                """, StandardCharsets.UTF_8);
+
+        assertFalse(SkillInstaller.isUserCustomized(skillDir.resolve("SKILL.md")));
+    }
+
+    @Test
     void isUserCustomizedReturnsFalseWhenNoMode() throws IOException {
         Path skillDir = tempDir.resolve("my-skill");
         Files.createDirectories(skillDir);
@@ -246,5 +279,50 @@ class SkillInstallerTest {
                 """;
 
         assertNull(SkillInstaller.extractFrontmatter(content));
+    }
+
+    @Test
+    void addSourceMarkerInsertsIntExistingFrontmatter() {
+        String content = """
+                ---
+                name: my-skill
+                description: "A skill"
+                ---
+
+                Body content.
+                """;
+
+        String result = SkillInstaller.addSourceMarker(content);
+
+        assertTrue(result.contains("source: community"));
+        assertTrue(result.contains("name: my-skill"));
+        assertTrue(result.contains("Body content."));
+    }
+
+    @Test
+    void addSourceMarkerWrapsContentWithoutFrontmatter() {
+        String content = "Just plain content.";
+
+        String result = SkillInstaller.addSourceMarker(content);
+
+        assertTrue(result.startsWith("---\nsource: community\n---"));
+        assertTrue(result.contains("Just plain content."));
+    }
+
+    @Test
+    void addSourceMarkerPreservesExistingSourceField() {
+        String content = """
+                ---
+                name: my-skill
+                source: custom
+                ---
+
+                Body.
+                """;
+
+        String result = SkillInstaller.addSourceMarker(content);
+
+        assertTrue(result.contains("source: custom"));
+        assertFalse(result.contains("source: community"));
     }
 }

@@ -1,5 +1,7 @@
 package io.quarkus.agent.mcp;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -16,7 +18,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import org.jboss.logging.Logger;
 
 public final class SkillInstaller {
@@ -28,13 +29,14 @@ public final class SkillInstaller {
 
     private static final String SKILL_FILE_NAME = "SKILL.md";
     private static final String SKILLS_PREFIX = "skills/";
+    static final String SOURCE_COMMUNITY = "community";
 
-    private static final Pattern TREE_PATH_PATTERN = Pattern.compile(
-            "\"path\"\\s*:\\s*\"(skills/[^\"]+)\"");
-    private static final Pattern TREE_TYPE_PATTERN = Pattern.compile(
-            "\"type\"\\s*:\\s*\"(blob|tree)\"");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Pattern VALID_REPO = Pattern.compile("^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$");
     private static final Pattern FRONTMATTER_MODE = Pattern.compile(
             "^mode:\\s*\\S+", Pattern.MULTILINE);
+    private static final Pattern FRONTMATTER_SOURCE = Pattern.compile(
+            "^source:\\s*(\\S+)", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_NAME = Pattern.compile(
             "^name:\\s*(.+)$", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_DESC = Pattern.compile(
@@ -141,6 +143,7 @@ public final class SkillInstaller {
                 }
 
                 String inlined = inlineModules(mainContent, modules);
+                inlined = addSourceMarker(inlined);
 
                 Path skillDir = targetDir.resolve(name);
                 Files.createDirectories(skillDir);
@@ -167,6 +170,10 @@ public final class SkillInstaller {
             if (frontmatter == null) {
                 return false;
             }
+            Matcher sourceMatcher = FRONTMATTER_SOURCE.matcher(frontmatter);
+            if (sourceMatcher.find() && SOURCE_COMMUNITY.equals(sourceMatcher.group(1))) {
+                return false;
+            }
             return FRONTMATTER_MODE.matcher(frontmatter).find();
         } catch (IOException e) {
             return false;
@@ -184,7 +191,15 @@ public final class SkillInstaller {
         return content.substring(3, end);
     }
 
+    static void validateRepo(String repo) {
+        if (!VALID_REPO.matcher(repo).matches()) {
+            throw new IllegalArgumentException(
+                    "Invalid repository format: '" + repo + "'. Expected 'owner/name' (e.g. 'quarkusio/skills').");
+        }
+    }
+
     static List<String> fetchFileTree(String repo, String branch) throws IOException, InterruptedException {
+        validateRepo(repo);
         String url = "https://api.github.com/repos/" + repo + "/git/trees/" + branch + "?recursive=1";
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -205,32 +220,20 @@ public final class SkillInstaller {
         return parseTreeResponse(response.body());
     }
 
-    static List<String> parseTreeResponse(String json) {
+    static List<String> parseTreeResponse(String json) throws IOException {
         List<String> paths = new ArrayList<>();
-
-        int searchFrom = 0;
-        while (true) {
-            Matcher pathMatcher = TREE_PATH_PATTERN.matcher(json);
-            if (!pathMatcher.find(searchFrom)) {
-                break;
-            }
-
-            String path = pathMatcher.group(1);
-            searchFrom = pathMatcher.end();
-
-            int entryStart = json.lastIndexOf('{', pathMatcher.start());
-            int entryEnd = json.indexOf('}', pathMatcher.end());
-            if (entryStart >= 0 && entryEnd >= 0) {
-                String entry = json.substring(entryStart, entryEnd + 1);
-                Matcher typeMatcher = TREE_TYPE_PATTERN.matcher(entry);
-                if (typeMatcher.find() && "blob".equals(typeMatcher.group(1))) {
-                    if (path.endsWith(".md")) {
-                        paths.add(path);
-                    }
-                }
+        JsonNode root = MAPPER.readTree(json);
+        JsonNode tree = root.get("tree");
+        if (tree == null || !tree.isArray()) {
+            return paths;
+        }
+        for (JsonNode entry : tree) {
+            String type = entry.has("type") ? entry.get("type").asText() : "";
+            String path = entry.has("path") ? entry.get("path").asText() : "";
+            if ("blob".equals(type) && path.startsWith(SKILLS_PREFIX) && path.endsWith(".md")) {
+                paths.add(path);
             }
         }
-
         return paths;
     }
 
@@ -253,6 +256,18 @@ public final class SkillInstaller {
 
         LOG.warnf("Failed to fetch %s: HTTP %d", url, response.statusCode());
         return null;
+    }
+
+    static String addSourceMarker(String content) {
+        String frontmatter = extractFrontmatter(content);
+        if (frontmatter != null) {
+            if (FRONTMATTER_SOURCE.matcher(frontmatter).find()) {
+                return content;
+            }
+            int insertPos = content.indexOf("\n---", 3);
+            return content.substring(0, insertPos) + "\nsource: " + SOURCE_COMMUNITY + content.substring(insertPos);
+        }
+        return "---\nsource: " + SOURCE_COMMUNITY + "\n---\n\n" + content;
     }
 
     static String inlineModules(String mainContent, Map<String, String> modules) {
