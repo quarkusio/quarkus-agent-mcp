@@ -185,23 +185,23 @@ The MCP server guides the agent through the optimal Quarkus development workflow
 ```
 NEW PROJECT                           EXISTING PROJECT
 
-1. quarkus_create                     1. quarkus_update
-   → scaffolds + auto-starts             → checks version, suggests upgrades
+1. quarkus_create                     1. quarkus_start
+   → scaffolds + auto-starts             → starts dev mode
    → generates CLAUDE.md + .mcp.json
-                                      2. quarkus_start
-2. quarkus_skills                        → starts dev mode
-   → learn extension patterns
-                                      3. quarkus_skills
-3. quarkus_searchDocs                    → learn extension patterns
+                                      2. quarkus_skills
+2. quarkus_skills                        → learn extension patterns
+   → learn extension patterns            → query 'quarkus-update' to check version
+                                      3. quarkus_searchDocs
+3. quarkus_searchDocs                    → look up APIs, config
    → look up APIs, config
-                                      4. quarkus_searchDocs
-4. Write code + tests                    → look up APIs, config
+                                      4. Write code + tests
+4. Write code + tests
+                                      5. Run tests
+5. Run tests                             → quarkus_callTool
+   → quarkus_callTool                    → devui-testing_runTests
+   → devui-testing_runTests
 
-5. Run tests                          5. Write code + tests
-   → quarkus_callTool
-   → devui-testing_runTests           6. Run tests
-                                         → quarkus_callTool
-6. Iterate                               → devui-testing_runTests
+6. Iterate
 ```
 
 **Key points:**
@@ -236,10 +236,10 @@ When called without a query, skills are organized by category (Web, Data, Securi
 Skills are loaded using a three-layer chain (most specific wins):
 
 1. **Extension skills** — discovered from individual extension deployment JARs (`META-INF/quarkus-skill.md`) in the local Maven repository, composed with extension metadata and available Dev MCP tools. This supports skills from Quarkus core, Quarkiverse, and custom extensions. For older Quarkus versions that don't ship skill files in deployment JARs, the aggregated `quarkus-extension-skills` JAR is used as a fallback.
-2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
+2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Community workflow skills (e.g. Spring-to-Quarkus migration, project update checking) can be installed here using `quarkus_installSkills`. Also useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
 3. **Project-level skills** — from `.agent/skills/<extension-name>/SKILL.md` in the project directory. These are **standalone files** read as-is (no composition with base layers), so any agent can read them directly from the filesystem. Use `quarkus_saveSkill` to materialize a fully composed skill into this directory, then edit the file directly.
 
-Layers 1 and 2 support **enhance** and **override** composition, controlled by the `mode` field in the SKILL.md frontmatter:
+Layers 1–2 support **enhance** and **override** composition, controlled by the `mode` field in the SKILL.md frontmatter:
 
 - **`mode: enhance`** (default) — appends content to the base skill. The base content is preserved and the customization is added after a separator. This is ideal for adding personal conventions or standards without losing the built-in guidance.
 - **`mode: override`** — fully replaces the base skill. Use this when you need complete control over a skill's content.
@@ -254,16 +254,6 @@ The agent can search Quarkus documentation at any time using `quarkus_searchDocs
 
 On first use, a Docker/Podman container with the pre-indexed documentation is started automatically. If a project directory is provided, the documentation version matches the project's Quarkus version.
 
-### Update checking
-
-For existing projects, `quarkus_update` checks if the Quarkus version is current and provides a full upgrade report:
-
-- Compares build files against [reference projects](https://github.com/quarkusio/code-with-quarkus-compare)
-- Runs `quarkus update --dry-run` (if CLI available) to preview automated migrations
-- Supports custom OpenRewrite recipes via `additionalUpdateRecipes` (e.g. `org.acme:my-recipes:1.0.0`), either per-call or configured globally with `agent-mcp.update.additional-recipes`
-- Links to the structural diff between versions
-- Recommends manual actions for changes that automated migration doesn't cover
-
 ## MCP Tools Reference
 
 ### App Creation
@@ -272,12 +262,6 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 |------|-------------|------------|
 | `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md and `.mcp.json` | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion`, `noCode`, `noWrapper`, `createInCurrentDir` |
 
-### Update Checking
-
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `quarkus_update` | Check if project is up-to-date, provide upgrade report | `projectDir` (required), `additionalUpdateRecipes` |
-
 ### Extension Skills
 
 | Tool | Description | Parameters |
@@ -285,6 +269,7 @@ For existing projects, `quarkus_update` checks if the Quarkus version is current
 | `quarkus_skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
 | `quarkus_updateSkill` | Create or update a global skill customization (enhance or override) in `~/.quarkus/skills/` | `projectDir` (required), `skillName` (required), `content` (required), `description`, `categories`, `mode` |
 | `quarkus_saveSkill` | Materialize a composed skill as a standalone file in `.agent/skills/` for any agent to read | `projectDir` (required), `skillName` (required) |
+| `quarkus_installSkills` | Install community skills from a GitHub repository (default: `quarkusio/skills`) to `~/.quarkus/skills/` | `projectDir` (required), `skillName`, `list`, `repo`, `branch` |
 
 ### Lifecycle Management
 
@@ -389,8 +374,6 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.process.mvn-cmd` | _(auto-detect)_ | Override the Maven command used to start dev mode (e.g. `mvn` to skip wrapper detection) |
 | `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |
 | `agent-mcp.log.enabled` | `false` | Enable file logging on startup — logs are written to `~/.quarkus/agent-mcp/agent-mcp.log` |
-| `agent-mcp.update.additional-recipes` | _(none)_ | Additional OpenRewrite recipe artifacts for `quarkus_update` (e.g. `org.acme:my-recipes:1.0.0`) |
-| `agent-mcp.update.enabled` | `true` | Set to `false` to disable `quarkus_update` checks (e.g. when Quarkus version is managed centrally by your organization via Renovate) |
 
 ## Building a Native Image
 
@@ -482,7 +465,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 ## Related Projects
 
 - [Quarkus Dev MCP](https://github.com/quarkusio/quarkus) — Built-in MCP server inside running Quarkus apps
-- [quarkus-skills](https://github.com/quarkusio/quarkus-skills) — Standalone skill files for Quarkus (Agent Skills specification)
+- [quarkus-skills](https://github.com/quarkusio/skills) — Community workflow skills for Quarkus (Agent Skills specification)
 - [code-with-quarkus-compare](https://github.com/quarkusio/code-with-quarkus-compare) — Reference projects for build file comparison
 - [chappie-docling-rag](https://github.com/chappie-bot/chappie-docling-rag) — Builds the pgvector Docker images with pre-indexed Quarkus docs
 - [quarkus-mcp-server](https://github.com/quarkiverse/quarkus-mcp-server) — Quarkiverse MCP Server extension used by this project
@@ -498,6 +481,7 @@ The server makes the following outbound network requests, all in service of its 
 | Skills JAR download | `repo1.maven.org` (or your configured Maven mirror) | Download extension-specific coding patterns for your project's Quarkus version |
 | Version check | `github.com/quarkusio/code-with-quarkus-compare` | Determine the latest Quarkus version and fetch reference build files for update comparison |
 | Documentation container | `ghcr.io/quarkusio/chappie-ingestion-quarkus` | Pull a Docker image with pre-indexed Quarkus documentation for local semantic search |
+| Community skills install | `api.github.com`, `raw.githubusercontent.com` | Download community skill files when user explicitly runs `quarkus_installSkills` |
 | Dev MCP proxy | `localhost` only | Communicate with your running Quarkus application's Dev MCP server |
 
 No data is sent to Quarkus, Red Hat, or any third party. All downloaded artifacts are cached locally in standard locations (`~/.m2/repository`, Docker image cache). Source code and project files never leave your machine.

@@ -353,6 +353,83 @@ public class DevMcpProxyTools {
         }
     }
 
+    @Tool(name = "quarkus_installSkills", description = "Install community skills from a GitHub repository "
+            + "(default: quarkusio/skills) to ~/.quarkus/skills/ for use with quarkus_skills. "
+            + "These are standalone workflow skills (e.g. Spring-to-Quarkus migration, "
+            + "project update checking) that complement extension-specific skills. "
+            + "Runs only when explicitly invoked — does not fetch automatically. "
+            + "Skills already customized by the user (via quarkus_updateSkill) are not overwritten.",
+            annotations = @Tool.Annotations(title = "quarkus_installSkills", readOnlyHint = false, destructiveHint = false, idempotentHint = true))
+    ToolResponse installSkills(
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
+            @ToolArg(description = "Optional skill name to install a single skill "
+                    + "(e.g. 'quarkus-update', 'migrate-spring-to-quarkus'). "
+                    + "If omitted, installs all available skills.", required = false) String skillName,
+            @ToolArg(description = "Set to 'true' to list available skills without installing.",
+                    required = false) String list,
+            @ToolArg(description = "GitHub repository in 'owner/name' format "
+                    + "(default: 'quarkusio/skills')", required = false) String repo,
+            @ToolArg(description = "Branch to install from (default: 'main')",
+                    required = false) String branch) {
+        try {
+            String effectiveRepo = repo != null && !repo.isBlank() ? repo : SkillInstaller.DEFAULT_REPO;
+            String effectiveBranch = branch != null && !branch.isBlank() ? branch : SkillInstaller.DEFAULT_BRANCH;
+
+            if ("true".equalsIgnoreCase(list)) {
+                List<SkillInstaller.RemoteSkillInfo> available = SkillInstaller.listAvailableSkills(
+                        effectiveRepo, effectiveBranch);
+                if (available.isEmpty()) {
+                    return ToolResponse.success("No skills found in " + effectiveRepo + " (branch: " + effectiveBranch + ").");
+                }
+                StringBuilder sb = new StringBuilder("Available skills from **" + effectiveRepo + "**:\n\n");
+                for (SkillInstaller.RemoteSkillInfo skill : available) {
+                    sb.append("- **").append(skill.name()).append("**");
+                    if (skill.description() != null) {
+                        sb.append(" — ").append(skill.description());
+                    }
+                    sb.append("\n");
+                }
+                sb.append("\nUse `quarkus_installSkills` without `list` to install them.");
+                return ToolResponse.success(sb.toString());
+            }
+
+            Path targetDir = localSkillsDir.map(Path::of).orElse(
+                    Path.of(System.getProperty("user.home"), ".quarkus", "skills"));
+
+            SkillInstaller.InstallReport report = SkillInstaller.installSkills(
+                    effectiveRepo, effectiveBranch, skillName, targetDir);
+
+            StringBuilder sb = new StringBuilder();
+            if (!report.installed().isEmpty()) {
+                sb.append("**Installed** (").append(report.installed().size()).append("):\n");
+                for (String name : report.installed()) {
+                    sb.append("- ").append(name).append("\n");
+                }
+            }
+            if (!report.skipped().isEmpty()) {
+                sb.append("\n**Skipped** (user-customized):\n");
+                for (String name : report.skipped()) {
+                    sb.append("- ").append(name).append("\n");
+                }
+            }
+            if (!report.failed().isEmpty()) {
+                sb.append("\n**Failed**:\n");
+                for (String name : report.failed()) {
+                    sb.append("- ").append(name).append("\n");
+                }
+            }
+            if (report.installed().isEmpty() && report.skipped().isEmpty() && report.failed().isEmpty()) {
+                return ToolResponse.success("No skills found in " + effectiveRepo + " (branch: " + effectiveBranch + ").");
+            }
+
+            sb.append("\nInstalled skills are available via `quarkus_skills`.");
+            return ToolResponse.success(sb.toString());
+        } catch (Exception e) {
+            LOG.error("Failed to install skills", e);
+            return ToolResponse.error("Failed to install skills: " + e.getMessage());
+        }
+    }
+
     @Tool(name = "quarkus_callTool", description = "Invoke a Dev MCP tool by name on the running Quarkus app. "
             + "Use quarkus_searchTools first to discover tool names and parameters. "
             + "After structural changes (adding extensions, endpoints), update README.md. "
