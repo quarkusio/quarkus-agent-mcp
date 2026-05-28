@@ -88,10 +88,18 @@ public class LifecycleTools {
             if (instance == null) {
                 return ToolResponse.error("No running instance found for: " + projectDir);
             }
-            boolean devui = "devui".equalsIgnoreCase(target != null ? target.strip() : "");
-            instance.sendInput(devui ? 'd' : 'w');
-            String label = devui ? "Dev UI" : "application";
-            return ToolResponse.success("Opening " + label + " in browser for: " + projectDir);
+            String effective = target != null ? target.strip().toLowerCase() : "app";
+            return switch (effective) {
+                case "app", "" -> {
+                    instance.sendInput('w');
+                    yield ToolResponse.success("Opening application in browser for: " + projectDir);
+                }
+                case "devui" -> {
+                    instance.sendInput('d');
+                    yield ToolResponse.success("Opening Dev UI in browser for: " + projectDir);
+                }
+                default -> ToolResponse.error("Unknown target: '" + effective + "'. Use 'app' or 'devui'.");
+            };
         } catch (Exception e) {
             LOG.error("Failed to open browser at " + projectDir, e);
             return ToolResponse.error(e.getMessage());

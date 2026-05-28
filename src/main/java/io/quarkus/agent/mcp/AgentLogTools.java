@@ -40,7 +40,7 @@ public class AgentLogTools {
             + "'read' (default) returns the most recent lines from the log file.",
             annotations = @Tool.Annotations(title = "quarkus_agent_log", readOnlyHint = false,
                     destructiveHint = false, idempotentHint = true))
-    synchronized ToolResponse agentLog(
+    ToolResponse agentLog(
             @ToolArg(description = "Action to perform: 'enable', 'disable', or 'read' (default)",
                     required = false) String action,
             @ToolArg(description = "Number of recent lines to return (default: 100)",
@@ -55,7 +55,7 @@ public class AgentLogTools {
         };
     }
 
-    private ToolResponse enableLogging() {
+    private synchronized ToolResponse enableLogging() {
         if (activeHandler != null) {
             return ToolResponse.success("File logging is already enabled. Log file: " + LOG_FILE);
         }
@@ -77,7 +77,7 @@ public class AgentLogTools {
         }
     }
 
-    private ToolResponse disableLogging() {
+    private synchronized ToolResponse disableLogging() {
         FileHandler handler = activeHandler;
         if (handler == null) {
             return ToolResponse.success("File logging is not enabled.");
