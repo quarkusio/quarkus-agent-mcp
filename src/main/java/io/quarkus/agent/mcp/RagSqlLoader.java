@@ -82,6 +82,9 @@ public class RagSqlLoader {
     public void ensureLoaded(String quarkusVersion, String projectDir,
             String host, int port, String database, String user, String password) {
         String versionKey = quarkusVersion != null ? quarkusVersion : "default";
+        String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + database;
+
+        ensureSchema(jdbcUrl, user, password);
 
         String resolvedVersion = quarkusVersion != null ? quarkusVersion : detectLatestInstalledVersion();
         if (resolvedVersion == null) {
@@ -94,8 +97,6 @@ public class RagSqlLoader {
             LOG.infof("No RAG SQL fragments found for Quarkus %s", resolvedVersion);
             return;
         }
-
-        String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + database;
 
         Set<String> alreadyLoaded = loadedSources.computeIfAbsent(versionKey,
                 k -> ConcurrentHashMap.newKeySet());
@@ -314,6 +315,16 @@ public class RagSqlLoader {
             return m.group(1);
         }
         return fallbackSource;
+    }
+
+    private void ensureSchema(String jdbcUrl, String user, String password) {
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, user, password);
+                Statement stmt = conn.createStatement()) {
+            stmt.execute(CREATE_EXTENSION_DDL);
+            stmt.execute(CREATE_TABLE_DDL);
+        } catch (SQLException e) {
+            LOG.warnf("Failed to create RAG schema: %s", e.getMessage());
+        }
     }
 
     private Set<String> queryExistingSources(String jdbcUrl, String user, String password) {
