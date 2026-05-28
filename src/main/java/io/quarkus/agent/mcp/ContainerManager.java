@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
@@ -13,8 +14,11 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * Manages pgvector containers for Quarkus documentation search.
- * Uses a generic pgvector image — documentation data is loaded from SQL fragments
- * discovered in extension deployment JARs by {@link RagSqlLoader}.
+ * <p>
+ * For Quarkus 3.36+ (which ships RAG SQL artifacts), uses a generic pgvector image
+ * with documentation loaded from SQL fragments by {@link RagSqlLoader}.
+ * For older versions, falls back to the pre-built {@code chappie-ingestion-quarkus} image
+ * with documentation baked in.
  * <p>
  * Containers are version-specific (each Quarkus version gets its own container)
  * and reusable across MCP server restarts.
@@ -23,9 +27,16 @@ import org.testcontainers.utility.DockerImageName;
 public class ContainerManager {
 
     private static final Logger LOG = Logger.getLogger(ContainerManager.class);
+    static final int RAG_SQL_MIN_MINOR = 36;
 
     @ConfigProperty(name = "agent-mcp.doc-search.image", defaultValue = "pgvector/pgvector:pg17")
     String image;
+
+    @ConfigProperty(name = "agent-mcp.doc-search.image-prefix", defaultValue = "ghcr.io/quarkusio/chappie-ingestion-quarkus")
+    String imagePrefix;
+
+    @ConfigProperty(name = "agent-mcp.doc-search.image-tag", defaultValue = "latest")
+    String defaultImageTag;
 
     @ConfigProperty(name = "agent-mcp.doc-search.pg-user", defaultValue = "quarkus")
     String pgUser;
@@ -40,6 +51,8 @@ public class ContainerManager {
     RagSqlLoader ragSqlLoader;
 
     private final ConcurrentHashMap<String, GenericContainer<?>> containers = new ConcurrentHashMap<>();
+    private final Set<String> fallbackVersions = ConcurrentHashMap.newKeySet();
+    private final Set<String> ragSqlVersions = ConcurrentHashMap.newKeySet();
     private volatile Boolean dockerAvailable;
     private volatile boolean defaultWarmupStarted;
     private volatile boolean defaultWarmupDone;
@@ -80,7 +93,8 @@ public class ContainerManager {
 
     /**
      * Ensure a pgvector container is running for the given Quarkus version.
-     * Starts a generic pgvector container if needed, then loads RAG SQL fragments.
+     * For 3.36+, starts a generic pgvector container and loads RAG SQL fragments.
+     * For older versions, starts the pre-built chappie-ingestion image.
      *
      * @param quarkusVersion the Quarkus version for docs, or null for default
      * @param projectDir     the project directory for non-core extension discovery, or null
@@ -95,23 +109,41 @@ public class ContainerManager {
             return;
         }
 
-        try {
-            startContainer(versionKey);
-            loadRagData(versionKey, quarkusVersion, projectDir);
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    "Failed to start documentation container (" + image + "). "
-                            + "Ensure Docker/Podman is running. Error: " + e.getMessage(),
-                    e);
+        if (supportsRagSql(quarkusVersion)) {
+            try {
+                startGenericContainer(versionKey);
+                loadRagData(versionKey, quarkusVersion, projectDir);
+                ragSqlVersions.add(versionKey);
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "Failed to start documentation container (" + image + "). "
+                                + "Ensure Docker/Podman is running. Error: " + e.getMessage(),
+                        e);
+            }
+        } else {
+            startLegacyContainer(versionKey, quarkusVersion);
         }
+    }
+
+    /**
+     * Returns true if the given version fell back to the default image tag
+     * (only applicable to the legacy pre-built image path).
+     */
+    public boolean isUsingFallback(String quarkusVersion) {
+        String versionKey = quarkusVersion != null ? quarkusVersion : "default";
+        return fallbackVersions.contains(versionKey);
     }
 
     /**
      * Loads any new RAG SQL fragments into an already-running container.
      * Called after extensions are added to a project to pick up their docs.
+     * No-op for legacy containers (data is baked into the image).
      */
     public void loadIncrementalRagData(String quarkusVersion, String projectDir) {
         String versionKey = quarkusVersion != null ? quarkusVersion : "default";
+        if (!ragSqlVersions.contains(versionKey)) {
+            return;
+        }
         GenericContainer<?> container = containers.get(versionKey);
         if (container == null || !container.isRunning()) {
             LOG.debugf("No running container for version %s — skipping incremental RAG load", versionKey);
@@ -162,10 +194,78 @@ public class ContainerManager {
         }
     }
 
-    private void startContainer(String versionKey) {
+    static boolean supportsRagSql(String version) {
+        if (version == null || version.isBlank()) {
+            return true;
+        }
+        if (version.contains("SNAPSHOT")) {
+            return true;
+        }
+        try {
+            String[] parts = version.split("[.\\-]");
+            int major = Integer.parseInt(parts[0]);
+            int minor = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+            return major > 3 || (major == 3 && minor >= RAG_SQL_MIN_MINOR);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private void startGenericContainer(String versionKey) {
         LOG.infof("Starting pgvector container for Quarkus %s docs (%s)...", versionKey, image);
 
         GenericContainer<?> container = new GenericContainer<>(DockerImageName.parse(image))
+                .withExposedPorts(5432)
+                .withEnv("POSTGRES_USER", pgUser)
+                .withEnv("POSTGRES_PASSWORD", pgPassword)
+                .withEnv("POSTGRES_DB", pgDatabase)
+                .withReuse(true)
+                .withLabel("quarkus-agent-mcp", "doc-search")
+                .withLabel("quarkus-agent-mcp.version", versionKey)
+                .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\n", 2));
+
+        container.start();
+        containers.put(versionKey, container);
+        LOG.infof("pgvector container started for Quarkus %s (mapped port: %d)",
+                versionKey, container.getMappedPort(5432));
+    }
+
+    private void startLegacyContainer(String versionKey, String quarkusVersion) {
+        String tag = quarkusVersion != null ? quarkusVersion : defaultImageTag;
+
+        try {
+            startLegacyImage(versionKey, tag);
+            return;
+        } catch (Exception e) {
+            if (tag.equals(defaultImageTag)) {
+                throw new RuntimeException(
+                        "Failed to start documentation container (image: " + imagePrefix + ":" + tag + "). "
+                                + "Ensure Docker/Podman is running. Error: " + e.getMessage(),
+                        e);
+            }
+            LOG.warnf(e, "Failed to start documentation image %s:%s, falling back to %s:%s",
+                    imagePrefix, tag, imagePrefix, defaultImageTag);
+        }
+
+        try {
+            startLegacyImage(versionKey, defaultImageTag);
+            fallbackVersions.add(versionKey);
+            LOG.infof("Using '%s' docs instead of '%s' — docs may not exactly match your Quarkus version",
+                    defaultImageTag, tag);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Failed to start documentation container for Quarkus " + tag
+                            + ". Tried version-specific image and fallback (" + defaultImageTag + "). "
+                            + "Error: " + e.getMessage(),
+                    e);
+        }
+    }
+
+    private void startLegacyImage(String versionKey, String tag) {
+        String fullImage = imagePrefix + ":" + tag;
+        LOG.infof("Starting pgvector container with Quarkus %s docs (%s)...", versionKey, fullImage);
+
+        GenericContainer<?> container = new GenericContainer<>(DockerImageName.parse(fullImage))
                 .withExposedPorts(5432)
                 .withEnv("POSTGRES_USER", pgUser)
                 .withEnv("POSTGRES_PASSWORD", pgPassword)

@@ -195,6 +195,10 @@ public class DocSearchTools {
             }
 
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results);
+            if (quarkusVersion != null && containerManager.isUsingFallback(quarkusVersion)) {
+                json += "\n\nNote: Version-specific docs for Quarkus " + quarkusVersion
+                        + " are not available. Results are from the latest documentation.";
+            }
             return ToolResponse.success(json);
         } catch (JsonProcessingException e) {
             return ToolResponse.error("Failed to serialize results: " + e.getMessage());
