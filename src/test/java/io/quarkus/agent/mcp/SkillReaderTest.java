@@ -1638,4 +1638,33 @@ class SkillReaderTest {
         assertTrue(content.contains("Updated content"));
         assertFalse(content.contains("Original content"));
     }
+
+    @Test
+    void parseFrontmatterExtractsUnquotedDescription() {
+        String content = """
+                ---
+                name: my-skill
+                description: Use when the user wants to migrate
+                ---
+
+                Skill body.
+                """;
+        SkillReader.SkillInfo info = SkillReader.parseFrontmatter(content);
+        assertEquals("my-skill", info.name());
+        assertEquals("Use when the user wants to migrate", info.description());
+    }
+
+    @Test
+    void parseFrontmatterExtractsQuotedDescription() {
+        String content = """
+                ---
+                name: my-skill
+                description: "Check if project is up-to-date"
+                ---
+
+                Skill body.
+                """;
+        SkillReader.SkillInfo info = SkillReader.parseFrontmatter(content);
+        assertEquals("Check if project is up-to-date", info.description());
+    }
 }

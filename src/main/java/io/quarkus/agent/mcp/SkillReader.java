@@ -92,7 +92,8 @@ public final class SkillReader {
     private static final DotName OPTIONAL = DotName.createSimple("java.util.Optional");
     private static final Pattern VALID_SKILL_NAME = Pattern.compile("^[a-zA-Z0-9._-]+$");
     private static final Pattern FRONTMATTER_NAME = Pattern.compile("^name:\\s*(.+)$", Pattern.MULTILINE);
-    private static final Pattern FRONTMATTER_DESC = Pattern.compile("^description:\\s*\"(.+)\"$", Pattern.MULTILINE);
+    private static final Pattern FRONTMATTER_DESC = Pattern.compile(
+            "^description:\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_MODE = Pattern.compile("^mode:\\s*(\\S+)", Pattern.MULTILINE);
     private static final Pattern FRONTMATTER_CATEGORIES = Pattern.compile(
             "^categor(?:y|ies):\\s*\"?([^\"\\n]+?)\"?\\s*$", Pattern.MULTILINE);
@@ -131,14 +132,14 @@ public final class SkillReader {
      * Reads all available skills using the default local skills directory
      * ({@code ~/.quarkus/skills/}).
      *
-     * @see #readSkills(String, Path)
+     * @see #readSkills(String, Path, boolean)
      */
     public static List<SkillInfo> readSkills(String projectDir) {
         return readSkills(projectDir, null, false);
     }
 
     /**
-     * Reads all available skills for a project using the three-layer override chain.
+     * Reads all available skills for a project using the multi-layer override chain.
      *
      * @param projectDir     the absolute path to the Quarkus project
      * @param localSkillsDir optional user-level directory to scan for SKILL.md files, or null for the default
@@ -149,7 +150,12 @@ public final class SkillReader {
     }
 
     /**
-     * Reads available skills for a project using the three-layer override chain.
+     * Reads available skills for a project using the multi-layer override chain:
+     * <ol>
+     *   <li>Extension skills — from deployment/runtime JARs in the local Maven repo</li>
+     *   <li>User-level skills — from {@code ~/.quarkus/skills/} or configured directory</li>
+     *   <li>Project-level skills — from {@code .agent/skills/} in the project</li>
+     * </ol>
      *
      * @param projectDir     the absolute path to the Quarkus project
      * @param localSkillsDir optional user-level directory to scan for SKILL.md files, or null for the default
