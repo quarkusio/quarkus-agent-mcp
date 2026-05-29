@@ -47,6 +47,22 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void detectsPortFromAnsiColoredListeningOnLog() throws Exception {
+        // Gradle's dev JVM forces ANSI color, so the port is followed by escape
+        // sequences with no space: "http://localhost:8080[38;5;231m[39m".
+        // printf emits the real ESC bytes the MCP captures from the child process.
+        process = new ProcessBuilder("bash", "-c",
+                "printf 'Listening on: http://localhost:8080\\033[38;5;231m\\033[39m\\n' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals(8080, instance.getHttpPort());
+        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+    }
+
+    @Test
     void detectsPortFromHttpsUrl() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: https://localhost:8443' && sleep 5")

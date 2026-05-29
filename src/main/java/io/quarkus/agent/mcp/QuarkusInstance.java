@@ -17,6 +17,7 @@ import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 
@@ -37,6 +38,10 @@ public class QuarkusInstance {
     }
 
     static final int MAX_LOG_LINES = 500;
+
+    // Quarkus dev output may be wrapped in ANSI escape codes (Gradle forces color
+    // on the forked dev JVM), which must be stripped before URI parsing.
+    private static final Pattern ANSI = Pattern.compile("\\u001B\\[[0-9;]*m");
 
     private final String projectDir;
     private final String buildTool;
@@ -100,13 +105,14 @@ public class QuarkusInstance {
     }
 
     private void parsePort(String line) {
-        int idx = line.indexOf("http://");
+        String clean = ANSI.matcher(line).replaceAll("");
+        int idx = clean.indexOf("http://");
         if (idx < 0) {
-            idx = line.indexOf("https://");
+            idx = clean.indexOf("https://");
         }
         if (idx >= 0) {
             try {
-                String url = line.substring(idx).trim();
+                String url = clean.substring(idx).trim();
                 int spaceIdx = url.indexOf(' ');
                 if (spaceIdx > 0) {
                     url = url.substring(0, spaceIdx);
