@@ -22,8 +22,8 @@ class ContainerManagerTest {
 
     @Test
     void supportsRagSqlForModernVersions() {
-        assertTrue(ContainerManager.supportsRagSql("3.36.0"));
         assertTrue(ContainerManager.supportsRagSql("3.36.1"));
+        assertTrue(ContainerManager.supportsRagSql("3.36.2"));
         assertTrue(ContainerManager.supportsRagSql("3.37.0"));
         assertTrue(ContainerManager.supportsRagSql("3.40.0"));
         assertTrue(ContainerManager.supportsRagSql("4.0.0"));
@@ -31,6 +31,7 @@ class ContainerManagerTest {
 
     @Test
     void supportsRagSqlReturnsFalseForOlderVersions() {
+        assertFalse(ContainerManager.supportsRagSql("3.36.0"));
         assertFalse(ContainerManager.supportsRagSql("3.35.0"));
         assertFalse(ContainerManager.supportsRagSql("3.35.2"));
         assertFalse(ContainerManager.supportsRagSql("3.21.0"));
@@ -40,8 +41,9 @@ class ContainerManagerTest {
 
     @Test
     void supportsRagSqlHandlesQualifiedVersions() {
-        assertTrue(ContainerManager.supportsRagSql("3.36.0.Final"));
-        assertTrue(ContainerManager.supportsRagSql("3.36.0.CR1"));
+        assertFalse(ContainerManager.supportsRagSql("3.36.0.Final"));
+        assertFalse(ContainerManager.supportsRagSql("3.36.0.CR1"));
+        assertTrue(ContainerManager.supportsRagSql("3.36.1.Final"));
         assertFalse(ContainerManager.supportsRagSql("3.35.0.Final"));
     }
 

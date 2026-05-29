@@ -28,6 +28,7 @@ public class ContainerManager {
 
     private static final Logger LOG = Logger.getLogger(ContainerManager.class);
     static final int RAG_SQL_MIN_MINOR = 36;
+    static final int RAG_SQL_MIN_PATCH_AT_36 = 1;
 
     @ConfigProperty(name = "agent-mcp.doc-search.image", defaultValue = "pgvector/pgvector:pg17")
     String image;
@@ -122,6 +123,7 @@ public class ContainerManager {
             }
         } else {
             startLegacyContainer(versionKey, quarkusVersion);
+            loadNonCoreRagData(versionKey, quarkusVersion, projectDir);
         }
     }
 
@@ -137,13 +139,10 @@ public class ContainerManager {
     /**
      * Loads any new RAG SQL fragments into an already-running container.
      * Called after extensions are added to a project to pick up their docs.
-     * No-op for legacy containers (data is baked into the image).
+     * For legacy containers, only non-core extension docs are loaded (core docs are baked in).
      */
     public void loadIncrementalRagData(String quarkusVersion, String projectDir) {
         String versionKey = quarkusVersion != null ? quarkusVersion : "default";
-        if (!ragSqlVersions.contains(versionKey)) {
-            return;
-        }
         GenericContainer<?> container = containers.get(versionKey);
         if (container == null || !container.isRunning()) {
             LOG.debugf("No running container for version %s — skipping incremental RAG load", versionKey);
@@ -205,7 +204,14 @@ public class ContainerManager {
             String[] parts = version.split("[.\\-]");
             int major = Integer.parseInt(parts[0]);
             int minor = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
-            return major > 3 || (major == 3 && minor >= RAG_SQL_MIN_MINOR);
+            if (major > 3 || (major == 3 && minor > RAG_SQL_MIN_MINOR)) {
+                return true;
+            }
+            if (major == 3 && minor == RAG_SQL_MIN_MINOR) {
+                int patch = parts.length > 2 ? Integer.parseInt(parts[2]) : 0;
+                return patch >= RAG_SQL_MIN_PATCH_AT_36;
+            }
+            return false;
         } catch (NumberFormatException e) {
             return false;
         }
@@ -287,6 +293,24 @@ public class ContainerManager {
                 quarkusVersion, projectDir,
                 container.getHost(), container.getMappedPort(5432),
                 pgDatabase, pgUser, pgPassword);
+    }
+
+    private void loadNonCoreRagData(String versionKey, String quarkusVersion, String projectDir) {
+        if (projectDir == null) {
+            return;
+        }
+        GenericContainer<?> container = containers.get(versionKey);
+        if (container == null || !container.isRunning()) {
+            return;
+        }
+        try {
+            ragSqlLoader.ensureLoaded(
+                    quarkusVersion, projectDir,
+                    container.getHost(), container.getMappedPort(5432),
+                    pgDatabase, pgUser, pgPassword);
+        } catch (Exception e) {
+            LOG.warnf("Failed to load non-core extension docs: %s", e.getMessage());
+        }
     }
 
     private GenericContainer<?> getContainer(String quarkusVersion) {
