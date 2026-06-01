@@ -121,7 +121,9 @@ public class DocSearchTools {
                     + "'REST client configuration', 'native image build'.") String query,
             @ToolArg(description = "Maximum number of documentation chunks to return (default: 4).", required = false) Integer maxResults,
             @ToolArg(description = "Absolute path to the Quarkus project directory. "
-                    + "If provided, documentation matching the project's Quarkus version is used.", required = false) String projectDir) {
+                    + "Strongly recommended -- documentation is loaded from the project's extension "
+                    + "dependencies, so searches without projectDir may return no results. "
+                    + "Also selects documentation matching the project's Quarkus version.", required = false) String projectDir) {
         try {
             if (query == null || query.isBlank()) {
                 return ToolResponse.error("Search query must not be empty.");
@@ -191,7 +193,17 @@ public class DocSearchTools {
             }
 
             if (results.isEmpty()) {
-                return ToolResponse.success("No documentation found matching: " + query);
+                StringBuilder msg = new StringBuilder("No documentation found matching: " + query);
+                if (projectDir == null || projectDir.isBlank()) {
+                    msg.append("\n\nHint: You did not provide a projectDir. Documentation is loaded from "
+                            + "the project's extension dependencies, so results are significantly more "
+                            + "accurate when projectDir is set. Retry with the projectDir parameter.");
+                } else {
+                    msg.append("\n\nHint: Try rephrasing your query with different or simpler keywords. "
+                            + "Documentation is loaded from extension JARs in the project -- if the "
+                            + "relevant extension is not a project dependency, its docs won't appear here.");
+                }
+                return ToolResponse.success(msg.toString());
             }
 
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results);
