@@ -6,13 +6,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -501,19 +495,26 @@ public final class SkillReader {
                 continue;
             }
             String groupPath = dep.groupId().replace('.', '/');
-            Path deploymentJar = m2Repo.resolve(groupPath)
-                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX)
-                    .resolve(dep.version())
-                    .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX + "-" + dep.version() + ".jar");
-            Path runtimeJar = m2Repo.resolve(groupPath)
-                    .resolve(dep.artifactId())
-                    .resolve(dep.version())
-                    .resolve(dep.artifactId() + "-" + dep.version() + ".jar");
-            Path devJar = m2Repo.resolve(groupPath)
-                    .resolve(dep.artifactId() + DEV_SUFFIX)
-                    .resolve(dep.version())
-                    .resolve(dep.artifactId() + DEV_SUFFIX + "-" + dep.version() + ".jar");
-
+            Path deploymentJar;
+            Path runtimeJar;
+            Path devJar;
+            try {
+                deploymentJar = m2Repo.resolve(groupPath)
+                        .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX)
+                        .resolve(dep.version())
+                        .resolve(dep.artifactId() + DEPLOYMENT_SUFFIX + "-" + dep.version() + ".jar");
+                runtimeJar = m2Repo.resolve(groupPath)
+                        .resolve(dep.artifactId())
+                        .resolve(dep.version())
+                        .resolve(dep.artifactId() + "-" + dep.version() + ".jar");
+                devJar = m2Repo.resolve(groupPath)
+                        .resolve(dep.artifactId() + DEV_SUFFIX)
+                        .resolve(dep.version())
+                        .resolve(dep.artifactId() + DEV_SUFFIX + "-" + dep.version() + ".jar");
+            } catch (InvalidPathException e) {
+                LOG.warnf("Unable to resolve jars for dependency %s", dep);
+                continue;
+            }
             SkillInfo skill = composeSkillFromExtension(deploymentJar, runtimeJar, devJar,
                     dep.artifactId(), metadataOnly);
             if (skill != null) {

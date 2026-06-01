@@ -43,7 +43,7 @@ public final class DependencyResolver {
     // ("   groupId:artifactId:type:version:scope").
     // May be suffixed with ANSI codes and module info.
     private static final Pattern MAVEN_DEP_LINE = Pattern.compile(
-            "^(?:\\[INFO\\])?\\s+(\\S+):(\\S+):\\S+:(\\S+):\\S+.*$");
+            "^(?:\\[INFO\\])?\\s+([^\\s:]+):([^\\s:]+):jar(?::[^\\s:]+)?:([^\\s:]+):(?:compile|provided|runtime|test|system|import).*$");
 
     // Gradle dependency: "+--- group:artifact:version" or "\--- group:artifact:version"
     // Also handles transitive deps with leading pipes/spaces: "|    +---" or "     +---"
