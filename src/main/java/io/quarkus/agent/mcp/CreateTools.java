@@ -192,11 +192,11 @@ public class CreateTools {
                 // Block until the app is ready so the agent doesn't need to poll
                 QuarkusInstance instance = processManager.getInstance(projectDir);
                 if (instance != null && instance.getStatus() == QuarkusInstance.Status.STARTING) {
-                    long deadline = System.currentTimeMillis() + 120_000;
+                    long deadline = System.currentTimeMillis() + LifecycleTools.STARTUP_TIMEOUT_MS;
                     while (instance.getStatus() == QuarkusInstance.Status.STARTING
                             && System.currentTimeMillis() < deadline) {
                         try {
-                            Thread.sleep(2_000);
+                            Thread.sleep(LifecycleTools.STARTUP_POLL_INTERVAL_MS);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             break;
@@ -225,7 +225,7 @@ public class CreateTools {
                 }
 
                 response.append("\n\nNEXT: Call quarkus_skills with the relevant extension names "
-                        + "(e.g., quarkus_skills query='panache,rest') to learn the correct patterns before writing code. "
+                        + "(e.g., quarkus_skills query='panache,rest') to read the full patterns and guidelines before writing code. "
                         + "Write code and tests, then run tests with quarkus_callTool toolName='devui-testing_runTests'.");
 
                 return ToolResponse.success(response.toString());

@@ -25,8 +25,8 @@ public class LifecycleTools {
     @Inject
     ObjectMapper mapper;
 
-    private static final long STARTUP_TIMEOUT_MS = 120_000;
-    private static final long STARTUP_POLL_INTERVAL_MS = 2_000;
+    static final long STARTUP_TIMEOUT_MS = 120_000;
+    static final long STARTUP_POLL_INTERVAL_MS = 2_000;
 
     @Tool(name = "quarkus_start", description = "Start a Quarkus application in dev mode. "
             + "Blocks until the app is ready or fails. "
