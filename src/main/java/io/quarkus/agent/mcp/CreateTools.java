@@ -106,7 +106,9 @@ public class CreateTools {
 
             File outDir = new File(outputDir);
             if (!outDir.isDirectory()) {
-                return ToolResponse.error("Output directory does not exist: " + outputDir);
+                if (!outDir.mkdirs()) {
+                    return ToolResponse.error("Failed to create output directory: " + outputDir);
+                }
             }
 
             boolean createInPlace = shouldCreateInPlace(createInCurrentDir, outDir, resolvedArtifactId);
@@ -182,34 +184,51 @@ public class CreateTools {
             // Generate .mcp.json so tools like Claude Code auto-discover quarkus-agent-mcp
             generateMcpConfig(projectDir);
 
-            // Auto-start the app in dev mode
+            // Auto-start the app in dev mode and wait for it to be ready
             try {
                 Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles);
                 LOG.infof("Auto-started Quarkus app at: %s", projectDir);
-                String portInfo = effectivePort != null ? " (port: " + effectivePort + ")" : "";
-                return ToolResponse.success("Quarkus project created and starting in dev mode at: " + projectDir + portInfo
-                        + ContainerRuntimeChecker.containerWarning(projectDir)
-                        + "\n\nNEXT STEPS (follow this order strictly):"
-                        + "\n1. STOP -- do NOT write any code yet. For each capability the user requested, "
-                        + "search for Quarkus extensions that provide it using quarkus_searchDocs and quarkus_searchTools query='extension'. "
-                        + "NEVER roll your own solution when an extension exists."
-                        + "\n2. PRESENT OPTIONS -- use search results from step 1 to list ALL matching extensions "
-                        + "to the user with a recommended default marked. "
-                        + "Wait for the user to choose before proceeding. Never silently pick one."
-                        + "\n3. LOAD SKILLS -- call quarkus_skills for each chosen extension BEFORE writing any code. "
-                        + "This is mandatory, not optional."
-                        + "\n4. Add chosen extensions via quarkus_searchTools query='extension' -> quarkus_callTool."
-                        + "\n5. Use quarkus_searchDocs to look up additional Quarkus APIs and best practices."
-                        + "\n6. Write your code AND tests. Always include tests for every feature."
-                        + "\n7. Run tests with quarkus_callTool: use 'devui-testing_runTests' to run all tests, "
-                        + "'devui-testing_runAffectedTests' to run only tests affected by your changes, "
-                        + "or 'devui-testing_runTest' with arguments {\"className\":\"com.example.MyTest\"} for a specific test."
-                        + "\n8. After code changes, trigger a reload via quarkus_callTool with toolName 'devui-logstream_forceRestart'. Do NOT restart the app manually."
-                        + "\n   IMPORTANT: After pom.xml/build.gradle changes (adding dependencies or extensions), you MUST do a full quarkus_stop + quarkus_start. forceRestart only recompiles source -- it does NOT re-resolve dependencies."
-                        + "\n9. Update README.md with: app description, features, endpoints, how to run, and links to Quarkus guides."
-                        + "\n10. After core features work, suggest to the user: security, observability, health checks, OpenAPI."
-                        + "\n\nWARNING: NEVER run 'mvn clean' or 'gradle clean' while dev mode is running -- it deletes target/test-classes and breaks the test runner. "
-                        + "If the test runner gets stuck returning 'Tests already in progress', do a full quarkus_stop + quarkus_start cycle to reset it.");
+
+                // Block until the app is ready so the agent doesn't need to poll
+                QuarkusInstance instance = processManager.getInstance(projectDir);
+                if (instance != null && instance.getStatus() == QuarkusInstance.Status.STARTING) {
+                    long deadline = System.currentTimeMillis() + 120_000;
+                    while (instance.getStatus() == QuarkusInstance.Status.STARTING
+                            && System.currentTimeMillis() < deadline) {
+                        try {
+                            Thread.sleep(2_000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
+
+                StringBuilder response = new StringBuilder();
+                if (instance != null && instance.getStatus() == QuarkusInstance.Status.RUNNING) {
+                    response.append("Quarkus project created and running at: ").append(projectDir)
+                            .append(" (port: ").append(instance.getHttpPort()).append(")");
+                } else {
+                    String portInfo = effectivePort != null ? " (port: " + effectivePort + ")" : "";
+                    response.append("Quarkus project created and starting at: ").append(projectDir).append(portInfo);
+                }
+                response.append(ContainerRuntimeChecker.containerWarning(projectDir));
+
+                // Include skill index so the agent doesn't need a separate quarkus_skills call
+                try {
+                    List<SkillReader.SkillInfo> skillList = SkillReader.readSkills(projectDir, null, true, false);
+                    if (!skillList.isEmpty()) {
+                        response.append("\n\n").append(DevMcpProxyTools.formatSkillIndex(skillList));
+                    }
+                } catch (Exception skillErr) {
+                    LOG.debugf("Could not load skills during create: %s", skillErr.getMessage());
+                }
+
+                response.append("\n\nNEXT: Call quarkus_skills with the relevant extension names "
+                        + "(e.g., quarkus_skills query='panache,rest') to learn the correct patterns before writing code. "
+                        + "Write code and tests, then run tests with quarkus_callTool toolName='devui-testing_runTests'.");
+
+                return ToolResponse.success(response.toString());
             } catch (Exception startError) {
                 LOG.warnf("Project created but failed to auto-start: %s", startError.getMessage());
                 return ToolResponse.success("Quarkus project created at: " + projectDir
