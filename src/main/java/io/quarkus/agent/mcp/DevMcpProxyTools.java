@@ -128,7 +128,8 @@ public class DevMcpProxyTools {
     ToolResponse skills(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Optional query to filter skills by extension name (case-insensitive). "
-                    + "Examples: 'panache', 'rest', 'security', 'kafka'. "
+                    + "Supports comma-separated names to fetch multiple skills at once "
+                    + "(e.g., 'panache,rest,hibernate-validator'). "
                     + "If omitted, lists all available skills with their descriptions.", required = false) String query) {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
@@ -150,12 +151,16 @@ public class DevMcpProxyTools {
                                 + "and uses Quarkus extensions that provide skill files.");
             }
 
-            // Filter by query if provided
+            // Filter by query if provided — supports comma/space-separated tokens
             List<SkillReader.SkillInfo> matched = skills;
             if (queryLower != null) {
+                List<String> tokens = List.of(queryLower.split("[,\\s]+"));
                 matched = skills.stream()
-                        .filter(s -> s.name().toLowerCase().contains(queryLower)
-                                || (s.description() != null && s.description().toLowerCase().contains(queryLower)))
+                        .filter(s -> {
+                            String name = s.name().toLowerCase();
+                            String desc = s.description() != null ? s.description().toLowerCase() : "";
+                            return tokens.stream().anyMatch(t -> !t.isEmpty() && (name.contains(t) || desc.contains(t)));
+                        })
                         .toList();
             }
 

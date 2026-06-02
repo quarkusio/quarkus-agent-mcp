@@ -19,6 +19,7 @@ public class AppLogTools {
     QuarkusProcessManager processManager;
 
     @Tool(name = "quarkus_app_log", description = "Manage file logging for a managed Quarkus application. "
+            + "Can be enabled permanently via AGENT_MCP_APP_LOG_ENABLED=true. "
             + "Actions: 'enable' starts capturing stdout/stderr to ~/.quarkus/apps/<project>/quarkus-dev.log, "
             + "'disable' stops file logging (preserves the file), "
             + "'read' (default) returns the most recent lines from the log file.",

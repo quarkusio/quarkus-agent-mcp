@@ -25,7 +25,11 @@ public class LifecycleTools {
     @Inject
     ObjectMapper mapper;
 
+    private static final long STARTUP_TIMEOUT_MS = 120_000;
+    private static final long STARTUP_POLL_INTERVAL_MS = 2_000;
+
     @Tool(name = "quarkus_start", description = "Start a Quarkus application in dev mode. "
+            + "Blocks until the app is ready or fails. "
             + "Auto-detects Maven or Gradle. Hot reload is triggered when the app is accessed. "
             + "RULES: Always write tests. Always keep README.md updated after changes.")
     ToolResponse start(
@@ -38,12 +42,38 @@ public class LifecycleTools {
                     + "Ignored for Gradle builds.", required = false) String mavenProfiles) {
         try {
             Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles);
-            String message = "Quarkus application starting in dev mode at: " + projectDir;
-            if (effectivePort != null) {
-                message += " (port: " + effectivePort + ")";
+            String containerWarning = ContainerRuntimeChecker.containerWarning(projectDir);
+
+            QuarkusInstance instance = processManager.getInstance(projectDir);
+            if (instance != null && instance.getStatus() == QuarkusInstance.Status.STARTING) {
+                long deadline = System.currentTimeMillis() + STARTUP_TIMEOUT_MS;
+                while (instance.getStatus() == QuarkusInstance.Status.STARTING
+                        && System.currentTimeMillis() < deadline) {
+                    try {
+                        Thread.sleep(STARTUP_POLL_INTERVAL_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
-            message += ContainerRuntimeChecker.containerWarning(projectDir);
-            return ToolResponse.success(message);
+
+            if (instance != null && instance.getStatus() == QuarkusInstance.Status.RUNNING) {
+                int port = instance.getHttpPort();
+                return ToolResponse.success("Quarkus application running at: " + projectDir
+                        + " (port: " + port + ")" + containerWarning);
+            } else if (instance != null && instance.getStatus() == QuarkusInstance.Status.CRASHED) {
+                String recentLogs = instance.getRecentLogs(30);
+                return ToolResponse.error("Quarkus application failed to start at: " + projectDir
+                        + "\n\nRecent logs:\n" + recentLogs + containerWarning);
+            } else {
+                String message = "Quarkus application starting in dev mode at: " + projectDir;
+                if (effectivePort != null) {
+                    message += " (port: " + effectivePort + ")";
+                }
+                message += " — still starting after timeout, use quarkus_status to check" + containerWarning;
+                return ToolResponse.success(message);
+            }
         } catch (Exception e) {
             LOG.error("Failed to start Quarkus application at " + projectDir, e);
             return ToolResponse.error(e.getMessage());

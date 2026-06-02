@@ -34,7 +34,9 @@ public class AgentLogTools {
         }
     }
 
-    @Tool(name = "quarkus_agent_log", description = "Manage the Quarkus Agent MCP server's own log file. "
+    @Tool(name = "quarkus_agent_log", description = "Read the Quarkus Agent MCP server's own log file. "
+            + "In stdio mode, server logs are not visible because stdout/stderr are used by the protocol. "
+            + "File logging can be enabled permanently via AGENT_MCP_LOG_ENABLED=true. "
             + "Actions: 'enable' starts file logging to ~/.quarkus/agent-mcp/agent-mcp.log, "
             + "'disable' stops file logging (preserves the file), "
             + "'read' (default) returns the most recent lines from the log file.",
