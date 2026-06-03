@@ -416,7 +416,13 @@ public class RagSqlLoader {
                 continue;
             }
 
-            if (c == '\'' && !isEscaped(sql, i)) {
+            if (c == '\'') {
+                if (inSingleQuote && i + 1 < sql.length() && sql.charAt(i + 1) == '\'') {
+                    current.append('\'');
+                    current.append('\'');
+                    i++;
+                    continue;
+                }
                 inSingleQuote = !inSingleQuote;
             }
 
@@ -437,10 +443,6 @@ public class RagSqlLoader {
         }
 
         return statements;
-    }
-
-    private static boolean isEscaped(String sql, int pos) {
-        return pos > 0 && sql.charAt(pos - 1) == '\'';
     }
 
     private String detectLatestInstalledVersion() {

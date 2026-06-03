@@ -53,6 +53,28 @@ class RagSqlLoaderTest {
     }
 
     @Test
+    void splitSqlStatementsHandlesEscapedQuotes() {
+        String sql = "INSERT INTO t VALUES ('it''s a test; with semicolons');\n"
+                + "INSERT INTO t VALUES ('import java.util.UUID;');";
+        List<String> stmts = RagSqlLoader.splitSqlStatements(sql);
+
+        assertEquals(2, stmts.size());
+        assertTrue(stmts.get(0).contains("it''s a test; with semicolons"));
+        assertTrue(stmts.get(1).contains("import java.util.UUID;"));
+    }
+
+    @Test
+    void splitSqlStatementsHandlesMultipleEscapedQuotes() {
+        String sql = "INSERT INTO t VALUES ('don''t stop; can''t stop');\n"
+                + "DELETE FROM t WHERE x = 'y';";
+        List<String> stmts = RagSqlLoader.splitSqlStatements(sql);
+
+        assertEquals(2, stmts.size());
+        assertTrue(stmts.get(0).contains("don''t stop; can''t stop"));
+        assertTrue(stmts.get(1).startsWith("DELETE"));
+    }
+
+    @Test
     void splitSqlStatementsSkipsComments() {
         String sql = "-- this is a comment\nINSERT INTO t VALUES (1);";
         List<String> stmts = RagSqlLoader.splitSqlStatements(sql);
