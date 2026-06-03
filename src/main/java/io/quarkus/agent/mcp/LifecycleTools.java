@@ -70,7 +70,7 @@ public class LifecycleTools {
             } else if (instance != null && instance.getStatus() == QuarkusInstance.Status.CRASHED) {
                 String recentLogs = instance.getRecentLogs(30);
                 return ToolResponse.error("Quarkus application failed to start at: " + projectDir
-                        + "\n\nRecent logs:\n" + recentLogs + containerWarning);
+                        + "\n\nRecent logs:\n" + recentLogs + containerWarning + agentFilesNote);
             } else {
                 String message = "Quarkus application starting in dev mode at: " + projectDir;
                 if (effectivePort != null) {
