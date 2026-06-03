@@ -6,6 +6,7 @@ import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jboss.logging.Logger;
@@ -58,10 +59,14 @@ public class LifecycleTools {
                 }
             }
 
+            List<String> createdFiles = ProjectFiles.ensureAgentFiles(projectDir);
+            String agentFilesNote = createdFiles.isEmpty() ? ""
+                    : "\nGenerated missing agent files: " + String.join(", ", createdFiles);
+
             if (instance != null && instance.getStatus() == QuarkusInstance.Status.RUNNING) {
                 int port = instance.getHttpPort();
                 return ToolResponse.success("Quarkus application running at: " + projectDir
-                        + " (port: " + port + ")" + containerWarning);
+                        + " (port: " + port + ")" + containerWarning + agentFilesNote);
             } else if (instance != null && instance.getStatus() == QuarkusInstance.Status.CRASHED) {
                 String recentLogs = instance.getRecentLogs(30);
                 return ToolResponse.error("Quarkus application failed to start at: " + projectDir
@@ -71,7 +76,8 @@ public class LifecycleTools {
                 if (effectivePort != null) {
                     message += " (port: " + effectivePort + ")";
                 }
-                message += " — still starting after timeout, use quarkus_status to check" + containerWarning;
+                message += " — still starting after timeout, use quarkus_status to check" + containerWarning
+                        + agentFilesNote;
                 return ToolResponse.success(message);
             }
         } catch (Exception e) {
