@@ -173,6 +173,19 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void detectsPortFromListeningOnLogWithMgmtInterface() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'my-app 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.33.1.1) started in 6.909s. Listening on: http://localhost:8080. Management interface listening on http://localhost:9000.' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals(8080, instance.getHttpPort());
+        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+    }
+
+    @Test
     void restartResetsPortAndStatus() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && cat")
