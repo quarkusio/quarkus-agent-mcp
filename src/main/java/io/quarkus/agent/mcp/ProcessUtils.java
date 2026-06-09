@@ -8,8 +8,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 final class ProcessUtils {
@@ -24,12 +27,15 @@ final class ProcessUtils {
     }
 
     static String resolveMavenCommand(File projectDir) {
-        boolean win = OS.WINDOWS.isCurrent();
-        File wrapper = win ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
-        if (wrapper.exists()) {
-            return win ? "mvnw.cmd" : "./mvnw";
-        }
-        return win ? "mvn.cmd" : "mvn";
+        Optional<String> mvnCmd = ConfigProvider.getConfig().getOptionalValue("agent-mcp.process.mvn-cmd", String.class);
+        return mvnCmd.orElseGet(() -> {
+            boolean win = OS.WINDOWS.isCurrent();
+            File wrapper = win ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
+            if (wrapper.exists()) {
+                return win ? "mvnw.cmd" : "./mvnw";
+            }
+            return win ? "mvn.cmd" : "mvn";
+        });
     }
 
     static String resolveGradleCommand(File projectDir) {

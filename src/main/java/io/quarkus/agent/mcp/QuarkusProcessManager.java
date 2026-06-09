@@ -32,9 +32,6 @@ public class QuarkusProcessManager {
     @Inject
     ManagedExecutor executor;
 
-    @ConfigProperty(name = "agent-mcp.process.mvn-cmd")
-    Optional<String> mvnCmd;
-
     @ConfigProperty(name = "agent-mcp.process.gradle-cmd")
     Optional<String> gradleCmd;
 
@@ -192,8 +189,8 @@ public class QuarkusProcessManager {
     }
 
     private ProcessBuilder createMavenProcessBuilder(File projectDir, String mavenProfiles) {
-        String cmd = mvnCmd.orElseGet(() -> ProcessUtils.resolveMavenCommand(projectDir));
-        var command = new ArrayList<>(List.of(cmd, "quarkus:dev",
+        String mvnCmd = ProcessUtils.resolveMavenCommand(projectDir);
+        var command = new ArrayList<>(List.of(mvnCmd, "quarkus:dev",
                 "-Dquarkus.console.basic=true", "-Dquarkus.dev-mcp.enabled=true"));
         if (mavenProfiles != null && !mavenProfiles.isBlank()) {
             command.add("-P" + mavenProfiles.trim());
