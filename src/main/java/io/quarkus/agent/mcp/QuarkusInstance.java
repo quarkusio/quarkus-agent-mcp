@@ -117,6 +117,7 @@ public class QuarkusInstance {
                 if (spaceIdx > 0) {
                     url = url.substring(0, spaceIdx);
                 }
+                url = url.replaceAll("[.,;:!?)]+$", "");
                 int port = URI.create(url).getPort();
                 if (port > 0) {
                     httpPort = port;
