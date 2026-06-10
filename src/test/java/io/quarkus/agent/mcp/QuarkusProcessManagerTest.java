@@ -175,7 +175,7 @@ class QuarkusProcessManagerTest {
     }
 
     private void initOptionalFields() throws Exception {
-        for (String fieldName : new String[] { "mvnCmd", "gradleCmd", "appLogEnabled" }) {
+        for (String fieldName : new String[] { "gradleCmd", "appLogEnabled" }) {
             Field f = QuarkusProcessManager.class.getDeclaredField(fieldName);
             f.setAccessible(true);
             f.set(manager, Optional.empty());
