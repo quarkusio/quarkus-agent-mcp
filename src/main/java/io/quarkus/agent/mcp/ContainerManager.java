@@ -72,6 +72,7 @@ public class ContainerManager {
             try {
                 ensureRunning(null, null);
                 defaultWarmupDone = true;
+                LOG.info("Documentation search is ready");
             } catch (Exception e) {
                 LOG.warn("Background container warm-up failed: " + e.getMessage());
                 defaultWarmupError = e.getMessage();
