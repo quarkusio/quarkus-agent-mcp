@@ -332,7 +332,7 @@ public class CreateTools {
             cmd.add("-DnoCode=true");
         }
         if (noWrapper) {
-            cmd.add("-DnoWrapper=true");
+            cmd.add("-DnoBuildToolWrapper=true");
         }
         cmd.add("-B");
 
