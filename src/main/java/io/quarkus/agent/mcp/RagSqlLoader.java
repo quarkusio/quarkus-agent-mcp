@@ -66,6 +66,7 @@ public class RagSqlLoader {
 
     private static final Pattern SOURCE_PATTERN = Pattern.compile(
             "metadata\\s*->>\\s*'source'\\s*=\\s*'([^']+)'");
+    private static final Pattern ROW_SOURCE_PATTERN = Pattern.compile("\"source\"\\s*:\\s*\"([^\"]+)\"");
 
     record RagFragment(String source, String sql) {
     }
@@ -310,6 +311,10 @@ public class RagSqlLoader {
     }
 
     static String extractSource(String sql, String fallbackSource) {
+        Matcher rowMatcher = ROW_SOURCE_PATTERN.matcher(sql);
+        if (rowMatcher.find()) {
+            return rowMatcher.group(1);
+        }
         Matcher m = SOURCE_PATTERN.matcher(sql);
         if (m.find()) {
             return m.group(1);
@@ -366,9 +371,7 @@ public class RagSqlLoader {
                 for (RagFragment fragment : fragments) {
                     for (String statement : splitSqlStatements(fragment.sql())) {
                         if (!statement.isBlank()) {
-                            // Transform INSERT statements to upsert (insert or update)
-                            String upsertStatement = makeInsertUpsert(statement);
-                            stmt.execute(upsertStatement);
+                            stmt.execute(statement);
                         }
                     }
                     LOG.debugf("Loaded RAG source: %s", fragment.source());
@@ -388,50 +391,6 @@ public class RagSqlLoader {
         } catch (SQLException e) {
             LOG.errorf(e, "Failed to load RAG SQL for Quarkus %s", version);
         }
-    }
-
-    /**
-     * Transforms INSERT statements to use ON CONFLICT DO UPDATE, making them upserts.
-     * This allows newer versions to update existing documentation while preserving
-     * documents that haven't changed. When the same embedding_id exists, all columns
-     * are updated with the new values.
-     */
-    static String makeInsertUpsert(String statement) {
-        String trimmed = statement.trim();
-        String upperTrimmed = trimmed.toUpperCase();
-        
-        // Normalize whitespace for pattern matching (handles INSERT  INTO, INSERT\nINTO, etc.)
-        String normalized = upperTrimmed.replaceAll("\\s+", " ");
-        
-        String expectedStart = "INSERT INTO " + RAG_DOCUMENTS_TABLE.toUpperCase();
-        
-        // Only transform INSERT statements for the rag_documents table
-        if (normalized.startsWith(expectedStart)) {
-            
-            // Check if statement already has ON CONFLICT clause
-            if (normalized.contains(" ON CONFLICT ")) {
-                return statement;
-            }
-            
-            // Build the ON CONFLICT clause that updates all columns
-            String conflictClause = " ON CONFLICT (embedding_id) DO UPDATE SET " +
-                    "embedding = EXCLUDED.embedding, " +
-                    "text = EXCLUDED.text, " +
-                    "metadata = EXCLUDED.metadata";
-            
-            String result = trimmed;
-            
-            // Add our ON CONFLICT clause before any trailing semicolon
-            if (result.endsWith(";")) {
-                result = result.substring(0, result.length() - 1) + conflictClause + ";";
-            } else {
-                result = result + conflictClause;
-            }
-            
-            return result;
-        }
-        
-        return statement;
     }
 
     /**
