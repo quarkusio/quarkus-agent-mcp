@@ -95,7 +95,7 @@ public class DevMcpProxyTools {
                     + "Examples: 'test' for testing tools, 'config' for configuration, "
                     + "'extension' for extension management. If omitted, returns all tools.", required = false) String query) {
         try {
-            int port = resolvePort(projectDir);
+            int port = resolveDevMcpPort(projectDir);
             JsonNode tools = fetchDevMcpTools(port);
             if (tools == null || !tools.isArray()) {
                 return ToolResponse.success("No tools available from Dev MCP");
@@ -452,7 +452,7 @@ public class DevMcpProxyTools {
             @ToolArg(description = "Arguments to pass to the tool as a JSON string (matching the tool's inputSchema). "
                     + "Omit if the tool takes no arguments.", required = false) String toolArguments) {
         try {
-            int port = resolvePort(projectDir);
+            int port = resolveDevMcpPort(projectDir);
 
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("name", toolName);
@@ -495,14 +495,26 @@ public class DevMcpProxyTools {
         }
     }
 
-    private int resolvePort(String projectDir) {
+    private int resolveDevMcpPort(String projectDir) {
+        QuarkusInstance instance = resolveInstance(projectDir);
+        int mgmtPort = instance.getManagementPort();
+        if (mgmtPort > 0) {
+            return mgmtPort;
+        }
+        int port = instance.getHttpPort();
+        if (port < 0) {
+            throw new IllegalStateException("Could not detect HTTP port for the running Quarkus application.");
+        }
+        return port;
+    }
+
+    private QuarkusInstance resolveInstance(String projectDir) {
         QuarkusInstance instance = processManager.getInstance(projectDir);
         if (instance == null) {
             throw new IllegalStateException(
                     "Quarkus application is not running at: " + projectDir + ". Start it first with quarkus_start.");
         }
 
-        // If the app is still starting, wait for it to become ready
         if (instance.getStatus() == QuarkusInstance.Status.STARTING) {
             QuarkusInstance.Status status = awaitStartup(instance, STARTUP_WAIT_SECONDS * 1000L, POLL_INTERVAL_MS);
             if (status == null) {
@@ -515,12 +527,7 @@ public class DevMcpProxyTools {
                     "Quarkus application is not running at: " + projectDir
                             + " (status: " + instance.getStatus() + "). Start it first with quarkus_start.");
         }
-
-        int port = instance.getHttpPort();
-        if (port < 0) {
-            throw new IllegalStateException("Could not detect HTTP port for the running Quarkus application.");
-        }
-        return port;
+        return instance;
     }
 
     /**
