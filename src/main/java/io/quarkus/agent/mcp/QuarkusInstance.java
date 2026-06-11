@@ -51,6 +51,7 @@ public class QuarkusInstance {
     private final LinkedList<String> logBuffer = new LinkedList<>();
     private final AtomicReference<Status> status = new AtomicReference<>(Status.STARTING);
     private volatile int httpPort = -1;
+    private volatile int managementPort = -1;
     private volatile PrintWriter logWriter;
     private volatile Path logFile;
 
@@ -76,6 +77,9 @@ public class QuarkusInstance {
 
                 if (line.contains("Listening on:")) {
                     parsePort(line);
+                }
+                if (line.contains("Management interface listening on")) {
+                    parseManagementPort(line);
                 }
                 if (status.get() == Status.STARTING && isStartedLine(line)) {
                     status.compareAndSet(Status.STARTING, Status.RUNNING);
@@ -105,6 +109,24 @@ public class QuarkusInstance {
     }
 
     private void parsePort(String line) {
+        int port = parsePortFromLine(line);
+        if (port > 0) {
+            httpPort = port;
+        }
+    }
+
+    private void parseManagementPort(String line) {
+        String clean = ANSI.matcher(line).replaceAll("");
+        int marker = clean.indexOf("Management interface listening on");
+        if (marker >= 0) {
+            int port = parsePortFromLine(clean.substring(marker));
+            if (port > 0) {
+                managementPort = port;
+            }
+        }
+    }
+
+    private int parsePortFromLine(String line) {
         String clean = ANSI.matcher(line).replaceAll("");
         int idx = clean.indexOf("http://");
         if (idx < 0) {
@@ -118,14 +140,12 @@ public class QuarkusInstance {
                     url = url.substring(0, spaceIdx);
                 }
                 url = url.replaceAll("[.,;:!?)]+$", "");
-                int port = URI.create(url).getPort();
-                if (port > 0) {
-                    httpPort = port;
-                }
+                return URI.create(url).getPort();
             } catch (IllegalArgumentException e) {
                 LOG.warnf("Failed to parse URL from log line: %s", line);
             }
         }
+        return -1;
     }
 
     private synchronized void appendLog(String line) {
@@ -204,6 +224,7 @@ public class QuarkusInstance {
         }
         status.set(Status.STARTING);
         httpPort = -1;
+        managementPort = -1;
         sendInput('s');
     }
 
@@ -233,6 +254,10 @@ public class QuarkusInstance {
 
     public int getHttpPort() {
         return httpPort;
+    }
+
+    public int getManagementPort() {
+        return managementPort;
     }
 
     public String getBuildTool() {

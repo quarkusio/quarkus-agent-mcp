@@ -182,7 +182,21 @@ class QuarkusInstanceTest {
         Thread.sleep(500);
 
         assertEquals(8080, instance.getHttpPort());
+        assertEquals(9000, instance.getManagementPort());
         assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+    }
+
+    @Test
+    void managementPortDefaultsToNegativeOne() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'Listening on: http://localhost:8080' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals(8080, instance.getHttpPort());
+        assertEquals(-1, instance.getManagementPort());
     }
 
     @Test
