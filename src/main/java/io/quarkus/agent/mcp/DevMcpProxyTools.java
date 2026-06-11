@@ -78,6 +78,9 @@ public class DevMcpProxyTools {
     @ConfigProperty(name = "agent-mcp.skills.include-transitive", defaultValue = "false")
     boolean includeTransitiveDeps;
 
+    @ConfigProperty(name = "quarkus.http.non-application-root-path", defaultValue = "/q")
+    String nonApplicationRootPath;
+
     @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
             + "Use this before interacting with the running app -- for testing, config, extensions, "
             + "endpoints, dev services, etc. Then use quarkus_callTool to invoke the discovered tool. "
@@ -610,7 +613,7 @@ public class DevMcpProxyTools {
                     "params", params));
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + port + "/q/dev-mcp"))
+                    .uri(URI.create("http://localhost:" + port + nonApplicationRootPath + "/dev-mcp"))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json, text/event-stream")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonRpcRequest))
