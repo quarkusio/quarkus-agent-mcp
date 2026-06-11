@@ -84,21 +84,39 @@ class RagSqlLoaderTest {
     }
 
     @Test
-    void extractSourceParsesDeleteStatement() {
+    void extractSourcePrefersPerRowJsonbSource() {
+        String sql = "DELETE FROM rag_documents WHERE metadata->>'source' = 'quarkus-documentation';\n"
+                + "INSERT INTO rag_documents VALUES ('uuid', '[1,2,3]'::vector, 'text', '{\"source\": \"quarkus-rest\"}'::jsonb);";
+        assertEquals("quarkus-rest", RagSqlLoader.extractSource(sql, "fallback"),
+                "Should prefer per-row JSONB source over DELETE pattern");
+    }
+
+    @Test
+    void extractSourceFallsBackToDeletePattern() {
         String sql = "DELETE FROM rag_documents WHERE metadata->>'source' = 'quarkus-rest';\n"
                 + "INSERT INTO rag_documents VALUES (1);";
-        assertEquals("quarkus-rest", RagSqlLoader.extractSource(sql, "fallback"));
+        assertEquals("quarkus-rest", RagSqlLoader.extractSource(sql, "fallback"),
+                "Should fall back to DELETE pattern when no JSONB source found");
     }
 
     @Test
-    void extractSourceUsesFallbackWhenNoDeletePresent() {
+    void extractSourceUsesFallbackWhenNoPatternMatches() {
         String sql = "INSERT INTO rag_documents VALUES (1);";
-        assertEquals("my-extension", RagSqlLoader.extractSource(sql, "my-extension"));
+        assertEquals("my-extension", RagSqlLoader.extractSource(sql, "my-extension"),
+                "Should use fallback when no patterns match");
     }
 
     @Test
-    void extractSourceHandlesWhitespaceVariations() {
+    void extractSourceHandlesWhitespaceInJsonb() {
+        String sql = "INSERT INTO rag_documents VALUES ('uuid', '[1,2,3]'::vector, 'text', '{\"source\"  :  \"quarkus-hibernate-orm\"}'::jsonb);";
+        assertEquals("quarkus-hibernate-orm", RagSqlLoader.extractSource(sql, "fallback"),
+                "Should handle whitespace variations in JSONB");
+    }
+
+    @Test
+    void extractSourceHandlesWhitespaceInDeletePattern() {
         String sql = "DELETE FROM rag_documents WHERE metadata ->>'source'  =  'quarkus-hibernate-orm';\n";
-        assertEquals("quarkus-hibernate-orm", RagSqlLoader.extractSource(sql, "fallback"));
+        assertEquals("quarkus-hibernate-orm", RagSqlLoader.extractSource(sql, "fallback"),
+                "Should handle whitespace variations in DELETE pattern");
     }
 }
