@@ -66,6 +66,9 @@ public class CreateTools {
             @ToolArg(description = "Build tool to use: 'maven' or 'gradle' (default: maven)", required = false) String buildTool,
             @ToolArg(description = "Quarkus platform version to use (e.g. '3.21.2', '999-SNAPSHOT'). "
                     + "If omitted, uses the latest release.", required = false) String quarkusVersion,
+            @ToolArg(description = "Group ID of the target platform BOM (e.g. 'io.quarkus'). If omitted use 'io.quarkus'", required = false) String platformGroupId,
+            @ToolArg(description = "Artifact ID of the target platform BOM", required = false) String platformArtifactId,
+            @ToolArg(description = "Version of the target platform BOM", required = false) String platformVersion,
             @ToolArg(description = "If true, create the project directly in outputDir instead of a subdirectory. "
                     + "Set to true when the user asks to create the project 'here', 'in the current directory', "
                     + "or 'in this directory'. If omitted, auto-detects: when the outputDir name matches "
@@ -122,7 +125,7 @@ public class CreateTools {
             }
 
             List<String> command = buildCommand(outDir, resolvedGroupId, resolvedArtifactId, extensions, buildTool,
-                    resolvedVersion, noCode, noWrapper);
+                    resolvedVersion, platformGroupId, platformArtifactId, platformVersion, noCode, noWrapper);
             LOG.infof("Creating Quarkus app: %s", String.join(" ", command));
 
             ProcessBuilder pb = new ProcessBuilder(command)
@@ -240,13 +243,14 @@ public class CreateTools {
     }
 
     private List<String> buildCommand(File outputDir, String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
+            String extensions, String buildTool, String quarkusVersion, String platformGroupId,
+            String platformArtifactId, String platformVersion, boolean noCode, boolean noWrapper) {
         String cmd = resolveCreateCommand();
         return switch (cmd) {
             case "quarkus" -> buildQuarkusCliCommand("quarkus", groupId, artifactId, extensions, buildTool,
                     quarkusVersion, noCode, noWrapper);
-            case "mvn" -> buildMavenCommand(groupId, artifactId, extensions, buildTool, quarkusVersion, noCode,
-                    noWrapper);
+            case "mvn" -> buildMavenCommand(groupId, artifactId, extensions, buildTool, quarkusVersion,
+                    platformGroupId, platformArtifactId, platformVersion, noCode, noWrapper);
             case "jbang" -> buildJBangCommand(groupId, artifactId, extensions, buildTool, quarkusVersion, noCode,
                     noWrapper);
             default -> throw new IllegalStateException("Unexpected command: " + cmd);
@@ -316,7 +320,8 @@ public class CreateTools {
     }
 
     private List<String> buildMavenCommand(String groupId, String artifactId,
-            String extensions, String buildTool, String quarkusVersion, boolean noCode, boolean noWrapper) {
+            String extensions, String buildTool, String quarkusVersion, String platformGroupId,
+            String platformArtifactId, String platformVersion, boolean noCode, boolean noWrapper) {
         List<String> cmd = new ArrayList<>();
         cmd.add("mvn");
         String pluginGroupId = "io.quarkus.platform";
@@ -336,8 +341,15 @@ public class CreateTools {
         }
         cmd.add("-B");
 
-        if (quarkusVersion != null && !quarkusVersion.isBlank()) {
-            cmd.add("-DplatformGroupId=io.quarkus");
+        if (platformGroupId != null && !platformGroupId.isBlank()) {
+            cmd.add("-DplatformGroupId=" + platformGroupId);
+        }
+        if (platformArtifactId != null && !platformArtifactId.isBlank()) {
+            cmd.add("-DplatformArtifactId=" + platformArtifactId);
+        }
+        if (platformVersion != null && !platformVersion.isBlank()) {
+            cmd.add("-DplatformVersion=" + platformVersion);
+        } else if (quarkusVersion != null && !quarkusVersion.isBlank()) {
             cmd.add("-DplatformVersion=" + quarkusVersion);
         }
         if (extensions != null && !extensions.isBlank()) {
