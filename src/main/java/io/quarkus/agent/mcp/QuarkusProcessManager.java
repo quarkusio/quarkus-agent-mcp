@@ -43,6 +43,10 @@ public class QuarkusProcessManager {
     private static final int MAX_PORT_SCAN = 100;
 
     public synchronized Integer start(String projectDir, String buildTool, Integer httpPort, String mavenProfiles) {
+        return start(projectDir, buildTool, httpPort, mavenProfiles, null);
+    }
+
+    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String jvmArgs) {
         if (buildTool != null && !VALID_BUILD_TOOLS.contains(buildTool.toLowerCase())) {
             throw new IllegalArgumentException(
                     "Invalid build tool: '" + buildTool + "'. Must be 'maven' or 'gradle'.");
@@ -70,7 +74,7 @@ public class QuarkusProcessManager {
         }
 
         String detectedBuildTool = buildTool != null ? buildTool : detectBuildTool(normalizedDir);
-        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort, mavenProfiles);
+        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort, mavenProfiles, jvmArgs);
 
         try {
             Process process = pb.start();
@@ -165,7 +169,7 @@ public class QuarkusProcessManager {
                 "Cannot detect build tool at: " + projectDir + ". No pom.xml or build.gradle found.");
     }
 
-    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort, String mavenProfiles) {
+    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String jvmArgs) {
         File dir = new File(projectDir);
         if (!dir.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + projectDir);
@@ -181,6 +185,12 @@ public class QuarkusProcessManager {
         if (httpPort != null) {
             pb.command().add("-Dquarkus.http.port=" + httpPort);
             pb.command().add("-Dquarkus.http.test-port=0");
+        }
+
+        if (jvmArgs != null && !jvmArgs.isBlank()) {
+            for (String token : jvmArgs.trim().split("\\s+")) {
+                pb.command().add(token);
+            }
         }
 
         pb.directory(dir);

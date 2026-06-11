@@ -40,9 +40,12 @@ public class LifecycleTools {
                     + "If omitted, defaults to 8080. When 8080 is already in use, "
                     + "an available port is assigned automatically.", required = false) Integer httpPort,
             @ToolArg(description = "Comma-separated Maven profile(s) to activate (e.g. 'myprofile' or 'p1,p2'). "
-                    + "Ignored for Gradle builds.", required = false) String mavenProfiles) {
+                    + "Ignored for Gradle builds.", required = false) String mavenProfiles,
+            @ToolArg(description = "Space-separated JVM arguments to pass to the dev process "
+                    + "(e.g. '-Ddebug=5005 -Dfoo=bar'). Use '-Ddebug=PORT' to enable the debugger on a specific port.",
+                    required = false) String jvmArgs) {
         try {
-            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles);
+            Integer effectivePort = processManager.start(projectDir, buildTool, httpPort, mavenProfiles, jvmArgs);
             String containerWarning = ContainerRuntimeChecker.containerWarning(projectDir);
 
             QuarkusInstance instance = processManager.getInstance(projectDir);
