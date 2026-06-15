@@ -146,6 +146,11 @@
             <artifactId>jandex</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-skills</artifactId>
+            <version>0.0.3</version>
+        </dependency>
+        <dependency>
             <groupId>io.smallrye.common</groupId>
             <artifactId>smallrye-common-process</artifactId>
         </dependency>
