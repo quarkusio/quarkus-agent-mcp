@@ -233,18 +233,19 @@ The agent can read extension-specific coding skills using `quarkus_skills`. Skil
 
 When called without a query, skills are organized by category (Web, Data, Security, Core, etc.) for easier discovery.
 
-Skills are loaded using a three-layer chain (most specific wins):
+Skills are loaded using a four-layer chain (most specific wins):
 
 1. **Extension skills** — discovered from individual extension deployment JARs (`META-INF/quarkus-skill.md`) in the local Maven repository, composed with extension metadata and available Dev MCP tools. This supports skills from Quarkus core, Quarkiverse, and custom extensions. For older Quarkus versions that don't ship skill files in deployment JARs, the aggregated `quarkus-extension-skills` JAR is used as a fallback.
-2. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Community workflow skills (e.g. Spring-to-Quarkus migration, project update checking) can be installed here using `quarkus_installSkills`. Also useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
-3. **Project-level skills** — from `.agent/skills/<extension-name>/SKILL.md` in the project directory. These are **standalone files** read as-is (no composition with base layers), so any agent can read them directly from the filesystem. Use `quarkus_saveSkill` to materialize a fully composed skill into this directory, then edit the file directly.
+2. **Bundled community skills** — shipped in the `io.quarkus:quarkus-skills` JAR on the classpath (`META-INF/skills/<name>/SKILL.md`). These include standalone workflow skills like Spring-to-Quarkus migration and project update checking, and are available immediately without any installation step.
+3. **User-level skills** — from `~/.quarkus/skills/<extension-name>/SKILL.md` (or a directory configured via `agent-mcp.local-skills-dir`). Useful for extension developers testing new or modified skills without rebuilding the aggregated JAR.
+4. **Project-level skills** — from `.agent/skills/<extension-name>/SKILL.md` in the project directory. These are **standalone files** read as-is (no composition with base layers), so any agent can read them directly from the filesystem. Use `quarkus_saveSkill` to materialize a fully composed skill into this directory, then edit the file directly.
 
-Layers 1–2 support **enhance** and **override** composition, controlled by the `mode` field in the SKILL.md frontmatter:
+Layers 1–3 support **enhance** and **override** composition, controlled by the `mode` field in the SKILL.md frontmatter:
 
 - **`mode: enhance`** (default) — appends content to the base skill. The base content is preserved and the customization is added after a separator. This is ideal for adding personal conventions or standards without losing the built-in guidance.
 - **`mode: override`** — fully replaces the base skill. Use this when you need complete control over a skill's content.
 
-Layer 3 (project) always replaces — the file content is used directly with no composition.
+Layer 4 (project) always replaces — the file content is used directly with no composition.
 
 The agent can create or update **global** skill customizations using `quarkus_updateSkill` (writes to `~/.quarkus/skills/`). For **project-level** customization, use `quarkus_saveSkill` to materialize the full composed skill into `.agent/skills/`, then edit the file directly.
 
@@ -269,7 +270,6 @@ On first use, a Docker/Podman container with the pre-indexed documentation is st
 | `quarkus_skills` | Get coding patterns, testing guidelines, and pitfalls for project extensions | `projectDir` (required), `query` |
 | `quarkus_updateSkill` | Create or update a global skill customization (enhance or override) in `~/.quarkus/skills/` | `projectDir` (required), `skillName` (required), `content` (required), `description`, `categories`, `mode` |
 | `quarkus_saveSkill` | Materialize a composed skill as a standalone file in `.agent/skills/` for any agent to read | `projectDir` (required), `skillName` (required) |
-| `quarkus_installSkills` | Install community skills from a GitHub repository (default: `quarkusio/skills`) to `~/.quarkus/skills/` | `projectDir` (required), `skillName`, `list`, `repo`, `branch` |
 
 ### Lifecycle Management
 
@@ -481,7 +481,6 @@ The server makes the following outbound network requests, all in service of its 
 | Skills JAR download | `repo1.maven.org` (or your configured Maven mirror) | Download extension-specific coding patterns for your project's Quarkus version |
 | Version check | `github.com/quarkusio/code-with-quarkus-compare` | Determine the latest Quarkus version and fetch reference build files for update comparison |
 | Documentation container | `ghcr.io/quarkusio/chappie-ingestion-quarkus` | Pull a Docker image with pre-indexed Quarkus documentation for local semantic search |
-| Community skills install | `api.github.com`, `raw.githubusercontent.com` | Download community skill files when user explicitly runs `quarkus_installSkills` |
 | Dev MCP proxy | `localhost` only | Communicate with your running Quarkus application's Dev MCP server |
 
 No data is sent to Quarkus, Red Hat, or any third party. All downloaded artifacts are cached locally in standard locations (`~/.m2/repository`, Docker image cache). Source code and project files never leave your machine.
