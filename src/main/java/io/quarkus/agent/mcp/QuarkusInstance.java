@@ -52,6 +52,7 @@ public class QuarkusInstance {
     private final AtomicReference<Status> status = new AtomicReference<>(Status.STARTING);
     private volatile int httpPort = -1;
     private volatile int managementPort = -1;
+    private volatile String devMcpPath;
     private volatile PrintWriter logWriter;
     private volatile Path logFile;
 
@@ -80,6 +81,9 @@ public class QuarkusInstance {
                 }
                 if (line.contains("Management interface listening on")) {
                     parseManagementPort(line);
+                }
+                if (line.contains("Dev MCP available at:")) {
+                    parseDevMcpPath(line);
                 }
                 if (status.get() == Status.STARTING && isStartedLine(line)) {
                     status.compareAndSet(Status.STARTING, Status.RUNNING);
@@ -122,6 +126,18 @@ public class QuarkusInstance {
             int port = parsePortFromLine(clean.substring(marker));
             if (port > 0) {
                 managementPort = port;
+            }
+        }
+    }
+
+    private void parseDevMcpPath(String line) {
+        String clean = ANSI.matcher(line).replaceAll("");
+        String marker = "Dev MCP available at:";
+        int idx = clean.indexOf(marker);
+        if (idx >= 0) {
+            String path = clean.substring(idx + marker.length()).trim();
+            if (!path.isEmpty()) {
+                devMcpPath = path;
             }
         }
     }
@@ -225,6 +241,7 @@ public class QuarkusInstance {
         status.set(Status.STARTING);
         httpPort = -1;
         managementPort = -1;
+        devMcpPath = null;
         sendInput('s');
     }
 
@@ -258,6 +275,11 @@ public class QuarkusInstance {
 
     public int getManagementPort() {
         return managementPort;
+    }
+
+    public String getDevMcpPath() {
+        String path = devMcpPath;
+        return path != null ? path : "/q/dev-mcp";
     }
 
     public String getBuildTool() {

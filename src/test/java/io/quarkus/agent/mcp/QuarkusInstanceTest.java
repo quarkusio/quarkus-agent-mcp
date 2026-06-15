@@ -200,6 +200,57 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void detectsDevMcpPathFromLog() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'Listening on: http://localhost:8080' && echo 'Dev MCP available at: /custom/dev-mcp' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals("/custom/dev-mcp", instance.getDevMcpPath());
+    }
+
+    @Test
+    void devMcpPathDefaultsWhenLogLineAbsent() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'Listening on: http://localhost:8080' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals("/q/dev-mcp", instance.getDevMcpPath());
+    }
+
+    @Test
+    void detectsDevMcpPathWithAnsiCodes() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "printf 'Listening on: http://localhost:8080\\n' && printf '\\033[32mDev MCP available at: /my-root/dev-mcp\\033[0m\\n' && sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals("/my-root/dev-mcp", instance.getDevMcpPath());
+    }
+
+    @Test
+    void restartResetsDevMcpPath() throws Exception {
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'Listening on: http://localhost:8080' && echo 'Dev MCP available at: /custom/dev-mcp' && cat")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, process, executor);
+
+        Thread.sleep(500);
+        assertEquals("/custom/dev-mcp", instance.getDevMcpPath());
+
+        instance.restart();
+
+        assertEquals("/q/dev-mcp", instance.getDevMcpPath());
+    }
+
+    @Test
     void restartResetsPortAndStatus() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && cat")
