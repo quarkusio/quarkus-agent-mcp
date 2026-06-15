@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -213,6 +214,9 @@ public final class SkillReader {
             LOG.debugf("Could not detect Quarkus version for %s", projectDir);
         }
 
+        // Layer 1.5: Bundled community skills (from classpath JAR)
+        overlaySkills(skillsByName, readBundledSkills(metadataOnly), "bundled (classpath)");
+
         // Layer 2: Overlay user-level skills (~/.quarkus/skills/ or configured dir)
         Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
         overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir, metadataOnly), effectiveLocalDir.toString());
@@ -412,6 +416,44 @@ public final class SkillReader {
             });
         } catch (IOException e) {
             LOG.debugf("Failed to scan local skills directory %s: %s", skillsDir, e.getMessage());
+        }
+        return skills;
+    }
+
+    /**
+     * Reads bundled community skills from the classpath JAR (io.quarkus:quarkus-skills).
+     * Scans for {@code META-INF/skills/<name>/SKILL.md} entries.
+     */
+    static List<SkillInfo> readBundledSkills(boolean metadataOnly) {
+        List<SkillInfo> skills = new ArrayList<>();
+        try {
+            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader()
+                    .getResources(SKILLS_PATH_PREFIX);
+            while (resources.hasMoreElements()) {
+                URL url = resources.nextElement();
+                String protocol = url.getProtocol();
+                if ("jar".equals(protocol)) {
+                    String jarPath = url.getPath();
+                    int separator = jarPath.indexOf("!/");
+                    if (separator > 0) {
+                        String filePath = jarPath.substring(0, separator);
+                        if (filePath.startsWith("file:")) {
+                            filePath = filePath.substring(5);
+                        }
+                        Path jar = Path.of(filePath);
+                        if (Files.isRegularFile(jar)) {
+                            skills.addAll(readSkillsFromJar(jar, metadataOnly));
+                        }
+                    }
+                } else if ("file".equals(protocol)) {
+                    Path dir = Path.of(url.toURI());
+                    if (Files.isDirectory(dir)) {
+                        skills.addAll(readLocalSkills(dir.getParent(), metadataOnly));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.debugf("Failed to scan bundled skills from classpath: %s", e.getMessage());
         }
         return skills;
     }

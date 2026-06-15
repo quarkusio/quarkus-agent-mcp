@@ -1667,4 +1667,23 @@ class SkillReaderTest {
         SkillReader.SkillInfo info = SkillReader.parseFrontmatter(content);
         assertEquals("Check if project is up-to-date", info.description());
     }
+
+    @Test
+    void readBundledSkillsFindsClasspathSkills() {
+        List<SkillReader.SkillInfo> skills = SkillReader.readBundledSkills(false);
+        assertFalse(skills.isEmpty(), "Should find bundled skills from quarkus-skills JAR on classpath");
+        assertTrue(skills.stream().anyMatch(s -> s.name().contains("quarkus-update")
+                || s.name().contains("migrate")),
+                "Should contain known community skills");
+    }
+
+    @Test
+    void readBundledSkillsMetadataOnly() {
+        List<SkillReader.SkillInfo> skills = SkillReader.readBundledSkills(true);
+        assertFalse(skills.isEmpty());
+        for (SkillReader.SkillInfo skill : skills) {
+            assertNotNull(skill.name());
+            assertNull(skill.content(), "Content should be null in metadata-only mode");
+        }
+    }
 }
