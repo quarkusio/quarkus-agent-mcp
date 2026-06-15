@@ -78,9 +78,6 @@ public class DevMcpProxyTools {
     @ConfigProperty(name = "agent-mcp.skills.include-transitive", defaultValue = "false")
     boolean includeTransitiveDeps;
 
-    @ConfigProperty(name = "quarkus.http.non-application-root-path", defaultValue = "/q")
-    String nonApplicationRootPath;
-
     @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
             + "Use this before interacting with the running app -- for testing, config, extensions, "
             + "endpoints, dev services, etc. Then use quarkus_callTool to invoke the discovered tool. "
@@ -95,8 +92,9 @@ public class DevMcpProxyTools {
                     + "Examples: 'test' for testing tools, 'config' for configuration, "
                     + "'extension' for extension management. If omitted, returns all tools.", required = false) String query) {
         try {
-            int port = resolveDevMcpPort(projectDir);
-            JsonNode tools = fetchDevMcpTools(port);
+            QuarkusInstance instance = resolveInstance(projectDir);
+            int port = getDevMcpPort(instance);
+            JsonNode tools = fetchDevMcpTools(port, instance.getDevMcpPath());
             if (tools == null || !tools.isArray()) {
                 return ToolResponse.success("No tools available from Dev MCP");
             }
@@ -452,7 +450,8 @@ public class DevMcpProxyTools {
             @ToolArg(description = "Arguments to pass to the tool as a JSON string (matching the tool's inputSchema). "
                     + "Omit if the tool takes no arguments.", required = false) String toolArguments) {
         try {
-            int port = resolveDevMcpPort(projectDir);
+            QuarkusInstance instance = resolveInstance(projectDir);
+            int port = getDevMcpPort(instance);
 
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("name", toolName);
@@ -462,7 +461,7 @@ public class DevMcpProxyTools {
                 params.put("arguments", Map.of());
             }
 
-            JsonNode response = callDevMcp(port, "tools/call", params);
+            JsonNode response = callDevMcp(port, instance.getDevMcpPath(), "tools/call", params);
             ToolResponse result = extractToolResult(response);
 
             // Invalidate dependency cache and remind agent after structural changes
@@ -495,8 +494,7 @@ public class DevMcpProxyTools {
         }
     }
 
-    private int resolveDevMcpPort(String projectDir) {
-        QuarkusInstance instance = resolveInstance(projectDir);
+    private int getDevMcpPort(QuarkusInstance instance) {
         int mgmtPort = instance.getManagementPort();
         if (mgmtPort > 0) {
             return mgmtPort;
@@ -603,15 +601,15 @@ public class DevMcpProxyTools {
         return "";
     }
 
-    private JsonNode fetchDevMcpTools(int port) {
-        JsonNode result = callDevMcp(port, "tools/list", Map.of());
+    private JsonNode fetchDevMcpTools(int port, String devMcpPath) {
+        JsonNode result = callDevMcp(port, devMcpPath, "tools/list", Map.of());
         if (result != null && result.has("tools")) {
             return result.get("tools");
         }
         return null;
     }
 
-    private JsonNode callDevMcp(int port, String method, Map<String, Object> params) {
+    private JsonNode callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params) {
         try {
             String jsonRpcRequest = mapper.writeValueAsString(Map.of(
                     "jsonrpc", "2.0",
@@ -620,7 +618,7 @@ public class DevMcpProxyTools {
                     "params", params));
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + port + nonApplicationRootPath + "/dev-mcp"))
+                    .uri(URI.create("http://localhost:" + port + devMcpPath))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json, text/event-stream")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonRpcRequest))
