@@ -418,10 +418,6 @@ public class DevMcpProxyTools {
     }
 
     private int getDevMcpPort(QuarkusInstance instance) {
-        int mgmtPort = instance.getManagementPort();
-        if (mgmtPort > 0) {
-            return mgmtPort;
-        }
         int port = instance.getHttpPort();
         if (port < 0) {
             throw new IllegalStateException("Could not detect HTTP port for the running Quarkus application.");
