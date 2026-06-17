@@ -46,7 +46,7 @@ public class QuarkusProcessManager {
         return start(projectDir, buildTool, httpPort, mavenProfiles, null);
     }
 
-    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String jvmArgs) {
+    public synchronized Integer start(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String extraArgs) {
         if (buildTool != null && !VALID_BUILD_TOOLS.contains(buildTool.toLowerCase())) {
             throw new IllegalArgumentException(
                     "Invalid build tool: '" + buildTool + "'. Must be 'maven' or 'gradle'.");
@@ -74,11 +74,11 @@ public class QuarkusProcessManager {
         }
 
         String detectedBuildTool = buildTool != null ? buildTool : detectBuildTool(normalizedDir);
-        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort, mavenProfiles, jvmArgs);
+        ProcessBuilder pb = createProcessBuilder(normalizedDir, detectedBuildTool, effectivePort, mavenProfiles, extraArgs);
 
         try {
             Process process = pb.start();
-            QuarkusInstance instance = new QuarkusInstance(normalizedDir, detectedBuildTool, httpPort, mavenProfiles, process, executor);
+            QuarkusInstance instance = new QuarkusInstance(normalizedDir, detectedBuildTool, httpPort, mavenProfiles, extraArgs, process, executor);
             instances.put(normalizedDir, instance);
             if (appLogEnabled.orElse(false)) {
                 instance.enableFileLogging(computeLogFile(normalizedDir));
@@ -113,8 +113,9 @@ public class QuarkusProcessManager {
             String savedBuildTool = instance.getBuildTool();
             Integer savedHttpPort = instance.getRequestedHttpPort();
             String savedMavenProfiles = instance.getMavenProfiles();
+            String savedExtraArgs = instance.getExtraArgs();
             instances.remove(normalizedDir);
-            start(normalizedDir, savedBuildTool, savedHttpPort, savedMavenProfiles);
+            start(normalizedDir, savedBuildTool, savedHttpPort, savedMavenProfiles, savedExtraArgs);
             LOG.infof("Re-started dead Quarkus instance at: %s", normalizedDir);
         } else {
             instance.restart();
@@ -169,7 +170,7 @@ public class QuarkusProcessManager {
                 "Cannot detect build tool at: " + projectDir + ". No pom.xml or build.gradle found.");
     }
 
-    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String jvmArgs) {
+    private ProcessBuilder createProcessBuilder(String projectDir, String buildTool, Integer httpPort, String mavenProfiles, String extraArgs) {
         File dir = new File(projectDir);
         if (!dir.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + projectDir);
@@ -187,8 +188,8 @@ public class QuarkusProcessManager {
             pb.command().add("-Dquarkus.http.test-port=0");
         }
 
-        if (jvmArgs != null && !jvmArgs.isBlank()) {
-            for (String token : jvmArgs.trim().split("\\s+")) {
+        if (extraArgs != null && !extraArgs.isBlank()) {
+            for (String token : extraArgs.trim().split("\\s+")) {
                 pb.command().add(token);
             }
         }

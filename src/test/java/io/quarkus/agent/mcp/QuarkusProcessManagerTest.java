@@ -235,7 +235,7 @@ class QuarkusProcessManagerTest {
     }
 
     @Test
-    void processBuilderIncludesJvmArgs() throws Exception {
+    void processBuilderIncludesExtraArgs() throws Exception {
         Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
         initOptionalFields();
         Method m = QuarkusProcessManager.class.getDeclaredMethod(
@@ -246,7 +246,7 @@ class QuarkusProcessManagerTest {
     }
 
     @Test
-    void processBuilderIncludesMultipleJvmArgTokens() throws Exception {
+    void processBuilderIncludesMultipleExtraArgTokens() throws Exception {
         Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
         initOptionalFields();
         Method m = QuarkusProcessManager.class.getDeclaredMethod(
@@ -258,7 +258,7 @@ class QuarkusProcessManagerTest {
     }
 
     @Test
-    void processBuilderOmitsJvmArgsWhenNull() throws Exception {
+    void processBuilderOmitsExtraArgsWhenNull() throws Exception {
         Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
         initOptionalFields();
         Method m = QuarkusProcessManager.class.getDeclaredMethod(
