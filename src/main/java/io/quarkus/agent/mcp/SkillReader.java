@@ -11,6 +11,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -74,6 +75,12 @@ public final class SkillReader {
     private static final String DEPLOYMENT_SUFFIX = "-deployment";
     private static final String DEV_SUFFIX = "-dev";
     private static final String MAVEN_CENTRAL_BASE = "https://repo1.maven.org/maven2";
+
+    record MavenRepoInfo(String url, String serverId) {
+    }
+
+    record ServerCredentials(String username, String password) {
+    }
 
     // Jandex annotation names for MCP tool discovery
     private static final DotName JSON_RPC_DESCRIPTION = DotName
@@ -1014,20 +1021,26 @@ public final class SkillReader {
             return null;
         }
 
-        String baseUrl = resolveMavenRepoBaseUrl(projectDir);
+        MavenRepoInfo repoInfo = resolveMavenRepoInfo(projectDir);
         String artifactPath = "/io/quarkus/" + SKILLS_ARTIFACT_ID
                 + "/" + version
                 + "/" + SKILLS_ARTIFACT_ID + "-" + version + ".jar";
-        String url = baseUrl + artifactPath;
+        String url = repoInfo.url() + artifactPath;
 
         LOG.debugf("Downloading skills JAR from %s", url);
 
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(30))
-                    .GET()
-                    .build();
+                    .GET();
+
+            ServerCredentials credentials = resolveServerCredentials(projectDir, repoInfo.serverId());
+            if (credentials != null) {
+                requestBuilder.header("Authorization", buildAuthHeader(credentials));
+            }
+
+            HttpRequest request = requestBuilder.build();
 
             HttpResponse<InputStream> response = HttpClientProvider.getHttpClient().send(request,
                     HttpResponse.BodyHandlers.ofInputStream());
@@ -1067,8 +1080,12 @@ public final class SkillReader {
      * @param projectDir the project directory (may be null)
      */
     static String resolveMavenRepoBaseUrl(String projectDir) {
-        String url = findInSettingsFiles(projectDir, "mirror", SkillReader::parseMirrorUrl);
-        return url != null ? url : MAVEN_CENTRAL_BASE;
+        return resolveMavenRepoInfo(projectDir).url();
+    }
+
+    static MavenRepoInfo resolveMavenRepoInfo(String projectDir) {
+        MavenRepoInfo info = findInSettingsFiles(projectDir, "mirror", SkillReader::parseMirrorInfo);
+        return info != null ? info : new MavenRepoInfo(MAVEN_CENTRAL_BASE, null);
     }
 
     /**
@@ -1186,9 +1203,13 @@ public final class SkillReader {
      * Returns the mirror URL (without trailing slash), or null if none found.
      */
     static String parseMirrorUrl(Path settingsFile) {
+        MavenRepoInfo info = parseMirrorInfo(settingsFile);
+        return info != null ? info.url() : null;
+    }
+
+    static MavenRepoInfo parseMirrorInfo(Path settingsFile) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            // Disable external entities for security
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             Document doc = factory.newDocumentBuilder().parse(settingsFile.toFile());
 
@@ -1199,14 +1220,52 @@ public final class SkillReader {
                 String url = getChildText(mirror, "url");
 
                 if (mirrorOf != null && url != null && mirrorOfMatchesCentral(mirrorOf)) {
-                    // Strip trailing slash for consistent path joining
-                    return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+                    String cleanUrl = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+                    String id = getChildText(mirror, "id");
+                    return new MavenRepoInfo(cleanUrl, id);
                 }
             }
         } catch (Exception e) {
             LOG.warnf("Failed to parse settings.xml at %s: %s", settingsFile, e.getMessage());
         }
         return null;
+    }
+
+    static ServerCredentials resolveServerCredentials(String projectDir, String serverId) {
+        if (serverId == null) {
+            return null;
+        }
+        return findInSettingsFiles(projectDir, "server credentials",
+                path -> parseServerCredentials(path, serverId));
+    }
+
+    static ServerCredentials parseServerCredentials(Path settingsFile, String serverId) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            Document doc = factory.newDocumentBuilder().parse(settingsFile.toFile());
+
+            NodeList servers = doc.getElementsByTagName("server");
+            for (int i = 0; i < servers.getLength(); i++) {
+                Element server = (Element) servers.item(i);
+                String id = getChildText(server, "id");
+                if (serverId.equals(id)) {
+                    String username = getChildText(server, "username");
+                    String password = getChildText(server, "password");
+                    if (username != null && password != null) {
+                        return new ServerCredentials(username, password);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOG.warnf("Failed to parse server credentials from %s: %s", settingsFile, e.getMessage());
+        }
+        return null;
+    }
+
+    static String buildAuthHeader(ServerCredentials credentials) {
+        String value = credentials.username() + ":" + credentials.password();
+        return "Basic " + Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
