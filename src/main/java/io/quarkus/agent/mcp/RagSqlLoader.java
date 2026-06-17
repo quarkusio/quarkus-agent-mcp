@@ -211,20 +211,26 @@ public class RagSqlLoader {
             return null;
         }
 
-        String baseUrl = SkillReader.resolveMavenRepoBaseUrl(null);
+        SkillReader.MavenRepoInfo repoInfo = SkillReader.resolveMavenRepoInfo(null);
         String artifactPath = "/" + AGGREGATED_GROUP_PATH + "/" + AGGREGATED_ARTIFACT_ID
                 + "/" + version
                 + "/" + AGGREGATED_ARTIFACT_ID + "-" + version + ".jar";
-        String url = baseUrl + artifactPath;
+        String url = repoInfo.url() + artifactPath;
 
         LOG.infof("RAG SQL not found locally, downloading from %s...", url);
 
         try {
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(60))
-                    .GET()
-                    .build();
+                    .GET();
+
+            SkillReader.ServerCredentials credentials = SkillReader.resolveServerCredentials(null, repoInfo.serverId());
+            if (credentials != null) {
+                requestBuilder.header("Authorization", SkillReader.buildAuthHeader(credentials));
+            }
+
+            HttpRequest request = requestBuilder.build();
 
             HttpResponse<InputStream> response = HttpClientProvider.getHttpClient().send(request,
                     HttpResponse.BodyHandlers.ofInputStream());

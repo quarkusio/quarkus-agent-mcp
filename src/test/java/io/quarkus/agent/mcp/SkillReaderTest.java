@@ -374,6 +374,131 @@ class SkillReaderTest {
         assertNull(url);
     }
 
+    // --- parseMirrorInfo tests ---
+
+    @Test
+    void parseMirrorInfoReturnsBothUrlAndId() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <mirrors>
+                        <mirror>
+                            <id>company-mirror</id>
+                            <url>https://artifactory.company.com/maven-central/</url>
+                            <mirrorOf>*</mirrorOf>
+                        </mirror>
+                    </mirrors>
+                </settings>
+                """);
+
+        SkillReader.MavenRepoInfo info = SkillReader.parseMirrorInfo(settingsFile);
+
+        assertNotNull(info);
+        assertEquals("https://artifactory.company.com/maven-central", info.url());
+        assertEquals("company-mirror", info.serverId());
+    }
+
+    @Test
+    void parseMirrorInfoReturnsNullWhenNoMirror() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <profiles><profile><id>x</id></profile></profiles>
+                </settings>
+                """);
+
+        assertNull(SkillReader.parseMirrorInfo(settingsFile));
+    }
+
+    // --- parseServerCredentials tests ---
+
+    @Test
+    void parseServerCredentialsFindsMatchingServer() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <servers>
+                        <server>
+                            <id>other-repo</id>
+                            <username>other</username>
+                            <password>other-pass</password>
+                        </server>
+                        <server>
+                            <id>company-mirror</id>
+                            <username>myuser</username>
+                            <password>mypassword</password>
+                        </server>
+                    </servers>
+                </settings>
+                """);
+
+        SkillReader.ServerCredentials creds = SkillReader.parseServerCredentials(settingsFile, "company-mirror");
+
+        assertNotNull(creds);
+        assertEquals("myuser", creds.username());
+        assertEquals("mypassword", creds.password());
+    }
+
+    @Test
+    void parseServerCredentialsReturnsNullWhenNoMatch() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <servers>
+                        <server>
+                            <id>other-repo</id>
+                            <username>other</username>
+                            <password>other-pass</password>
+                        </server>
+                    </servers>
+                </settings>
+                """);
+
+        assertNull(SkillReader.parseServerCredentials(settingsFile, "company-mirror"));
+    }
+
+    @Test
+    void parseServerCredentialsReturnsNullWhenNoServersSection() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <mirrors>
+                        <mirror>
+                            <id>company-mirror</id>
+                            <url>https://mirror.example.com/maven/</url>
+                            <mirrorOf>*</mirrorOf>
+                        </mirror>
+                    </mirrors>
+                </settings>
+                """);
+
+        assertNull(SkillReader.parseServerCredentials(settingsFile, "company-mirror"));
+    }
+
+    @Test
+    void parseServerCredentialsReturnsNullWhenPasswordMissing() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <servers>
+                        <server>
+                            <id>company-mirror</id>
+                            <username>myuser</username>
+                        </server>
+                    </servers>
+                </settings>
+                """);
+
+        assertNull(SkillReader.parseServerCredentials(settingsFile, "company-mirror"));
+    }
+
+    @Test
+    void buildAuthHeaderEncodesCredentials() {
+        SkillReader.ServerCredentials creds = new SkillReader.ServerCredentials("user", "pass");
+        String header = SkillReader.buildAuthHeader(creds);
+        assertEquals("Basic dXNlcjpwYXNz", header);
+    }
+
     // --- parseLocalRepository tests ---
 
     @Test
