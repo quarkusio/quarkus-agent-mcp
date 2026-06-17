@@ -1039,13 +1039,7 @@ public final class SkillReader {
                     .timeout(Duration.ofSeconds(30))
                     .GET();
 
-            ServerCredentials credentials = repoInfo.credentials();
-            if (credentials == null) {
-                credentials = resolveServerCredentials(projectDir, repoInfo.serverId());
-            }
-            if (credentials != null) {
-                requestBuilder.header("Authorization", buildAuthHeader(credentials));
-            }
+            addAuthHeader(requestBuilder, repoInfo, projectDir);
 
             HttpRequest request = requestBuilder.build();
 
@@ -1273,6 +1267,16 @@ public final class SkillReader {
             }
         }
         return null;
+    }
+
+    static void addAuthHeader(HttpRequest.Builder builder, MavenRepoInfo repoInfo, String projectDir) {
+        ServerCredentials credentials = repoInfo.credentials();
+        if (credentials == null) {
+            credentials = resolveServerCredentials(projectDir, repoInfo.serverId());
+        }
+        if (credentials != null) {
+            builder.header("Authorization", buildAuthHeader(credentials));
+        }
     }
 
     static String buildAuthHeader(ServerCredentials credentials) {
