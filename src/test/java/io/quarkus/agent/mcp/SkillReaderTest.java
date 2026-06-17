@@ -396,6 +396,39 @@ class SkillReaderTest {
         assertNotNull(info);
         assertEquals("https://artifactory.company.com/maven-central", info.url());
         assertEquals("company-mirror", info.serverId());
+        assertNull(info.credentials());
+    }
+
+    @Test
+    void parseMirrorInfoExtractsCredentialsFromSameFile() throws Exception {
+        Path settingsFile = tempDir.resolve("settings.xml");
+        Files.writeString(settingsFile, """
+                <settings>
+                    <mirrors>
+                        <mirror>
+                            <id>company-mirror</id>
+                            <url>https://artifactory.company.com/maven-central/</url>
+                            <mirrorOf>*</mirrorOf>
+                        </mirror>
+                    </mirrors>
+                    <servers>
+                        <server>
+                            <id>company-mirror</id>
+                            <username>myuser</username>
+                            <password>mypassword</password>
+                        </server>
+                    </servers>
+                </settings>
+                """);
+
+        SkillReader.MavenRepoInfo info = SkillReader.parseMirrorInfo(settingsFile);
+
+        assertNotNull(info);
+        assertEquals("https://artifactory.company.com/maven-central", info.url());
+        assertEquals("company-mirror", info.serverId());
+        assertNotNull(info.credentials());
+        assertEquals("myuser", info.credentials().username());
+        assertEquals("mypassword", info.credentials().password());
     }
 
     @Test
@@ -408,6 +441,18 @@ class SkillReaderTest {
                 """);
 
         assertNull(SkillReader.parseMirrorInfo(settingsFile));
+    }
+
+    // --- resolveMavenRepoInfo tests ---
+
+    @Test
+    void resolveMavenRepoInfoDefaultsToMavenCentral() {
+        SkillReader.MavenRepoInfo info = SkillReader.resolveMavenRepoInfo("/nonexistent/project");
+
+        assertNotNull(info);
+        assertEquals("https://repo1.maven.org/maven2", info.url());
+        assertNull(info.serverId());
+        assertNull(info.credentials());
     }
 
     // --- parseServerCredentials tests ---
@@ -497,6 +542,14 @@ class SkillReaderTest {
         SkillReader.ServerCredentials creds = new SkillReader.ServerCredentials("user", "pass");
         String header = SkillReader.buildAuthHeader(creds);
         assertEquals("Basic dXNlcjpwYXNz", header);
+    }
+
+    @Test
+    void buildAuthHeaderStillWorksWithEncryptedPassword() {
+        SkillReader.ServerCredentials creds = new SkillReader.ServerCredentials("user", "{encryptedValue}");
+        String header = SkillReader.buildAuthHeader(creds);
+        assertNotNull(header);
+        assertTrue(header.startsWith("Basic "));
     }
 
     // --- parseLocalRepository tests ---

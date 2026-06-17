@@ -76,10 +76,14 @@ public final class SkillReader {
     private static final String DEV_SUFFIX = "-dev";
     private static final String MAVEN_CENTRAL_BASE = "https://repo1.maven.org/maven2";
 
-    record MavenRepoInfo(String url, String serverId) {
+    record MavenRepoInfo(String url, String serverId, ServerCredentials credentials) {
     }
 
     record ServerCredentials(String username, String password) {
+        @Override
+        public String toString() {
+            return "ServerCredentials[username=" + username + ", password=***]";
+        }
     }
 
     // Jandex annotation names for MCP tool discovery
@@ -1035,7 +1039,10 @@ public final class SkillReader {
                     .timeout(Duration.ofSeconds(30))
                     .GET();
 
-            ServerCredentials credentials = resolveServerCredentials(projectDir, repoInfo.serverId());
+            ServerCredentials credentials = repoInfo.credentials();
+            if (credentials == null) {
+                credentials = resolveServerCredentials(projectDir, repoInfo.serverId());
+            }
             if (credentials != null) {
                 requestBuilder.header("Authorization", buildAuthHeader(credentials));
             }
@@ -1085,7 +1092,7 @@ public final class SkillReader {
 
     static MavenRepoInfo resolveMavenRepoInfo(String projectDir) {
         MavenRepoInfo info = findInSettingsFiles(projectDir, "mirror", SkillReader::parseMirrorInfo);
-        return info != null ? info : new MavenRepoInfo(MAVEN_CENTRAL_BASE, null);
+        return info != null ? info : new MavenRepoInfo(MAVEN_CENTRAL_BASE, null, null);
     }
 
     /**
@@ -1222,7 +1229,8 @@ public final class SkillReader {
                 if (mirrorOf != null && url != null && mirrorOfMatchesCentral(mirrorOf)) {
                     String cleanUrl = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
                     String id = getChildText(mirror, "id");
-                    return new MavenRepoInfo(cleanUrl, id);
+                    ServerCredentials credentials = id != null ? findServerInDocument(doc, id) : null;
+                    return new MavenRepoInfo(cleanUrl, id, credentials);
                 }
             }
         } catch (Exception e) {
@@ -1244,26 +1252,34 @@ public final class SkillReader {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             Document doc = factory.newDocumentBuilder().parse(settingsFile.toFile());
-
-            NodeList servers = doc.getElementsByTagName("server");
-            for (int i = 0; i < servers.getLength(); i++) {
-                Element server = (Element) servers.item(i);
-                String id = getChildText(server, "id");
-                if (serverId.equals(id)) {
-                    String username = getChildText(server, "username");
-                    String password = getChildText(server, "password");
-                    if (username != null && password != null) {
-                        return new ServerCredentials(username, password);
-                    }
-                }
-            }
+            return findServerInDocument(doc, serverId);
         } catch (Exception e) {
             LOG.warnf("Failed to parse server credentials from %s: %s", settingsFile, e.getMessage());
         }
         return null;
     }
 
+    private static ServerCredentials findServerInDocument(Document doc, String serverId) {
+        NodeList servers = doc.getElementsByTagName("server");
+        for (int i = 0; i < servers.getLength(); i++) {
+            Element server = (Element) servers.item(i);
+            String id = getChildText(server, "id");
+            if (serverId.equals(id)) {
+                String username = getChildText(server, "username");
+                String password = getChildText(server, "password");
+                if (username != null && password != null) {
+                    return new ServerCredentials(username, password);
+                }
+            }
+        }
+        return null;
+    }
+
     static String buildAuthHeader(ServerCredentials credentials) {
+        if (credentials.password().startsWith("{") && credentials.password().endsWith("}")) {
+            LOG.warnf("Password for user '%s' appears to be Maven-encrypted; encrypted passwords are not supported",
+                    credentials.username());
+        }
         String value = credentials.username() + ":" + credentials.password();
         return "Basic " + Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }

@@ -225,7 +225,10 @@ public class RagSqlLoader {
                     .timeout(Duration.ofSeconds(60))
                     .GET();
 
-            SkillReader.ServerCredentials credentials = SkillReader.resolveServerCredentials(null, repoInfo.serverId());
+            SkillReader.ServerCredentials credentials = repoInfo.credentials();
+            if (credentials == null) {
+                credentials = SkillReader.resolveServerCredentials(null, repoInfo.serverId());
+            }
             if (credentials != null) {
                 requestBuilder.header("Authorization", SkillReader.buildAuthHeader(credentials));
             }
