@@ -47,6 +47,7 @@ public class QuarkusInstance {
     private final String buildTool;
     private final Integer requestedHttpPort;
     private final String mavenProfiles;
+    private final String extraArgs;
     private final Process process;
     private final LinkedList<String> logBuffer = new LinkedList<>();
     private final AtomicReference<Status> status = new AtomicReference<>(Status.STARTING);
@@ -56,11 +57,12 @@ public class QuarkusInstance {
     private volatile Path logFile;
 
     public QuarkusInstance(String projectDir, String buildTool, Integer requestedHttpPort, String mavenProfiles,
-            Process process, ExecutorService executor) {
+            String extraArgs, Process process, ExecutorService executor) {
         this.projectDir = projectDir;
         this.buildTool = buildTool;
         this.requestedHttpPort = requestedHttpPort;
         this.mavenProfiles = mavenProfiles;
+        this.extraArgs = extraArgs;
         this.process = process;
 
         executor.submit(() -> captureStream(process.getInputStream()));
@@ -272,6 +274,10 @@ public class QuarkusInstance {
 
     public String getMavenProfiles() {
         return mavenProfiles;
+    }
+
+    public String getExtraArgs() {
+        return extraArgs;
     }
 
     public Path getLogFile() {
