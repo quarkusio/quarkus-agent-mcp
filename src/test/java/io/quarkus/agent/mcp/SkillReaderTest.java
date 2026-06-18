@@ -283,7 +283,7 @@ class SkillReaderTest {
         // Base skill simulating JAR layer
         SkillReader.SkillInfo base = new SkillReader.SkillInfo(
                 "quarkus-rest", "Base REST skill", "### Base REST patterns\nUse @GET for endpoints.",
-                SkillReader.SkillMode.ENHANCE, List.of("web"));
+                SkillReader.SkillMode.ENHANCE, List.of("web"), null);
 
         // Project-level skill in .agent/skills/ with ENHANCE mode
         Path projectSkillsDir = tempDir.resolve(".agent/skills/quarkus-rest");

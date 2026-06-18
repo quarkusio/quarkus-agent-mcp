@@ -128,10 +128,6 @@ public final class SkillReader {
 
     public record SkillInfo(String name, String description, String content, SkillMode mode, List<String> categories,
             Map<String, String> modules) {
-
-        SkillInfo(String name, String description, String content, SkillMode mode, List<String> categories) {
-            this(name, description, content, mode, categories, null);
-        }
     }
 
     private SkillReader() {
@@ -188,6 +184,21 @@ public final class SkillReader {
      */
     public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
             boolean includeTransitive) {
+        return readSkills(projectDir, localSkillsDir, metadataOnly, includeTransitive, !metadataOnly);
+    }
+
+    /**
+     * Reads available skills with independent control over content and module loading.
+     *
+     * @param projectDir        the absolute path to the Quarkus project
+     * @param localSkillsDir    optional user-level directory to scan for SKILL.md files, or null for the default
+     * @param metadataOnly      if true, only extract frontmatter (name, description, mode) — content will be null
+     * @param includeTransitive if true, include skills from transitive dependencies; if false, only direct dependencies
+     * @param loadModules       if true, read module/reference .md files alongside SKILL.md
+     * @return list of available skills, never null
+     */
+    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
+            boolean includeTransitive, boolean loadModules) {
         // Use a map keyed by skill name so each layer can override the previous
         Map<String, SkillInfo> skillsByName = new LinkedHashMap<>();
 
@@ -218,7 +229,7 @@ public final class SkillReader {
 
                 if (jarPath != null) {
                     try {
-                        for (SkillInfo skill : readSkillsFromJar(jarPath, metadataOnly)) {
+                        for (SkillInfo skill : readSkillsFromJar(jarPath, metadataOnly, loadModules)) {
                             skillsByName.put(skill.name(), skill);
                         }
                     } catch (IOException e) {
@@ -231,16 +242,17 @@ public final class SkillReader {
         }
 
         // Layer 1.5: Bundled community skills (from classpath JAR)
-        overlaySkills(skillsByName, readBundledSkills(metadataOnly), "bundled (classpath)");
+        overlaySkills(skillsByName, readBundledSkills(metadataOnly, loadModules), "bundled (classpath)");
 
         // Layer 2: Overlay user-level skills (~/.quarkus/skills/ or configured dir)
         Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
-        overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir, metadataOnly), effectiveLocalDir.toString());
+        overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir, metadataOnly, loadModules),
+                effectiveLocalDir.toString());
 
         // Layer 3: Project-level skills (.agent/skills/) — standalone, no composition
         if (projectDir != null) {
             Path projectSkillsDir = Path.of(projectDir, ".agent", "skills");
-            for (SkillInfo skill : readLocalSkills(projectSkillsDir, metadataOnly)) {
+            for (SkillInfo skill : readLocalSkills(projectSkillsDir, metadataOnly, loadModules)) {
                 skillsByName.put(skill.name(), skill);
                 LOG.infof("Skill '%s' loaded from project %s", skill.name(), projectSkillsDir);
             }
@@ -358,7 +370,7 @@ public final class SkillReader {
             }
         }
 
-        return new SkillInfo(name, description, body, mode, categories);
+        return new SkillInfo(name, description, body, mode, categories, null);
     }
 
     static List<String> parseCategories(String value) {
@@ -385,6 +397,17 @@ public final class SkillReader {
      * @param metadataOnly if true, only extract frontmatter — content and modules will be null
      */
     static List<SkillInfo> readSkillsFromJar(Path jarPath, boolean metadataOnly) throws IOException {
+        return readSkillsFromJar(jarPath, metadataOnly, !metadataOnly);
+    }
+
+    /**
+     * Reads SKILL.md files from a single JAR with independent control over content and module loading.
+     *
+     * @param metadataOnly if true, only extract frontmatter — content will be null
+     * @param loadModules  if true, read module/reference .md files alongside SKILL.md
+     */
+    static List<SkillInfo> readSkillsFromJar(Path jarPath, boolean metadataOnly, boolean loadModules)
+            throws IOException {
         Map<String, List<JarEntry>> entriesBySkill = new LinkedHashMap<>();
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             Enumeration<JarEntry> entries = jar.entries();
@@ -427,7 +450,7 @@ public final class SkillReader {
                 SkillInfo baseInfo = parseFrontmatter(content, metadataOnly);
 
                 Map<String, String> modules = null;
-                if (!metadataOnly) {
+                if (loadModules) {
                     String prefix = SKILLS_PATH_PREFIX + skillDir + "/";
                     for (JarEntry moduleEntry : group.getValue()) {
                         if (moduleEntry.getName().equals(skillMdPath)) {
@@ -471,6 +494,18 @@ public final class SkillReader {
      * @return list of locally found skills, never null
      */
     static List<SkillInfo> readLocalSkills(Path skillsDir, boolean metadataOnly) {
+        return readLocalSkills(skillsDir, metadataOnly, !metadataOnly);
+    }
+
+    /**
+     * Reads SKILL.md files from a local directory with independent control over content and module loading.
+     *
+     * @param skillsDir    the directory to scan for SKILL.md files
+     * @param metadataOnly if true, only extract frontmatter — content will be null
+     * @param loadModules  if true, read module/reference .md files alongside SKILL.md
+     * @return list of locally found skills, never null
+     */
+    static List<SkillInfo> readLocalSkills(Path skillsDir, boolean metadataOnly, boolean loadModules) {
         if (!Files.isDirectory(skillsDir)) {
             return List.of();
         }
@@ -487,7 +522,7 @@ public final class SkillReader {
                     SkillInfo baseInfo = parseFrontmatter(content, metadataOnly);
 
                     Map<String, String> modules = null;
-                    if (!metadataOnly) {
+                    if (loadModules) {
                         modules = readModuleFiles(skillDir);
                     }
 
@@ -535,6 +570,10 @@ public final class SkillReader {
      * Scans for {@code META-INF/skills/<name>/SKILL.md} entries.
      */
     static List<SkillInfo> readBundledSkills(boolean metadataOnly) {
+        return readBundledSkills(metadataOnly, !metadataOnly);
+    }
+
+    static List<SkillInfo> readBundledSkills(boolean metadataOnly, boolean loadModules) {
         List<SkillInfo> skills = new ArrayList<>();
         try {
             Enumeration<URL> resources = Thread.currentThread().getContextClassLoader()
@@ -552,13 +591,13 @@ public final class SkillReader {
                         }
                         Path jar = Path.of(filePath);
                         if (Files.isRegularFile(jar)) {
-                            skills.addAll(readSkillsFromJar(jar, metadataOnly));
+                            skills.addAll(readSkillsFromJar(jar, metadataOnly, loadModules));
                         }
                     }
                 } else if ("file".equals(protocol)) {
                     Path dir = Path.of(url.toURI());
                     if (Files.isDirectory(dir)) {
-                        skills.addAll(readLocalSkills(dir.getParent(), metadataOnly));
+                        skills.addAll(readLocalSkills(dir.getParent(), metadataOnly, loadModules));
                     }
                 }
             }
@@ -708,7 +747,7 @@ public final class SkillReader {
             List<String> categories = meta != null ? meta.categories : null;
 
             if (metadataOnly) {
-                return new SkillInfo(skillName, description, null, SkillMode.ENHANCE, categories);
+                return new SkillInfo(skillName, description, null, SkillMode.ENHANCE, categories, null);
             }
 
             String rawSkill;
@@ -718,7 +757,7 @@ public final class SkillReader {
 
             List<McpToolInfo> tools = discoverMcpTools(depJar, runtimeJar, devJar);
             String content = composeContent(rawSkill, meta, tools, skillName);
-            return new SkillInfo(skillName, description, content, SkillMode.ENHANCE, categories);
+            return new SkillInfo(skillName, description, content, SkillMode.ENHANCE, categories, null);
         } catch (IOException e) {
             LOG.debugf("Failed to compose skill from %s: %s", deploymentJar, e.getMessage());
             return null;

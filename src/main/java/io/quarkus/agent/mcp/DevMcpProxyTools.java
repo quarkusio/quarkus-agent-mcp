@@ -141,11 +141,13 @@ public class DevMcpProxyTools {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
             String queryLower = (query != null && !query.isBlank()) ? query.toLowerCase() : null;
-            boolean needsContent = queryLower != null;
+            boolean needsModuleOnly = module != null && !module.isBlank();
+            boolean needsContent = queryLower != null && !needsModuleOnly;
 
-            // When a query is provided we need full content; otherwise read metadata only
-            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, !needsContent,
-                    includeTransitiveDeps);
+            // When a query is provided we need full content; module-only requests skip body but load modules
+            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir,
+                    !needsContent && !needsModuleOnly, includeTransitiveDeps,
+                    needsContent || needsModuleOnly);
 
             // If no skills found, check if the app is still building and wait for it
             if (skills.isEmpty()) {
