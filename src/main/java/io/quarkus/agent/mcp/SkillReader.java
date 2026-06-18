@@ -126,7 +126,12 @@ public final class SkillReader {
         }
     }
 
-    public record SkillInfo(String name, String description, String content, SkillMode mode, List<String> categories) {
+    public record SkillInfo(String name, String description, String content, SkillMode mode, List<String> categories,
+            Map<String, String> modules) {
+
+        SkillInfo(String name, String description, String content, SkillMode mode, List<String> categories) {
+            this(name, description, content, mode, categories, null);
+        }
     }
 
     private SkillReader() {
@@ -256,7 +261,9 @@ public final class SkillReader {
                     List<String> cats = skill.categories() != null && !skill.categories().isEmpty()
                             ? skill.categories()
                             : base.categories();
-                    target.put(skill.name(), new SkillInfo(skill.name(), desc, mergedContent, SkillMode.ENHANCE, cats));
+                    Map<String, String> mergedModules = mergeModules(base.modules(), skill.modules());
+                    target.put(skill.name(),
+                            new SkillInfo(skill.name(), desc, mergedContent, SkillMode.ENHANCE, cats, mergedModules));
                     LOG.infof("Skill '%s' enhanced by %s", skill.name(), source);
                 } else {
                     target.put(skill.name(), skill);
@@ -285,6 +292,21 @@ public final class SkillReader {
             return base;
         }
         return base + "\n\n---\n\n" + overlay;
+    }
+
+    private static Map<String, String> mergeModules(Map<String, String> base, Map<String, String> overlay) {
+        if (base == null && overlay == null) {
+            return null;
+        }
+        if (base == null) {
+            return overlay;
+        }
+        if (overlay == null) {
+            return base;
+        }
+        Map<String, String> merged = new LinkedHashMap<>(base);
+        merged.putAll(overlay);
+        return merged;
     }
 
     /**
@@ -358,28 +380,74 @@ public final class SkillReader {
     }
 
     /**
-     * Reads SKILL.md files from a single JAR.
+     * Reads SKILL.md files (and their module/reference files) from a single JAR.
      *
-     * @param metadataOnly if true, only extract frontmatter — content will be null
+     * @param metadataOnly if true, only extract frontmatter — content and modules will be null
      */
     static List<SkillInfo> readSkillsFromJar(Path jarPath, boolean metadataOnly) throws IOException {
-        List<SkillInfo> skills = new ArrayList<>();
+        Map<String, List<JarEntry>> entriesBySkill = new LinkedHashMap<>();
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             Enumeration<JarEntry> entries = jar.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
                 String entryName = entry.getName();
-                if (entryName.startsWith(SKILLS_PATH_PREFIX)
-                        && entryName.endsWith(SKILL_FILE_NAME)
-                        && !entry.isDirectory()) {
-                    try (InputStream is = jar.getInputStream(entry)) {
-                        String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-                        skills.add(parseFrontmatter(content, metadataOnly));
+                if (!entryName.startsWith(SKILLS_PATH_PREFIX) || entry.isDirectory()
+                        || !entryName.endsWith(".md")) {
+                    continue;
+                }
+                String relative = entryName.substring(SKILLS_PATH_PREFIX.length());
+                int slash = relative.indexOf('/');
+                if (slash < 0) {
+                    continue;
+                }
+                String skillDirName = relative.substring(0, slash);
+                entriesBySkill.computeIfAbsent(skillDirName, k -> new ArrayList<>()).add(entry);
+            }
+
+            List<SkillInfo> skills = new ArrayList<>();
+            for (var group : entriesBySkill.entrySet()) {
+                String skillDir = group.getKey();
+                String skillMdPath = SKILLS_PATH_PREFIX + skillDir + "/" + SKILL_FILE_NAME;
+
+                JarEntry skillEntry = null;
+                for (JarEntry e : group.getValue()) {
+                    if (e.getName().equals(skillMdPath)) {
+                        skillEntry = e;
+                        break;
                     }
                 }
+                if (skillEntry == null) {
+                    continue;
+                }
+
+                String content;
+                try (InputStream is = jar.getInputStream(skillEntry)) {
+                    content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                }
+                SkillInfo baseInfo = parseFrontmatter(content, metadataOnly);
+
+                Map<String, String> modules = null;
+                if (!metadataOnly) {
+                    String prefix = SKILLS_PATH_PREFIX + skillDir + "/";
+                    for (JarEntry moduleEntry : group.getValue()) {
+                        if (moduleEntry.getName().equals(skillMdPath)) {
+                            continue;
+                        }
+                        String modulePath = moduleEntry.getName().substring(prefix.length());
+                        try (InputStream is = jar.getInputStream(moduleEntry)) {
+                            if (modules == null) {
+                                modules = new LinkedHashMap<>();
+                            }
+                            modules.put(modulePath, new String(is.readAllBytes(), StandardCharsets.UTF_8));
+                        }
+                    }
+                }
+
+                skills.add(new SkillInfo(baseInfo.name(), baseInfo.description(),
+                        baseInfo.content(), baseInfo.mode(), baseInfo.categories(), modules));
             }
+            return skills;
         }
-        return skills;
     }
 
     /**
@@ -396,10 +464,10 @@ public final class SkillReader {
     }
 
     /**
-     * Reads SKILL.md files from a local directory.
+     * Reads SKILL.md files (and their module/reference files) from a local directory.
      *
      * @param skillsDir    the directory to scan for SKILL.md files
-     * @param metadataOnly if true, only extract frontmatter — content will be null
+     * @param metadataOnly if true, only extract frontmatter — content and modules will be null
      * @return list of locally found skills, never null
      */
     static List<SkillInfo> readLocalSkills(Path skillsDir, boolean metadataOnly) {
@@ -408,27 +476,58 @@ public final class SkillReader {
         }
 
         List<SkillInfo> skills = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(skillsDir, Files::isDirectory)) {
+            for (Path skillDir : stream) {
+                Path skillFile = skillDir.resolve(SKILL_FILE_NAME);
+                if (!Files.isRegularFile(skillFile)) {
+                    continue;
+                }
+                try {
+                    String content = Files.readString(skillFile, StandardCharsets.UTF_8);
+                    SkillInfo baseInfo = parseFrontmatter(content, metadataOnly);
+
+                    Map<String, String> modules = null;
+                    if (!metadataOnly) {
+                        modules = readModuleFiles(skillDir);
+                    }
+
+                    SkillInfo skill = new SkillInfo(baseInfo.name(), baseInfo.description(),
+                            baseInfo.content(), baseInfo.mode(), baseInfo.categories(), modules);
+                    skills.add(skill);
+                    LOG.debugf("Found local skill '%s' at %s", skill.name(), skillFile);
+                } catch (IOException e) {
+                    LOG.debugf("Failed to read local skill %s: %s", skillFile, e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            LOG.debugf("Failed to scan local skills directory %s: %s", skillsDir, e.getMessage());
+        }
+        return skills;
+    }
+
+    private static Map<String, String> readModuleFiles(Path skillDir) {
+        Map<String, String> modules = new LinkedHashMap<>();
         try {
-            Files.walkFileTree(skillsDir, Collections.emptySet(), 3, new SimpleFileVisitor<>() {
+            Files.walkFileTree(skillDir, Collections.emptySet(), 5, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    if (file.getFileName().toString().equals(SKILL_FILE_NAME)) {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.endsWith(".md") && !fileName.equals(SKILL_FILE_NAME)) {
+                        String relativePath = skillDir.relativize(file).toString()
+                                .replace('\\', '/');
                         try {
-                            String content = Files.readString(file, StandardCharsets.UTF_8);
-                            SkillInfo skill = parseFrontmatter(content, metadataOnly);
-                            skills.add(skill);
-                            LOG.debugf("Found local skill '%s' at %s", skill.name(), file);
+                            modules.put(relativePath, Files.readString(file, StandardCharsets.UTF_8));
                         } catch (IOException e) {
-                            LOG.debugf("Failed to read local skill %s: %s", file, e.getMessage());
+                            LOG.debugf("Failed to read module %s: %s", file, e.getMessage());
                         }
                     }
                     return FileVisitResult.CONTINUE;
                 }
             });
         } catch (IOException e) {
-            LOG.debugf("Failed to scan local skills directory %s: %s", skillsDir, e.getMessage());
+            LOG.debugf("Failed to scan module files in %s: %s", skillDir, e.getMessage());
         }
-        return skills;
+        return modules.isEmpty() ? null : modules;
     }
 
     /**
