@@ -120,6 +120,8 @@ public class DevMcpProxyTools {
             + "If the app is still building (just created), this will wait for the build to complete. "
             + "Skills may include an 'Available Dev MCP Tools' section listing extension-specific Dev MCP tools "
             + "that can be invoked via quarkus_callTool (e.g. OpenAPI schema retrieval, scheduler job management). "
+            + "Some skills include module files (e.g., code patterns, reference tables) that can be loaded individually "
+            + "using the 'module' parameter. The skill content lists available modules at the bottom. "
             + "Skills can be customized globally using quarkus_updateSkill (writes to ~/.quarkus/skills/). "
             + "Project-level skills in .agent/skills/ are standalone files readable by any agent -- "
             + "use quarkus_saveSkill to materialize a fully composed skill there, then edit directly.",
@@ -131,7 +133,11 @@ public class DevMcpProxyTools {
             @ToolArg(description = "Optional query to filter skills by extension name (case-insensitive). "
                     + "Supports comma-separated names to fetch multiple skills at once "
                     + "(e.g., 'panache,rest,hibernate-validator'). "
-                    + "If omitted, lists all available skills with their descriptions.", required = false) String query) {
+                    + "If omitted, lists all available skills with their descriptions.", required = false) String query,
+            @ToolArg(description = "Optional module path to load from a skill "
+                    + "(e.g., 'modules/build.md', 'references/dependency-map.md'). "
+                    + "Requires 'query' to identify which skill the module belongs to. "
+                    + "Available module paths are listed in the skill's output.", required = false) String module) {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
             String queryLower = (query != null && !query.isBlank()) ? query.toLowerCase() : null;
@@ -169,6 +175,23 @@ public class DevMcpProxyTools {
                 return ToolResponse.success("No skills found matching: " + query);
             }
 
+            // Module loading: return a specific module file from a skill
+            if (module != null && !module.isBlank()) {
+                if (matched.size() != 1) {
+                    return ToolResponse.error("Specify a single skill name in 'query' when loading a module. "
+                            + "Matched: " + matched.stream().map(SkillReader.SkillInfo::name).toList());
+                }
+                SkillReader.SkillInfo skill = matched.get(0);
+                if (skill.modules() == null || !skill.modules().containsKey(module)) {
+                    String available = skill.modules() != null
+                            ? String.join(", ", skill.modules().keySet())
+                            : "none";
+                    return ToolResponse.error("Module '" + module + "' not found in skill '" + skill.name()
+                            + "'. Available modules: " + available);
+                }
+                return ToolResponse.success(skill.modules().get(module));
+            }
+
             // Multiple skills and no query — return categorized index
             if (queryLower == null && matched.size() > 1) {
                 return ToolResponse.success(formatSkillIndex(matched));
@@ -180,14 +203,30 @@ public class DevMcpProxyTools {
                 matched = skills;
             }
 
+            // Resolve latest Quarkus version for context
+            String latestVersion = LatestQuarkusVersionResolver.resolve(projectDir);
+
             // Return full content for matched skills
             StringBuilder sb = new StringBuilder();
+            if (latestVersion != null) {
+                sb.append("> **Latest Quarkus release:** ").append(latestVersion).append("\n\n");
+            }
+            boolean first = true;
             for (SkillReader.SkillInfo skill : matched) {
-                if (!sb.isEmpty()) {
+                if (!first) {
                     sb.append("\n---\n\n");
                 }
+                first = false;
                 sb.append("# ").append(skill.name()).append("\n\n");
                 sb.append(skill.content());
+                if (skill.modules() != null && !skill.modules().isEmpty()) {
+                    sb.append("\n\n---\n\n### Available Modules\n\n");
+                    sb.append("Load a module with `quarkus_skills query='").append(skill.name())
+                            .append("' module='<path>'`:\n\n");
+                    for (String modulePath : skill.modules().keySet()) {
+                        sb.append("- `").append(modulePath).append("`\n");
+                    }
+                }
             }
             return ToolResponse.success(sb.toString());
         } catch (Exception e) {

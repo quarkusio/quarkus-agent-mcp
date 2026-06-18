@@ -1864,4 +1864,214 @@ class SkillReaderTest {
             assertNull(skill.content(), "Content should be null in metadata-only mode");
         }
     }
+
+    // --- Module loading tests ---
+
+    @Test
+    void readSkillsFromJarReadsModuleFiles() throws Exception {
+        Path jarPath = tempDir.resolve("skills-with-modules.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarPath.toFile()))) {
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/SKILL.md"));
+            jos.write("""
+                    ---
+                    name: my-skill
+                    description: "Skill with modules"
+                    ---
+
+                    ### Main content
+                    See [modules/build.md](modules/build.md).
+                    """.getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/modules/build.md"));
+            jos.write("# Build Module\nBuild instructions here.".getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/references/dep-map.md"));
+            jos.write("# Dependency Map\n| Spring | Quarkus |".getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+        }
+
+        List<SkillReader.SkillInfo> skills = SkillReader.readSkillsFromJar(jarPath);
+
+        assertEquals(1, skills.size());
+        SkillReader.SkillInfo skill = skills.get(0);
+        assertEquals("my-skill", skill.name());
+        assertNotNull(skill.modules());
+        assertEquals(2, skill.modules().size());
+        assertTrue(skill.modules().containsKey("modules/build.md"));
+        assertTrue(skill.modules().containsKey("references/dep-map.md"));
+        assertTrue(skill.modules().get("modules/build.md").contains("Build instructions"));
+        assertTrue(skill.modules().get("references/dep-map.md").contains("Dependency Map"));
+    }
+
+    @Test
+    void readSkillsFromJarMetadataOnlySkipsModules() throws Exception {
+        Path jarPath = tempDir.resolve("skills-with-modules.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarPath.toFile()))) {
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/SKILL.md"));
+            jos.write("""
+                    ---
+                    name: my-skill
+                    ---
+
+                    ### Content
+                    """.getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/modules/build.md"));
+            jos.write("# Build Module".getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+        }
+
+        List<SkillReader.SkillInfo> skills = SkillReader.readSkillsFromJar(jarPath, true);
+
+        assertEquals(1, skills.size());
+        assertNull(skills.get(0).modules());
+        assertNull(skills.get(0).content());
+    }
+
+    @Test
+    void readSkillsFromJarSkillWithoutModulesHasNullModules() throws Exception {
+        Path jarPath = tempDir.resolve("no-modules.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarPath.toFile()))) {
+            jos.putNextEntry(new JarEntry("META-INF/skills/simple/SKILL.md"));
+            jos.write("""
+                    ---
+                    name: simple
+                    ---
+
+                    ### Simple skill
+                    """.getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+        }
+
+        List<SkillReader.SkillInfo> skills = SkillReader.readSkillsFromJar(jarPath);
+
+        assertEquals(1, skills.size());
+        assertNull(skills.get(0).modules());
+    }
+
+    @Test
+    void readLocalSkillsReadsModuleFiles() throws Exception {
+        Path skillsDir = tempDir.resolve("skills");
+        Path skillDir = skillsDir.resolve("my-skill");
+        Path modulesDir = skillDir.resolve("modules");
+        Path refsDir = skillDir.resolve("references");
+        Files.createDirectories(modulesDir);
+        Files.createDirectories(refsDir);
+
+        Files.writeString(skillDir.resolve("SKILL.md"), """
+                ---
+                name: my-skill
+                description: "Local skill with modules"
+                ---
+
+                ### Main content
+                """);
+        Files.writeString(modulesDir.resolve("build.md"), "# Build Module\nLocal build content.");
+        Files.writeString(refsDir.resolve("config-map.md"), "# Config Map\n| Spring | Quarkus |");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.readLocalSkills(skillsDir);
+
+        assertEquals(1, skills.size());
+        SkillReader.SkillInfo skill = skills.get(0);
+        assertNotNull(skill.modules());
+        assertEquals(2, skill.modules().size());
+        assertTrue(skill.modules().containsKey("modules/build.md"));
+        assertTrue(skill.modules().containsKey("references/config-map.md"));
+    }
+
+    @Test
+    void readLocalSkillsMetadataOnlySkipsModules() throws Exception {
+        Path skillsDir = tempDir.resolve("skills");
+        Path skillDir = skillsDir.resolve("my-skill");
+        Path modulesDir = skillDir.resolve("modules");
+        Files.createDirectories(modulesDir);
+
+        Files.writeString(skillDir.resolve("SKILL.md"), """
+                ---
+                name: my-skill
+                ---
+
+                ### Content
+                """);
+        Files.writeString(modulesDir.resolve("build.md"), "# Build Module");
+
+        List<SkillReader.SkillInfo> skills = SkillReader.readLocalSkills(skillsDir, true);
+
+        assertEquals(1, skills.size());
+        assertNull(skills.get(0).modules());
+    }
+
+    @Test
+    void enhanceModeOverlayMergesModules() throws Exception {
+        Path jarPath = tempDir.resolve("skills.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(jarPath.toFile()))) {
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/SKILL.md"));
+            jos.write("""
+                    ---
+                    name: my-skill
+                    ---
+
+                    ### Base
+                    """.getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/modules/build.md"));
+            jos.write("Base build content".getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new JarEntry("META-INF/skills/my-skill/modules/code.md"));
+            jos.write("Base code content".getBytes(StandardCharsets.UTF_8));
+            jos.closeEntry();
+        }
+
+        Path localDir = tempDir.resolve("local/my-skill");
+        Path localModulesDir = localDir.resolve("modules");
+        Files.createDirectories(localModulesDir);
+        Files.writeString(localDir.resolve("SKILL.md"), """
+                ---
+                name: my-skill
+                mode: enhance
+                ---
+
+                ### Enhanced
+                """);
+        Files.writeString(localModulesDir.resolve("build.md"), "Enhanced build content");
+        Files.writeString(localModulesDir.resolve("testing.md"), "New testing module");
+
+        List<SkillReader.SkillInfo> base = SkillReader.readSkillsFromJar(jarPath);
+        Map<String, SkillReader.SkillInfo> skillMap = new LinkedHashMap<>();
+        for (SkillReader.SkillInfo s : base) {
+            skillMap.put(s.name(), s);
+        }
+
+        List<SkillReader.SkillInfo> local = SkillReader.readLocalSkills(tempDir.resolve("local"));
+        SkillReader.overlaySkills(skillMap, local, "local");
+
+        SkillReader.SkillInfo result = skillMap.get("my-skill");
+        assertNotNull(result.modules());
+        assertEquals(3, result.modules().size());
+        assertEquals("Enhanced build content", result.modules().get("modules/build.md"));
+        assertEquals("Base code content", result.modules().get("modules/code.md"));
+        assertEquals("New testing module", result.modules().get("modules/testing.md"));
+    }
+
+    @Test
+    void readBundledSkillsLoadsModules() {
+        List<SkillReader.SkillInfo> skills = SkillReader.readBundledSkills(false);
+        SkillReader.SkillInfo migrationSkill = skills.stream()
+                .filter(s -> s.name().contains("migrate"))
+                .findFirst()
+                .orElse(null);
+
+        if (migrationSkill != null) {
+            assertNotNull(migrationSkill.modules(), "Migration skill should have module files");
+            assertTrue(migrationSkill.modules().containsKey("modules/build.md"),
+                    "Should contain modules/build.md");
+            assertTrue(migrationSkill.modules().containsKey("references/dependency-map.md"),
+                    "Should contain references/dependency-map.md");
+        }
+    }
 }
