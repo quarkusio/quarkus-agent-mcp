@@ -11,11 +11,11 @@ class DevMcpProxyToolsTest {
     void formatSkillIndexGroupsByCategory() {
         List<SkillReader.SkillInfo> skills = List.of(
                 new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("web")),
+                        List.of("web"), null),
                 new SkillReader.SkillInfo("quarkus-hibernate-orm", "ORM extension", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("data")),
+                        List.of("data"), null),
                 new SkillReader.SkillInfo("quarkus-rest-client", "REST client", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("web")));
+                        List.of("web"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -30,9 +30,9 @@ class DevMcpProxyToolsTest {
     @Test
     void formatSkillIndexUsesDefaultCategoriesForUncategorizedSkills() {
         List<SkillReader.SkillInfo> skills = List.of(
-                new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE, null),
+                new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE, null, null),
                 new SkillReader.SkillInfo("quarkus-security", "Security framework", null,
-                        SkillReader.SkillMode.ENHANCE, null));
+                        SkillReader.SkillMode.ENHANCE, null, null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -44,9 +44,9 @@ class DevMcpProxyToolsTest {
     void formatSkillIndexPutsUnknownSkillsInMiscellaneous() {
         List<SkillReader.SkillInfo> skills = List.of(
                 new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("web")),
+                        List.of("web"), null),
                 new SkillReader.SkillInfo("quarkus-custom", "Custom extension", null, SkillReader.SkillMode.ENHANCE,
-                        null));
+                        null, null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -58,10 +58,10 @@ class DevMcpProxyToolsTest {
     @Test
     void formatSkillIndexOrdersCategoriesCorrectly() {
         List<SkillReader.SkillInfo> skills = List.of(
-                new SkillReader.SkillInfo("s1", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("security")),
-                new SkillReader.SkillInfo("s2", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("core")),
-                new SkillReader.SkillInfo("s3", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("web")),
-                new SkillReader.SkillInfo("s4", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("data")));
+                new SkillReader.SkillInfo("s1", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("security"), null),
+                new SkillReader.SkillInfo("s2", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("core"), null),
+                new SkillReader.SkillInfo("s3", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("web"), null),
+                new SkillReader.SkillInfo("s4", "desc", null, SkillReader.SkillMode.ENHANCE, List.of("data"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -78,7 +78,7 @@ class DevMcpProxyToolsTest {
     void formatSkillIndexFrontmatterCategoryOverridesDefault() {
         List<SkillReader.SkillInfo> skills = List.of(
                 new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("messaging")));
+                        List.of("messaging"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -90,7 +90,7 @@ class DevMcpProxyToolsTest {
     void formatSkillIndexListsSkillUnderAllCategories() {
         List<SkillReader.SkillInfo> skills = List.of(
                 new SkillReader.SkillInfo("quarkus-rest", "REST extension", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("web", "reactive")));
+                        List.of("web", "reactive"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -108,9 +108,9 @@ class DevMcpProxyToolsTest {
     void formatSkillIndexMultiCategoryPreservesOrder() {
         List<SkillReader.SkillInfo> skills = List.of(
                 new SkillReader.SkillInfo("quarkus-reactive-rest", "Reactive REST", null,
-                        SkillReader.SkillMode.ENHANCE, List.of("reactive", "web")),
+                        SkillReader.SkillMode.ENHANCE, List.of("reactive", "web"), null),
                 new SkillReader.SkillInfo("quarkus-hibernate-orm", "ORM", null,
-                        SkillReader.SkillMode.ENHANCE, List.of("data")));
+                        SkillReader.SkillMode.ENHANCE, List.of("data"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -124,9 +124,10 @@ class DevMcpProxyToolsTest {
     @Test
     void formatSkillIndexOmitsDescriptionWhenNull() {
         List<SkillReader.SkillInfo> skills = List.of(
-                new SkillReader.SkillInfo("quarkus-rest", null, null, SkillReader.SkillMode.ENHANCE, List.of("web")),
+                new SkillReader.SkillInfo("quarkus-rest", null, null, SkillReader.SkillMode.ENHANCE, List.of("web"),
+                        null),
                 new SkillReader.SkillInfo("quarkus-arc", "CDI framework", null, SkillReader.SkillMode.ENHANCE,
-                        List.of("core")));
+                        List.of("core"), null));
 
         String index = DevMcpProxyTools.formatSkillIndex(skills);
 
@@ -138,7 +139,7 @@ class DevMcpProxyToolsTest {
     @Test
     void resolveCategoriesReturnsAllExplicitCategories() {
         SkillReader.SkillInfo skill = new SkillReader.SkillInfo("quarkus-rest", "REST", null,
-                SkillReader.SkillMode.ENHANCE, List.of("web", "reactive"));
+                SkillReader.SkillMode.ENHANCE, List.of("web", "reactive"), null);
 
         assertEquals(List.of("web", "reactive"), DevMcpProxyTools.resolveCategories(skill));
     }
@@ -146,7 +147,7 @@ class DevMcpProxyToolsTest {
     @Test
     void resolveCategoriesFallsBackToDefaultMap() {
         SkillReader.SkillInfo skill = new SkillReader.SkillInfo("quarkus-rest", "REST", null,
-                SkillReader.SkillMode.ENHANCE, null);
+                SkillReader.SkillMode.ENHANCE, null, null);
 
         assertEquals(List.of("web"), DevMcpProxyTools.resolveCategories(skill));
     }
@@ -154,7 +155,7 @@ class DevMcpProxyToolsTest {
     @Test
     void resolveCategoriesReturnsMiscellaneousForUnknownSkill() {
         SkillReader.SkillInfo skill = new SkillReader.SkillInfo("quarkus-custom", "Custom", null,
-                SkillReader.SkillMode.ENHANCE, null);
+                SkillReader.SkillMode.ENHANCE, null, null);
 
         assertEquals(List.of("miscellaneous"), DevMcpProxyTools.resolveCategories(skill));
     }

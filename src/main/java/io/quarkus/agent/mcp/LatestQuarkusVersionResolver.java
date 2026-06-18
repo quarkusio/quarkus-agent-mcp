@@ -4,13 +4,16 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 
 /**
  * Resolves the latest released Quarkus version from Maven Central (or a configured mirror).
- * Results are cached with a 1-hour TTL to avoid repeated HTTP calls.
+ * Results are cached with a 1-hour TTL. Resolution is non-blocking: returns the cached value
+ * immediately and triggers an async refresh when stale, so skill responses are never delayed
+ * by network timeouts.
  */
 public final class LatestQuarkusVersionResolver {
 
@@ -20,20 +23,37 @@ public final class LatestQuarkusVersionResolver {
 
     private static volatile String cachedVersion;
     private static volatile long cacheTimestamp;
+    private static volatile boolean refreshing;
 
     private LatestQuarkusVersionResolver() {
     }
 
     public static String resolve(String projectDir) {
-        if (cachedVersion != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
-            return cachedVersion;
+        String current = cachedVersion;
+        if (current != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
+            return current;
         }
-        return doResolve(projectDir);
+        triggerAsyncRefresh(projectDir);
+        return current;
     }
 
-    private static synchronized String doResolve(String projectDir) {
+    private static void triggerAsyncRefresh(String projectDir) {
+        if (refreshing) {
+            return;
+        }
+        refreshing = true;
+        CompletableFuture.runAsync(() -> {
+            try {
+                doResolve(projectDir);
+            } finally {
+                refreshing = false;
+            }
+        });
+    }
+
+    private static synchronized void doResolve(String projectDir) {
         if (cachedVersion != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
-            return cachedVersion;
+            return;
         }
 
         String baseUrl = SkillReader.resolveMavenRepoBaseUrl(projectDir);
@@ -55,13 +75,11 @@ public final class LatestQuarkusVersionResolver {
                     cachedVersion = version;
                     cacheTimestamp = System.currentTimeMillis();
                     LOG.debugf("Resolved latest Quarkus version: %s", version);
-                    return version;
                 }
             }
         } catch (Exception e) {
             LOG.debugf("Failed to resolve latest Quarkus version from %s: %s", metadataUrl, e.getMessage());
         }
-        return cachedVersion;
     }
 
     static String parseRelease(String xml) {
