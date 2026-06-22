@@ -15,6 +15,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -224,7 +225,7 @@ public class RagSqlLoader {
             var request = webClient.getAbs(url).timeout(60_000);
             SkillReader.addAuthHeader(request, repoInfo, null);
 
-            var response = request.send().await().indefinitely();
+            var response = request.send().await().atMost(Duration.ofSeconds(65));
 
             if (response.statusCode() == 200) {
                 Files.createDirectories(targetPath.getParent());

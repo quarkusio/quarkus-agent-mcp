@@ -9,6 +9,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -1174,7 +1175,7 @@ public class SkillReader {
             var request = webClient.getAbs(url).timeout(30_000);
             addAuthHeader(request, repoInfo, projectDir);
 
-            var response = request.send().await().indefinitely();
+            var response = request.send().await().atMost(Duration.ofSeconds(35));
 
             if (response.statusCode() == 200) {
                 Files.createDirectories(targetPath.getParent());
