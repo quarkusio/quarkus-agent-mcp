@@ -222,7 +222,7 @@ class QuarkusInstanceTest {
     }
 
     @Test
-    void restartResetsDevMcpPath() throws Exception {
+    void restartPreservesDevMcpPath() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && echo 'Dev MCP available at: /custom/dev-mcp' && cat")
                 .start();
@@ -233,11 +233,11 @@ class QuarkusInstanceTest {
 
         instance.restart();
 
-        assertEquals("/q/dev-mcp", instance.getDevMcpPath());
+        assertEquals("/custom/dev-mcp", instance.getDevMcpPath());
     }
 
     @Test
-    void restartResetsPortAndStatus() throws Exception {
+    void restartPreservesPortAndResetsStatus() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && cat")
                 .start();
@@ -250,7 +250,7 @@ class QuarkusInstanceTest {
         instance.restart();
 
         assertEquals(QuarkusInstance.Status.STARTING, instance.getStatus());
-        assertEquals(-1, instance.getHttpPort());
+        assertEquals(8080, instance.getHttpPort());
     }
 
     @Test

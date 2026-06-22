@@ -35,6 +35,8 @@ public class DevMcpProxyTools {
     private static final Logger LOG = Logger.getLogger(DevMcpProxyTools.class);
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_RETRY_DELAY_MS = 2000;
 
     static final List<String> CATEGORY_ORDER = List.of(
             "web", "data", "security", "core", "messaging", "observability",
@@ -570,40 +572,65 @@ public class DevMcpProxyTools {
     }
 
     private JsonNode callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params) {
+        String jsonRpcRequest;
         try {
-            String jsonRpcRequest = mapper.writeValueAsString(Map.of(
+            jsonRpcRequest = mapper.writeValueAsString(Map.of(
                     "jsonrpc", "2.0",
                     "id", requestId.incrementAndGet(),
                     "method", method,
                     "params", params));
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + port + devMcpPath))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json, text/event-stream")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonRpcRequest))
-                    .timeout(REQUEST_TIMEOUT)
-                    .build();
-
-            HttpResponse<String> response = HttpClientProvider.getHttpClient().send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                throw new RuntimeException("Dev MCP returned HTTP " + response.statusCode());
-            }
-
-            JsonNode body = mapper.readTree(response.body());
-            if (body.has("result")) {
-                return body.get("result");
-            }
-            if (body.has("error")) {
-                String errorMsg = body.get("error").has("message")
-                        ? body.get("error").get("message").asText()
-                        : body.get("error").toString();
-                throw new RuntimeException("Dev MCP error: " + errorMsg);
-            }
-            return null;
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException("Failed to call Dev MCP: " + e.getMessage(), e);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize JSON-RPC request: " + e.getMessage(), e);
         }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + devMcpPath))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json, text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonRpcRequest))
+                .timeout(REQUEST_TIMEOUT)
+                .build();
+
+        IOException lastException = null;
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (attempt > 0) {
+                long delay = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
+                LOG.warnf("Dev MCP call failed (attempt %d/%d), retrying in %dms: %s",
+                        attempt, MAX_RETRIES + 1, delay, lastException.getMessage());
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while retrying Dev MCP call", ie);
+                }
+            }
+
+            try {
+                HttpResponse<String> response = HttpClientProvider.getHttpClient().send(request,
+                        HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) {
+                    throw new RuntimeException("Dev MCP returned HTTP " + response.statusCode());
+                }
+
+                JsonNode body = mapper.readTree(response.body());
+                if (body.has("result")) {
+                    return body.get("result");
+                }
+                if (body.has("error")) {
+                    String errorMsg = body.get("error").has("message")
+                            ? body.get("error").get("message").asText()
+                            : body.get("error").toString();
+                    throw new RuntimeException("Dev MCP error: " + errorMsg);
+                }
+                return null;
+            } catch (IOException e) {
+                lastException = e;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Failed to call Dev MCP: " + e.getMessage(), e);
+            }
+        }
+        throw new RuntimeException("Failed to call Dev MCP after " + (MAX_RETRIES + 1)
+                + " attempts: " + lastException.getMessage(), lastException);
     }
 }
