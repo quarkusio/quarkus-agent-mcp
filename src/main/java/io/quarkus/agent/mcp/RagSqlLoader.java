@@ -1,16 +1,15 @@
 package io.quarkus.agent.mcp;
 
+import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -42,6 +41,9 @@ import org.jboss.logging.Logger;
 public class RagSqlLoader {
 
     private static final Logger LOG = Logger.getLogger(RagSqlLoader.class);
+
+    @Inject
+    WebClient webClient;
 
     private static final String RAG_SQL_PATH = "META-INF/quarkus-rag.sql";
     private static final String RAG_DATA_SQL_PATH = "META-INF/quarkus-rag-data.sql";
@@ -220,23 +222,15 @@ public class RagSqlLoader {
         LOG.infof("RAG SQL not found locally, downloading from %s...", url);
 
         try {
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(60))
-                    .GET();
+            var request = webClient.getAbs(url).timeout(60_000);
+            SkillReader.addAuthHeader(request, repoInfo, null);
 
-            SkillReader.addAuthHeader(requestBuilder, repoInfo, null);
-
-            HttpRequest request = requestBuilder.build();
-
-            HttpResponse<InputStream> response = HttpClientProvider.getHttpClient().send(request,
-                    HttpResponse.BodyHandlers.ofInputStream());
+            var response = request.send().await().atMost(Duration.ofSeconds(60));
 
             if (response.statusCode() == 200) {
                 Files.createDirectories(targetPath.getParent());
-                try (InputStream body = response.body()) {
-                    Files.copy(body, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                }
+                Files.write(targetPath, response.body().getBytes(),
+                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 LOG.infof("Downloaded RAG SQL artifact to %s", targetPath);
                 return targetPath;
             } else {
@@ -244,11 +238,8 @@ public class RagSqlLoader {
                         url, response.statusCode());
                 return null;
             }
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException | RuntimeException e) {
             LOG.warnf("Failed to download RAG SQL from %s: %s", url, e.getMessage());
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
             return null;
         }
     }

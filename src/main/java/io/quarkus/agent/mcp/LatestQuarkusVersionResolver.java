@@ -1,10 +1,9 @@
 package io.quarkus.agent.mcp;
 
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
+import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
@@ -15,7 +14,8 @@ import org.jboss.logging.Logger;
  * immediately and triggers an async refresh when stale, so skill responses are never delayed
  * by network timeouts.
  */
-public final class LatestQuarkusVersionResolver {
+@ApplicationScoped
+public class LatestQuarkusVersionResolver {
 
     private static final Logger LOG = Logger.getLogger(LatestQuarkusVersionResolver.class);
     private static final long CACHE_TTL_MS = 3_600_000;
@@ -23,12 +23,12 @@ public final class LatestQuarkusVersionResolver {
 
     private static volatile String cachedVersion;
     private static volatile long cacheTimestamp;
-    private static volatile boolean refreshing;
+    private static final AtomicBoolean refreshing = new AtomicBoolean();
 
-    private LatestQuarkusVersionResolver() {
-    }
+    @Inject
+    WebClient webClient;
 
-    public static String resolve(String projectDir) {
+    public String resolve(String projectDir) {
         String current = cachedVersion;
         if (current != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
             return current;
@@ -37,49 +37,37 @@ public final class LatestQuarkusVersionResolver {
         return current;
     }
 
-    private static void triggerAsyncRefresh(String projectDir) {
-        if (refreshing) {
-            return;
-        }
-        refreshing = true;
-        CompletableFuture.runAsync(() -> {
-            try {
-                doResolve(projectDir);
-            } finally {
-                refreshing = false;
-            }
-        });
-    }
-
-    private static synchronized void doResolve(String projectDir) {
-        if (cachedVersion != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
+    private void triggerAsyncRefresh(String projectDir) {
+        if (!refreshing.compareAndSet(false, true)) {
             return;
         }
 
         String baseUrl = SkillReader.resolveMavenRepoBaseUrl(projectDir);
         String metadataUrl = baseUrl + "/io/quarkus/quarkus-bom/maven-metadata.xml";
 
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(metadataUrl))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = HttpClientProvider.getHttpClient()
-                    .send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200) {
-                String version = parseRelease(response.body());
-                if (version != null) {
-                    cachedVersion = version;
-                    cacheTimestamp = System.currentTimeMillis();
-                    LOG.debugf("Resolved latest Quarkus version: %s", version);
-                }
-            }
-        } catch (Exception e) {
-            LOG.debugf("Failed to resolve latest Quarkus version from %s: %s", metadataUrl, e.getMessage());
-        }
+        webClient.getAbs(metadataUrl)
+                .timeout(10_000)
+                .send()
+                .subscribe().with(
+                        response -> {
+                            try {
+                                if (response.statusCode() == 200) {
+                                    String version = parseRelease(response.bodyAsString());
+                                    if (version != null) {
+                                        cachedVersion = version;
+                                        cacheTimestamp = System.currentTimeMillis();
+                                        LOG.debugf("Resolved latest Quarkus version: %s", version);
+                                    }
+                                }
+                            } finally {
+                                refreshing.set(false);
+                            }
+                        },
+                        failure -> {
+                            LOG.debugf("Failed to resolve latest Quarkus version from %s: %s",
+                                    metadataUrl, failure.getMessage());
+                            refreshing.set(false);
+                        });
     }
 
     static String parseRelease(String xml) {
