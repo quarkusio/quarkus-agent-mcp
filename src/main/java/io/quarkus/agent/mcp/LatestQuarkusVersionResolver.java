@@ -21,9 +21,9 @@ public class LatestQuarkusVersionResolver {
     private static final long CACHE_TTL_MS = 3_600_000;
     private static final Pattern RELEASE_PATTERN = Pattern.compile("<release>([^<]+)</release>");
 
-    private static volatile String cachedVersion;
-    private static volatile long cacheTimestamp;
-    private static final AtomicBoolean refreshing = new AtomicBoolean();
+    private volatile String cachedVersion;
+    private volatile long cacheTimestamp;
+    private final AtomicBoolean refreshing = new AtomicBoolean();
 
     @Inject
     WebClient webClient;
@@ -75,7 +75,7 @@ public class LatestQuarkusVersionResolver {
         return m.find() ? m.group(1).trim() : null;
     }
 
-    static void invalidateCache() {
+    void invalidateCache() {
         cachedVersion = null;
         cacheTimestamp = 0;
     }

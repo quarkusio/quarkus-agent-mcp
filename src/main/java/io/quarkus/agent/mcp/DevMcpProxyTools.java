@@ -78,6 +78,9 @@ public class DevMcpProxyTools {
     WebClient webClient;
 
     @Inject
+    SkillReader skillReader;
+
+    @Inject
     LatestQuarkusVersionResolver versionResolver;
 
     @ConfigProperty(name = "agent-mcp.local-skills-dir")
@@ -162,9 +165,9 @@ public class DevMcpProxyTools {
                 boolean needsContent = queryLower != null && !needsModuleOnly;
 
                 // When a query is provided we need full content; module-only requests skip body but load modules
-                List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir,
+                List<SkillReader.SkillInfo> skills = skillReader.readSkills(projectDir, effectiveLocalDir,
                         !needsContent && !needsModuleOnly, includeTransitiveDeps,
-                        needsContent || needsModuleOnly, webClient);
+                        needsContent || needsModuleOnly);
 
                 // If no skills found, check if the app is still building and wait for it
                 if (skills.isEmpty()) {
@@ -219,8 +222,7 @@ public class DevMcpProxyTools {
 
                 // Single skill without query — we only read metadata, so re-read with content
                 if (!needsContent) {
-                    skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false, includeTransitiveDeps,
-                            webClient);
+                    skills = skillReader.readSkills(projectDir, effectiveLocalDir, false, includeTransitiveDeps);
                     matched = skills;
                 }
 
@@ -272,8 +274,8 @@ public class DevMcpProxyTools {
             return List.of();
         }
         // RUNNING or timed out (still STARTING) -- try reading skills either way
-        return SkillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly,
-                includeTransitiveDeps, webClient);
+        return skillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly,
+                includeTransitiveDeps);
     }
 
     static String formatSkillIndex(List<SkillReader.SkillInfo> skills) {
@@ -391,8 +393,8 @@ public class DevMcpProxyTools {
                     + "(e.g. 'quarkus-rest', 'quarkus-hibernate-orm-panache')") String skillName) {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
-            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false,
-                    includeTransitiveDeps, webClient);
+            List<SkillReader.SkillInfo> skills = skillReader.readSkills(projectDir, effectiveLocalDir, false,
+                    includeTransitiveDeps);
             SkillReader.SkillInfo matched = skills.stream()
                     .filter(s -> s.name().equalsIgnoreCase(skillName))
                     .findFirst()
@@ -446,6 +448,7 @@ public class DevMcpProxyTools {
             }
 
             return callDevMcp(port, instance.getDevMcpPath(), "tools/call", params)
+                    .emitOn(Infrastructure.getDefaultWorkerPool())
                     .map(response -> {
                         try {
                             ToolResponse result = extractToolResult(response);
