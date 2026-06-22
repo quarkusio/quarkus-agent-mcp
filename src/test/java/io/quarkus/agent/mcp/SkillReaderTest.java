@@ -162,8 +162,9 @@ class SkillReaderTest {
 
     @Test
     void downloadSkipsSnapshotVersions() {
+        SkillReader reader = new SkillReader();
         Path targetPath = tempDir.resolve("skills.jar");
-        Path result = SkillReader.downloadFromMavenRepo("999-SNAPSHOT", targetPath, tempDir.toString(), null);
+        Path result = reader.downloadFromMavenRepo("999-SNAPSHOT", targetPath, tempDir.toString());
         assertNull(result);
     }
 

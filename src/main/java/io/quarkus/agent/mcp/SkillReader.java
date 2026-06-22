@@ -1,13 +1,14 @@
 package io.quarkus.agent.mcp;
 
 import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -60,7 +61,8 @@ import org.w3c.dom.NodeList;
  * composition via the {@code mode} field in the SKILL.md frontmatter.
  * Layer 3 (project) always replaces — no composition is applied.
  */
-public final class SkillReader {
+@ApplicationScoped
+public class SkillReader {
 
     private static final Logger LOG = Logger.getLogger(SkillReader.class);
 
@@ -128,8 +130,8 @@ public final class SkillReader {
             Map<String, String> modules) {
     }
 
-    private SkillReader() {
-    }
+    @Inject
+    WebClient webClient;
 
     private static final Path DEFAULT_LOCAL_SKILLS_DIR = Path.of(System.getProperty("user.home"), ".quarkus", "skills");
 
@@ -137,10 +139,10 @@ public final class SkillReader {
      * Reads all available skills using the default local skills directory
      * ({@code ~/.quarkus/skills/}).
      *
-     * @see #readSkills(String, Path, boolean, WebClient)
+     * @see #readSkills(String, Path, boolean)
      */
-    public static List<SkillInfo> readSkills(String projectDir, WebClient webClient) {
-        return readSkills(projectDir, null, false, webClient);
+    public List<SkillInfo> readSkills(String projectDir) {
+        return readSkills(projectDir, null, false);
     }
 
     /**
@@ -148,11 +150,10 @@ public final class SkillReader {
      *
      * @param projectDir     the absolute path to the Quarkus project
      * @param localSkillsDir optional user-level directory to scan for SKILL.md files, or null for the default
-     * @param webClient      the Vert.x web client for remote downloads
      * @return list of available skills, never null
      */
-    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, WebClient webClient) {
-        return readSkills(projectDir, localSkillsDir, false, false, webClient);
+    public List<SkillInfo> readSkills(String projectDir, Path localSkillsDir) {
+        return readSkills(projectDir, localSkillsDir, false, false);
     }
 
     /**
@@ -168,9 +169,8 @@ public final class SkillReader {
      * @param metadataOnly   if true, only extract frontmatter (name, description, mode) — content will be null
      * @return list of available skills, never null
      */
-    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
-            WebClient webClient) {
-        return readSkills(projectDir, localSkillsDir, metadataOnly, false, webClient);
+    public List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly) {
+        return readSkills(projectDir, localSkillsDir, metadataOnly, false);
     }
 
     /**
@@ -182,9 +182,9 @@ public final class SkillReader {
      * @param includeTransitive if true, include skills from transitive dependencies; if false, only direct dependencies
      * @return list of available skills, never null
      */
-    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
-            boolean includeTransitive, WebClient webClient) {
-        return readSkills(projectDir, localSkillsDir, metadataOnly, includeTransitive, !metadataOnly, webClient);
+    public List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
+            boolean includeTransitive) {
+        return readSkills(projectDir, localSkillsDir, metadataOnly, includeTransitive, !metadataOnly);
     }
 
     /**
@@ -197,8 +197,8 @@ public final class SkillReader {
      * @param loadModules       if true, read module/reference .md files alongside SKILL.md
      * @return list of available skills, never null
      */
-    public static List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
-            boolean includeTransitive, boolean loadModules, WebClient webClient) {
+    public List<SkillInfo> readSkills(String projectDir, Path localSkillsDir, boolean metadataOnly,
+            boolean includeTransitive, boolean loadModules) {
         // Use a map keyed by skill name so each layer can override the previous
         Map<String, SkillInfo> skillsByName = new LinkedHashMap<>();
 
@@ -224,7 +224,7 @@ public final class SkillReader {
 
                 if (!Files.isRegularFile(jarPath)) {
                     LOG.infof("Skills JAR not found locally, downloading for version %s", version);
-                    jarPath = downloadFromMavenRepo(version, jarPath, projectDir, webClient);
+                    jarPath = downloadFromMavenRepo(version, jarPath, projectDir);
                 }
 
                 if (jarPath != null) {
@@ -1156,7 +1156,7 @@ public final class SkillReader {
      * for mirrors. Falls back to Maven Central if no mirror is configured.
      * Returns the path on success, or null on failure.
      */
-    static Path downloadFromMavenRepo(String version, Path targetPath, String projectDir, WebClient webClient) {
+    Path downloadFromMavenRepo(String version, Path targetPath, String projectDir) {
         if (version.endsWith("-SNAPSHOT")) {
             LOG.debugf("Skipping remote download for SNAPSHOT version %s", version);
             return null;
@@ -1174,7 +1174,7 @@ public final class SkillReader {
             var request = webClient.getAbs(url).timeout(30_000);
             addAuthHeader(request, repoInfo, projectDir);
 
-            var response = request.send().await().atMost(Duration.ofSeconds(30));
+            var response = request.send().await().indefinitely();
 
             if (response.statusCode() == 200) {
                 Files.createDirectories(targetPath.getParent());
