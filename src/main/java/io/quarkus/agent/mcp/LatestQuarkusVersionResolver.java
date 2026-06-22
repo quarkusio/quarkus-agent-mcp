@@ -42,6 +42,12 @@ public class LatestQuarkusVersionResolver {
             return;
         }
 
+        // Re-check after winning the CAS — another thread may have just completed a refresh
+        if (cachedVersion != null && System.currentTimeMillis() - cacheTimestamp < CACHE_TTL_MS) {
+            refreshing.set(false);
+            return;
+        }
+
         String baseUrl = SkillReader.resolveMavenRepoBaseUrl(projectDir);
         String metadataUrl = baseUrl + "/io/quarkus/quarkus-bom/maven-metadata.xml";
 
