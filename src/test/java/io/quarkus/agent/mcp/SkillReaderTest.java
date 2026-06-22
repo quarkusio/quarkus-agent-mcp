@@ -163,7 +163,7 @@ class SkillReaderTest {
     @Test
     void downloadSkipsSnapshotVersions() {
         Path targetPath = tempDir.resolve("skills.jar");
-        Path result = SkillReader.downloadFromMavenRepo("999-SNAPSHOT", targetPath, tempDir.toString());
+        Path result = SkillReader.downloadFromMavenRepo("999-SNAPSHOT", targetPath, tempDir.toString(), null);
         assertNull(result);
     }
 

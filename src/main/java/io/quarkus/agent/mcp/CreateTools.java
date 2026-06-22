@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.inject.Inject;
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +31,9 @@ public class CreateTools {
 
     @Inject
     QuarkusProcessManager processManager;
+
+    @Inject
+    WebClient webClient;
 
     @Inject
     @ConfigProperty(name = "agent-mcp.default-quarkus-version")
@@ -217,7 +221,8 @@ public class CreateTools {
 
                 // Include skill index so the agent doesn't need a separate quarkus_skills call
                 try {
-                    List<SkillReader.SkillInfo> skillList = SkillReader.readSkills(projectDir, null, true, false);
+                    List<SkillReader.SkillInfo> skillList = SkillReader.readSkills(projectDir, null, true, false,
+                            webClient);
                     if (!skillList.isEmpty()) {
                         response.append("\n\n").append(DevMcpProxyTools.formatSkillIndex(skillList));
                     }

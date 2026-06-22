@@ -6,11 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.vertx.mutiny.core.buffer.Buffer;
+import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.inject.Inject;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,6 +74,12 @@ public class DevMcpProxyTools {
     @Inject
     ContainerManager containerManager;
 
+    @Inject
+    WebClient webClient;
+
+    @Inject
+    LatestQuarkusVersionResolver versionResolver;
+
     @ConfigProperty(name = "agent-mcp.local-skills-dir")
     Optional<String> localSkillsDir;
 
@@ -88,7 +94,7 @@ public class DevMcpProxyTools {
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_searchTools", readOnlyHint = true, destructiveHint = false, idempotentHint = true))
-    ToolResponse searchTools(
+    Uni<ToolResponse> searchTools(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Search query to filter tools by name or description (case-insensitive). "
                     + "Examples: 'test' for testing tools, 'config' for configuration, "
@@ -96,22 +102,29 @@ public class DevMcpProxyTools {
         try {
             QuarkusInstance instance = resolveInstance(projectDir);
             int port = getDevMcpPort(instance);
-            JsonNode tools = fetchDevMcpTools(port, instance.getDevMcpPath());
-            if (tools == null || !tools.isArray()) {
-                return ToolResponse.success("No tools available from Dev MCP");
-            }
-
-            List<JsonNode> matched = filterTools(tools, query);
-            if (matched.isEmpty()) {
-                return ToolResponse.success("No Dev MCP tools found matching: " + query);
-            }
-
-            return ToolResponse.success(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(matched));
-        } catch (JsonProcessingException e) {
-            return ToolResponse.error("Failed to serialize tools: " + e.getMessage());
+            return fetchDevMcpTools(port, instance.getDevMcpPath())
+                    .map(tools -> {
+                        if (tools == null || !tools.isArray()) {
+                            return ToolResponse.success("No tools available from Dev MCP");
+                        }
+                        List<JsonNode> matched = filterTools(tools, query);
+                        if (matched.isEmpty()) {
+                            return ToolResponse.success("No Dev MCP tools found matching: " + query);
+                        }
+                        try {
+                            return ToolResponse.success(
+                                    mapper.writerWithDefaultPrettyPrinter().writeValueAsString(matched));
+                        } catch (JsonProcessingException e) {
+                            return ToolResponse.error("Failed to serialize tools: " + e.getMessage());
+                        }
+                    })
+                    .onFailure().recoverWithItem(e -> {
+                        LOG.error("Failed to search Dev MCP tools for " + projectDir, e);
+                        return ToolResponse.error(e.getMessage());
+                    });
         } catch (Exception e) {
             LOG.error("Failed to search Dev MCP tools for " + projectDir, e);
-            return ToolResponse.error(e.getMessage());
+            return Uni.createFrom().item(ToolResponse.error(e.getMessage()));
         }
     }
 
@@ -130,7 +143,7 @@ public class DevMcpProxyTools {
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_skills", readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
-    ToolResponse skills(
+    Uni<ToolResponse> skills(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "Optional query to filter skills by extension name (case-insensitive). "
                     + "Supports comma-separated names to fetch multiple skills at once "
@@ -140,103 +153,108 @@ public class DevMcpProxyTools {
                     + "(e.g., 'modules/build.md', 'references/dependency-map.md'). "
                     + "Requires 'query' to identify which skill the module belongs to. "
                     + "Available module paths are listed in the skill's output.", required = false) String module) {
-        try {
-            Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
-            String queryLower = (query != null && !query.isBlank()) ? query.toLowerCase() : null;
-            boolean needsModuleOnly = module != null && !module.isBlank();
-            boolean needsContent = queryLower != null && !needsModuleOnly;
+        // Runs on a worker pool — blocking .await() calls inside (e.g. SkillReader downloads) are safe
+        return Uni.createFrom().item(() -> {
+            try {
+                Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
+                String queryLower = (query != null && !query.isBlank()) ? query.toLowerCase() : null;
+                boolean needsModuleOnly = module != null && !module.isBlank();
+                boolean needsContent = queryLower != null && !needsModuleOnly;
 
-            // When a query is provided we need full content; module-only requests skip body but load modules
-            List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir,
-                    !needsContent && !needsModuleOnly, includeTransitiveDeps,
-                    needsContent || needsModuleOnly);
+                // When a query is provided we need full content; module-only requests skip body but load modules
+                List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir,
+                        !needsContent && !needsModuleOnly, includeTransitiveDeps,
+                        needsContent || needsModuleOnly, webClient);
 
-            // If no skills found, check if the app is still building and wait for it
-            if (skills.isEmpty()) {
-                skills = waitForBuildAndRetry(projectDir, !needsContent);
-            }
-
-            if (skills.isEmpty()) {
-                return ToolResponse.success(
-                        "No extension skills found. Ensure the project has been built at least once "
-                                + "and uses Quarkus extensions that provide skill files.");
-            }
-
-            // Filter by query if provided — supports comma/space-separated tokens
-            List<SkillReader.SkillInfo> matched = skills;
-            if (queryLower != null) {
-                List<String> tokens = List.of(queryLower.split("[,\\s]+"));
-                matched = skills.stream()
-                        .filter(s -> {
-                            String name = s.name().toLowerCase();
-                            String desc = s.description() != null ? s.description().toLowerCase() : "";
-                            return tokens.stream().anyMatch(t -> !t.isEmpty() && (name.contains(t) || desc.contains(t)));
-                        })
-                        .toList();
-            }
-
-            if (matched.isEmpty()) {
-                return ToolResponse.success("No skills found matching: " + query);
-            }
-
-            // Module loading: return a specific module file from a skill
-            if (module != null && !module.isBlank()) {
-                if (matched.size() != 1) {
-                    return ToolResponse.error("Specify a single skill name in 'query' when loading a module. "
-                            + "Matched: " + matched.stream().map(SkillReader.SkillInfo::name).toList());
+                // If no skills found, check if the app is still building and wait for it
+                if (skills.isEmpty()) {
+                    skills = waitForBuildAndRetry(projectDir, !needsContent);
                 }
-                SkillReader.SkillInfo skill = matched.get(0);
-                if (skill.modules() == null || !skill.modules().containsKey(module)) {
-                    String available = skill.modules() != null
-                            ? String.join(", ", skill.modules().keySet())
-                            : "none";
-                    return ToolResponse.error("Module '" + module + "' not found in skill '" + skill.name()
-                            + "'. Available modules: " + available);
+
+                if (skills.isEmpty()) {
+                    return ToolResponse.success(
+                            "No extension skills found. Ensure the project has been built at least once "
+                                    + "and uses Quarkus extensions that provide skill files.");
                 }
-                return ToolResponse.success(skill.modules().get(module));
-            }
 
-            // Multiple skills and no query — return categorized index
-            if (queryLower == null && matched.size() > 1) {
-                return ToolResponse.success(formatSkillIndex(matched));
-            }
-
-            // Single skill without query — we only read metadata, so re-read with content
-            if (!needsContent) {
-                skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false, includeTransitiveDeps);
-                matched = skills;
-            }
-
-            // Resolve latest Quarkus version for context
-            String latestVersion = LatestQuarkusVersionResolver.resolve(projectDir);
-
-            // Return full content for matched skills
-            StringBuilder sb = new StringBuilder();
-            if (latestVersion != null) {
-                sb.append("> **Latest Quarkus release:** ").append(latestVersion).append("\n\n");
-            }
-            boolean first = true;
-            for (SkillReader.SkillInfo skill : matched) {
-                if (!first) {
-                    sb.append("\n---\n\n");
+                // Filter by query if provided — supports comma/space-separated tokens
+                List<SkillReader.SkillInfo> matched = skills;
+                if (queryLower != null) {
+                    List<String> tokens = List.of(queryLower.split("[,\\s]+"));
+                    matched = skills.stream()
+                            .filter(s -> {
+                                String name = s.name().toLowerCase();
+                                String desc = s.description() != null ? s.description().toLowerCase() : "";
+                                return tokens.stream()
+                                        .anyMatch(t -> !t.isEmpty() && (name.contains(t) || desc.contains(t)));
+                            })
+                            .toList();
                 }
-                first = false;
-                sb.append("# ").append(skill.name()).append("\n\n");
-                sb.append(skill.content());
-                if (skill.modules() != null && !skill.modules().isEmpty()) {
-                    sb.append("\n\n---\n\n### Available Modules\n\n");
-                    sb.append("Load a module with `quarkus_skills query='").append(skill.name())
-                            .append("' module='<path>'`:\n\n");
-                    for (String modulePath : skill.modules().keySet()) {
-                        sb.append("- `").append(modulePath).append("`\n");
+
+                if (matched.isEmpty()) {
+                    return ToolResponse.success("No skills found matching: " + query);
+                }
+
+                // Module loading: return a specific module file from a skill
+                if (module != null && !module.isBlank()) {
+                    if (matched.size() != 1) {
+                        return ToolResponse.error("Specify a single skill name in 'query' when loading a module. "
+                                + "Matched: " + matched.stream().map(SkillReader.SkillInfo::name).toList());
+                    }
+                    SkillReader.SkillInfo skill = matched.get(0);
+                    if (skill.modules() == null || !skill.modules().containsKey(module)) {
+                        String available = skill.modules() != null
+                                ? String.join(", ", skill.modules().keySet())
+                                : "none";
+                        return ToolResponse.error("Module '" + module + "' not found in skill '" + skill.name()
+                                + "'. Available modules: " + available);
+                    }
+                    return ToolResponse.success(skill.modules().get(module));
+                }
+
+                // Multiple skills and no query — return categorized index
+                if (queryLower == null && matched.size() > 1) {
+                    return ToolResponse.success(formatSkillIndex(matched));
+                }
+
+                // Single skill without query — we only read metadata, so re-read with content
+                if (!needsContent) {
+                    skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false, includeTransitiveDeps,
+                            webClient);
+                    matched = skills;
+                }
+
+                // Resolve latest Quarkus version for context
+                String latestVersion = versionResolver.resolve(projectDir);
+
+                // Return full content for matched skills
+                StringBuilder sb = new StringBuilder();
+                if (latestVersion != null) {
+                    sb.append("> **Latest Quarkus release:** ").append(latestVersion).append("\n\n");
+                }
+                boolean first = true;
+                for (SkillReader.SkillInfo skill : matched) {
+                    if (!first) {
+                        sb.append("\n---\n\n");
+                    }
+                    first = false;
+                    sb.append("# ").append(skill.name()).append("\n\n");
+                    sb.append(skill.content());
+                    if (skill.modules() != null && !skill.modules().isEmpty()) {
+                        sb.append("\n\n---\n\n### Available Modules\n\n");
+                        sb.append("Load a module with `quarkus_skills query='").append(skill.name())
+                                .append("' module='<path>'`:\n\n");
+                        for (String modulePath : skill.modules().keySet()) {
+                            sb.append("- `").append(modulePath).append("`\n");
+                        }
                     }
                 }
+                return ToolResponse.success(sb.toString());
+            } catch (Exception e) {
+                LOG.error("Failed to read skills for " + projectDir, e);
+                return ToolResponse.error("Failed to read skills: " + e.getMessage());
             }
-            return ToolResponse.success(sb.toString());
-        } catch (Exception e) {
-            LOG.error("Failed to read skills for " + projectDir, e);
-            return ToolResponse.error("Failed to read skills: " + e.getMessage());
-        }
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
     /**
@@ -255,7 +273,7 @@ public class DevMcpProxyTools {
         }
         // RUNNING or timed out (still STARTING) -- try reading skills either way
         return SkillReader.readSkills(projectDir, localSkillsDir.map(Path::of).orElse(null), metadataOnly,
-                includeTransitiveDeps);
+                includeTransitiveDeps, webClient);
     }
 
     static String formatSkillIndex(List<SkillReader.SkillInfo> skills) {
@@ -374,7 +392,7 @@ public class DevMcpProxyTools {
         try {
             Path effectiveLocalDir = localSkillsDir.map(Path::of).orElse(null);
             List<SkillReader.SkillInfo> skills = SkillReader.readSkills(projectDir, effectiveLocalDir, false,
-                    includeTransitiveDeps);
+                    includeTransitiveDeps, webClient);
             SkillReader.SkillInfo matched = skills.stream()
                     .filter(s -> s.name().equalsIgnoreCase(skillName))
                     .findFirst()
@@ -410,7 +428,7 @@ public class DevMcpProxyTools {
             + "After structural changes (adding extensions, endpoints), update README.md. "
             + "NEVER run 'mvn clean' or 'gradle clean' while dev mode is running -- it deletes target/test-classes and breaks the test runner. "
             + "If the test runner returns 'Tests already in progress' and won't recover, do a full quarkus_stop + quarkus_start cycle to reset it.")
-    ToolResponse callTool(
+    Uni<ToolResponse> callTool(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "The name of the Dev MCP tool to call (as returned by quarkus_searchTools)") String toolName,
             @ToolArg(description = "Arguments to pass to the tool as a JSON string (matching the tool's inputSchema). "
@@ -427,36 +445,45 @@ public class DevMcpProxyTools {
                 params.put("arguments", Map.of());
             }
 
-            JsonNode response = callDevMcp(port, instance.getDevMcpPath(), "tools/call", params);
-            ToolResponse result = extractToolResult(response);
-
-            // Invalidate dependency cache and remind agent after structural changes
-            if (!result.isError() && toolName != null
-                    && (toolName.contains("extension") || toolName.contains("add")
-                            || toolName.contains("remove"))) {
-                DependencyResolver.invalidate(projectDir);
-
-                // Load any new extension's RAG documentation in the background
-                if (containerManager.isDefaultReady()) {
-                    String qVersion = QuarkusVersionDetector.detect(projectDir);
-                    Thread.ofVirtual().name("rag-incremental-load").start(() -> {
+            return callDevMcp(port, instance.getDevMcpPath(), "tools/call", params)
+                    .map(response -> {
                         try {
-                            containerManager.loadIncrementalRagData(qVersion, projectDir);
-                        } catch (Exception e) {
-                            LOG.debugf("Background incremental RAG load failed: %s", e.getMessage());
-                        }
-                    });
-                }
-                String resultText = extractTextFromResult(result);
-                return ToolResponse.success(resultText
-                        + "\n\nREMINDER: Update README.md to reflect this change (features, extensions, guide links)."
-                        + "\nAlso write tests for any new functionality.");
-            }
+                            ToolResponse result = extractToolResult(response);
 
-            return result;
+                            if (!result.isError() && toolName != null
+                                    && (toolName.contains("extension") || toolName.contains("add")
+                                            || toolName.contains("remove"))) {
+                                DependencyResolver.invalidate(projectDir);
+
+                                if (containerManager.isDefaultReady()) {
+                                    String qVersion = QuarkusVersionDetector.detect(projectDir);
+                                    Thread.ofVirtual().name("rag-incremental-load").start(() -> {
+                                        try {
+                                            containerManager.loadIncrementalRagData(qVersion, projectDir);
+                                        } catch (Exception e) {
+                                            LOG.debugf("Background incremental RAG load failed: %s",
+                                                    e.getMessage());
+                                        }
+                                    });
+                                }
+                                String resultText = extractTextFromResult(result);
+                                return ToolResponse.success(resultText
+                                        + "\n\nREMINDER: Update README.md to reflect this change (features, extensions, guide links)."
+                                        + "\nAlso write tests for any new functionality.");
+                            }
+
+                            return result;
+                        } catch (JsonProcessingException e) {
+                            return ToolResponse.error("Failed to parse Dev MCP response: " + e.getMessage());
+                        }
+                    })
+                    .onFailure().recoverWithItem(e -> {
+                        LOG.error("Failed to call Dev MCP tool '" + toolName + "' for " + projectDir, e);
+                        return ToolResponse.error(e.getMessage());
+                    });
         } catch (Exception e) {
             LOG.error("Failed to call Dev MCP tool '" + toolName + "' for " + projectDir, e);
-            return ToolResponse.error(e.getMessage());
+            return Uni.createFrom().item(ToolResponse.error(e.getMessage()));
         }
     }
 
@@ -563,15 +590,12 @@ public class DevMcpProxyTools {
         return "";
     }
 
-    private JsonNode fetchDevMcpTools(int port, String devMcpPath) {
-        JsonNode result = callDevMcp(port, devMcpPath, "tools/list", Map.of());
-        if (result != null && result.has("tools")) {
-            return result.get("tools");
-        }
-        return null;
+    private Uni<JsonNode> fetchDevMcpTools(int port, String devMcpPath) {
+        return callDevMcp(port, devMcpPath, "tools/list", Map.of())
+                .map(result -> result != null && result.has("tools") ? result.get("tools") : null);
     }
 
-    private JsonNode callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params) {
+    private Uni<JsonNode> callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params) {
         String jsonRpcRequest;
         try {
             jsonRpcRequest = mapper.writeValueAsString(Map.of(
@@ -580,57 +604,37 @@ public class DevMcpProxyTools {
                     "method", method,
                     "params", params));
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize JSON-RPC request: " + e.getMessage(), e);
+            return Uni.createFrom().failure(
+                    new RuntimeException("Failed to serialize JSON-RPC request: " + e.getMessage(), e));
         }
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + devMcpPath))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json, text/event-stream")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonRpcRequest))
-                .timeout(REQUEST_TIMEOUT)
-                .build();
-
-        IOException lastException = null;
-        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            if (attempt > 0) {
-                long delay = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
-                LOG.warnf("Dev MCP call failed (attempt %d/%d), retrying in %dms: %s",
-                        attempt, MAX_RETRIES + 1, delay, lastException.getMessage());
-                try {
-                    Thread.sleep(delay);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted while retrying Dev MCP call", ie);
-                }
-            }
-
-            try {
-                HttpResponse<String> response = HttpClientProvider.getHttpClient().send(request,
-                        HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() != 200) {
-                    throw new RuntimeException("Dev MCP returned HTTP " + response.statusCode());
-                }
-
-                JsonNode body = mapper.readTree(response.body());
-                if (body.has("result")) {
-                    return body.get("result");
-                }
-                if (body.has("error")) {
-                    String errorMsg = body.get("error").has("message")
-                            ? body.get("error").get("message").asText()
-                            : body.get("error").toString();
-                    throw new RuntimeException("Dev MCP error: " + errorMsg);
-                }
-                return null;
-            } catch (IOException e) {
-                lastException = e;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Failed to call Dev MCP: " + e.getMessage(), e);
-            }
-        }
-        throw new RuntimeException("Failed to call Dev MCP after " + (MAX_RETRIES + 1)
-                + " attempts: " + lastException.getMessage(), lastException);
+        return webClient.postAbs("http://localhost:" + port + devMcpPath)
+                .putHeader("Content-Type", "application/json")
+                .putHeader("Accept", "application/json, text/event-stream")
+                .timeout(REQUEST_TIMEOUT.toMillis())
+                .sendBuffer(Buffer.buffer(jsonRpcRequest))
+                .onFailure().retry()
+                    .withBackOff(Duration.ofMillis(INITIAL_RETRY_DELAY_MS), Duration.ofSeconds(8))
+                    .atMost(MAX_RETRIES)
+                .map(response -> {
+                    if (response.statusCode() != 200) {
+                        throw new RuntimeException("Dev MCP returned HTTP " + response.statusCode());
+                    }
+                    try {
+                        JsonNode body = mapper.readTree(response.bodyAsString());
+                        if (body.has("result")) {
+                            return body.get("result");
+                        }
+                        if (body.has("error")) {
+                            String errorMsg = body.get("error").has("message")
+                                    ? body.get("error").get("message").asText()
+                                    : body.get("error").toString();
+                            throw new RuntimeException("Dev MCP error: " + errorMsg);
+                        }
+                        return (JsonNode) null;
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException("Failed to parse Dev MCP response", e);
+                    }
+                });
     }
 }
