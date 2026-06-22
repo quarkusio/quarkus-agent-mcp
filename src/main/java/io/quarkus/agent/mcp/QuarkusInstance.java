@@ -226,8 +226,9 @@ public class QuarkusInstance {
                     "Process is not running. Use quarkus_start to start a new instance.");
         }
         status.set(Status.STARTING);
-        httpPort = -1;
-        devMcpPath = null;
+        // Keep httpPort and devMcpPath: during a live reload the JVM stays alive
+        // and the port doesn't change. The log parser will overwrite these if new
+        // "Listening on:" / "Dev MCP available at:" lines appear.
         sendInput('s');
     }
 

@@ -104,12 +104,39 @@ public class LifecycleTools {
     }
 
     @Tool(name = "quarkus_restart", description = "Force restart a Quarkus application. "
+            + "Blocks until the app is ready or fails. "
             + "Only use if the app is unresponsive. Normally hot reload handles changes automatically.")
     ToolResponse restart(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
             processManager.restart(projectDir);
-            return ToolResponse.success("Quarkus application restart triggered at: " + projectDir);
+
+            QuarkusInstance instance = processManager.getInstance(projectDir);
+            if (instance != null && instance.getStatus() == QuarkusInstance.Status.STARTING) {
+                long deadline = System.currentTimeMillis() + STARTUP_TIMEOUT_MS;
+                while (instance.getStatus() == QuarkusInstance.Status.STARTING
+                        && System.currentTimeMillis() < deadline) {
+                    try {
+                        Thread.sleep(STARTUP_POLL_INTERVAL_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+
+            if (instance != null && instance.getStatus() == QuarkusInstance.Status.RUNNING) {
+                int port = instance.getHttpPort();
+                String portInfo = port > 0 ? " (port: " + port + ")" : "";
+                return ToolResponse.success("Quarkus application restarted at: " + projectDir + portInfo);
+            } else if (instance != null && instance.getStatus() == QuarkusInstance.Status.CRASHED) {
+                String recentLogs = instance.getRecentLogs(30);
+                return ToolResponse.error("Quarkus application failed to restart at: " + projectDir
+                        + "\n\nRecent logs:\n" + recentLogs);
+            } else {
+                return ToolResponse.success("Quarkus application restart triggered at: " + projectDir
+                        + " — still starting after timeout, use quarkus_status to check");
+            }
         } catch (Exception e) {
             LOG.error("Failed to restart Quarkus application at " + projectDir, e);
             return ToolResponse.error(e.getMessage());
