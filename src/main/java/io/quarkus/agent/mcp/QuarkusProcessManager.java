@@ -32,11 +32,18 @@ public class QuarkusProcessManager {
     @Inject
     ManagedExecutor executor;
 
+    @ConfigProperty(name = "agent-mcp.dev-mode", defaultValue = "true")
+    boolean devMode;
+
     @ConfigProperty(name = "agent-mcp.process.gradle-cmd")
     Optional<String> gradleCmd;
 
     @ConfigProperty(name = "agent-mcp.app-log.enabled")
     Optional<Boolean> appLogEnabled;
+
+    public boolean isDevMode() {
+        return devMode;
+    }
 
     private static final Set<String> VALID_BUILD_TOOLS = Set.of("maven", "gradle");
     static final int DEFAULT_HTTP_PORT = 8080;
@@ -83,7 +90,8 @@ public class QuarkusProcessManager {
             if (appLogEnabled.orElse(false)) {
                 instance.enableFileLogging(computeLogFile(normalizedDir));
             }
-            LOG.infof("Started Quarkus dev mode at: %s (build tool: %s)", normalizedDir, detectedBuildTool);
+            String mode = devMode ? "dev" : "prod";
+            LOG.infof("Started Quarkus %s mode at: %s (build tool: %s)", mode, normalizedDir, detectedBuildTool);
         } catch (IOException e) {
             throw new RuntimeException("Failed to start Quarkus dev mode: " + e.getMessage(), e);
         }
@@ -109,17 +117,20 @@ public class QuarkusProcessManager {
                     "No Quarkus instance found at: " + normalizedDir + ". Use quarkus_start first.");
         }
 
-        if (!instance.isAlive()) {
+        if (devMode && instance.isAlive()) {
+            instance.restart();
+            LOG.infof("Live reload triggered at: %s", normalizedDir);
+        } else {
             String savedBuildTool = instance.getBuildTool();
             Integer savedHttpPort = instance.getRequestedHttpPort();
             String savedMavenProfiles = instance.getMavenProfiles();
             String savedExtraArgs = instance.getExtraArgs();
+            if (instance.isAlive()) {
+                instance.stop();
+            }
             instances.remove(normalizedDir);
             start(normalizedDir, savedBuildTool, savedHttpPort, savedMavenProfiles, savedExtraArgs);
-            LOG.infof("Re-started dead Quarkus instance at: %s", normalizedDir);
-        } else {
-            instance.restart();
-            LOG.infof("Restart triggered at: %s", normalizedDir);
+            LOG.infof("Full restart at: %s", normalizedDir);
         }
     }
 
@@ -201,8 +212,14 @@ public class QuarkusProcessManager {
 
     private ProcessBuilder createMavenProcessBuilder(File projectDir, String mavenProfiles) {
         String mvnCmd = ProcessUtils.resolveMavenCommand(projectDir);
-        var command = new ArrayList<>(List.of(mvnCmd, "quarkus:dev",
-                "-Dquarkus.console.basic=true", "-Dquarkus.dev-mcp.enabled=true"));
+        var command = new ArrayList<String>();
+        command.add(mvnCmd);
+        if (devMode) {
+            command.addAll(List.of("quarkus:dev",
+                    "-Dquarkus.console.basic=true", "-Dquarkus.dev-mcp.enabled=true"));
+        } else {
+            command.add("quarkus:run");
+        }
         if (mavenProfiles != null && !mavenProfiles.isBlank()) {
             command.add("-P" + mavenProfiles.trim());
         }
@@ -211,8 +228,11 @@ public class QuarkusProcessManager {
 
     private ProcessBuilder createGradleProcessBuilder(File projectDir) {
         String cmd = gradleCmd.orElseGet(() -> ProcessUtils.resolveGradleCommand(projectDir));
-        return new ProcessBuilder(cmd, "quarkusDev", "-Dquarkus.console.basic=true",
-                "-Dquarkus.dev-mcp.enabled=true");
+        if (devMode) {
+            return new ProcessBuilder(cmd, "quarkusDev",
+                    "-Dquarkus.console.basic=true", "-Dquarkus.dev-mcp.enabled=true");
+        }
+        return new ProcessBuilder(cmd, "quarkusRun");
     }
 
     static boolean isPortAvailable(int port) {
