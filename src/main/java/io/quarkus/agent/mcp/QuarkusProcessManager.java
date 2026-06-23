@@ -93,7 +93,8 @@ public class QuarkusProcessManager {
             String mode = devMode ? "dev" : "prod";
             LOG.infof("Started Quarkus %s mode at: %s (build tool: %s)", mode, normalizedDir, detectedBuildTool);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to start Quarkus dev mode: " + e.getMessage(), e);
+            String mode = devMode ? "dev" : "prod";
+            throw new RuntimeException("Failed to start Quarkus " + mode + " mode: " + e.getMessage(), e);
         }
         return effectivePort;
     }
