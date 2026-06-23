@@ -76,7 +76,7 @@ public class LifecycleTools {
                 return ToolResponse.error("Quarkus application failed to start at: " + projectDir
                         + "\n\nRecent logs:\n" + recentLogs + containerWarning + agentFilesNote);
             } else {
-                String message = "Quarkus application starting in dev mode at: " + projectDir;
+                String message = "Quarkus application starting at: " + projectDir;
                 if (effectivePort != null) {
                     message += " (port: " + effectivePort + ")";
                 }
