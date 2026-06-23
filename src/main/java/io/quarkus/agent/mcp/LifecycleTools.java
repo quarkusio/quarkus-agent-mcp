@@ -29,9 +29,9 @@ public class LifecycleTools {
     static final long STARTUP_TIMEOUT_MS = 120_000;
     static final long STARTUP_POLL_INTERVAL_MS = 2_000;
 
-    @Tool(name = "quarkus_start", description = "Start a Quarkus application in dev mode. "
+    @Tool(name = "quarkus_start", description = "Start a Quarkus application. "
             + "Blocks until the app is ready or fails. "
-            + "Auto-detects Maven or Gradle. Hot reload is triggered when the app is accessed. "
+            + "Auto-detects Maven or Gradle. "
             + "RULES: Always write tests. Always keep README.md updated after changes.")
     ToolResponse start(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
@@ -104,8 +104,7 @@ public class LifecycleTools {
     }
 
     @Tool(name = "quarkus_restart", description = "Force restart a Quarkus application. "
-            + "Blocks until the app is ready or fails. "
-            + "Only use if the app is unresponsive. Normally hot reload handles changes automatically.")
+            + "Blocks until the app is ready or fails.")
     ToolResponse restart(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
@@ -205,9 +204,7 @@ public class LifecycleTools {
         }
     }
 
-    @Tool(name = "quarkus_logs", description = "Get recent log output from a managed Quarkus application. "
-            + "For structured exception details (class, message, stack trace, user code location), "
-            + "prefer quarkus_callTool with toolName 'devui-exceptions_getLastException' instead.",
+    @Tool(name = "quarkus_logs", description = "Get recent log output from a managed Quarkus application.",
             // title set as workaround: the framework serializes "title":null when unset, which violates the MCP schema
             // see https://github.com/quarkiverse/quarkus-mcp-server/issues/748
             annotations = @Tool.Annotations(title = "quarkus_logs", readOnlyHint = true, destructiveHint = false, openWorldHint = false))

@@ -175,11 +175,18 @@ class QuarkusProcessManagerTest {
     }
 
     private void initOptionalFields() throws Exception {
+        initOptionalFields(true);
+    }
+
+    private void initOptionalFields(boolean devMode) throws Exception {
         for (String fieldName : new String[] { "gradleCmd", "appLogEnabled" }) {
             Field f = QuarkusProcessManager.class.getDeclaredField(fieldName);
             f.setAccessible(true);
             f.set(manager, Optional.empty());
         }
+        Field devModeField = QuarkusProcessManager.class.getDeclaredField("devMode");
+        devModeField.setAccessible(true);
+        devModeField.setBoolean(manager, devMode);
     }
 
     @Test
@@ -280,5 +287,84 @@ class QuarkusProcessManagerTest {
         String path2 = (String) m.invoke(manager, tempDir.toString() + "/./");
 
         assertEquals(path1, path2);
+    }
+
+    @Test
+    void devModeDefaultIsTrue() {
+        // CDI injects defaultValue = "true"; verify getter reflects that when set
+        QuarkusProcessManager pm = new QuarkusProcessManager();
+        try {
+            Field f = QuarkusProcessManager.class.getDeclaredField("devMode");
+            f.setAccessible(true);
+            f.setBoolean(pm, true);
+            assertTrue(pm.isDevMode());
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @Test
+    void processBuilderUsesMavenDevModeByDefault() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields(true);
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null, (String) null);
+        assertTrue(pb.command().contains("quarkus:dev"));
+        assertTrue(pb.command().contains("-Dquarkus.dev-mcp.enabled=true"));
+        assertTrue(pb.command().contains("-Dquarkus.console.basic=true"));
+    }
+
+    @Test
+    void processBuilderUsesMavenProdMode() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields(false);
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null, (String) null);
+        assertTrue(pb.command().contains("quarkus:run"));
+        assertFalse(pb.command().contains("quarkus:dev"));
+        assertFalse(pb.command().contains("-Dquarkus.dev-mcp.enabled=true"));
+        assertFalse(pb.command().contains("-Dquarkus.console.basic=true"));
+    }
+
+    @Test
+    void processBuilderUsesGradleProdMode() throws Exception {
+        Files.writeString(tempDir.resolve("build.gradle"), "// gradle");
+        initOptionalFields(false);
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "gradle", (Integer) null, (String) null, (String) null);
+        assertTrue(pb.command().contains("quarkusRun"));
+        assertFalse(pb.command().contains("quarkusDev"));
+        assertFalse(pb.command().contains("-Dquarkus.dev-mcp.enabled=true"));
+        assertFalse(pb.command().contains("-Dquarkus.console.basic=true"));
+    }
+
+    @Test
+    void processBuilderProdModeIncludesPortArgs() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields(false);
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", 9090, (String) null, (String) null);
+        assertTrue(pb.command().contains("quarkus:run"));
+        assertTrue(pb.command().contains("-Dquarkus.http.port=9090"));
+    }
+
+    @Test
+    void processBuilderProdModeIncludesMavenProfile() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields(false);
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, "myprofile", (String) null);
+        assertTrue(pb.command().contains("quarkus:run"));
+        assertTrue(pb.command().contains("-Pmyprofile"));
     }
 }
