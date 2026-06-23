@@ -1,5 +1,6 @@
 package io.quarkus.agent.mcp;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -49,6 +50,15 @@ public class QuarkusProcessManager {
         return "dev".equals(mode);
     }
 
+    @PostConstruct
+    void validateMode() {
+        if (!VALID_MODES.contains(mode)) {
+            throw new IllegalStateException(
+                    "Invalid agent-mcp.mode: '" + mode + "'. Must be one of: " + VALID_MODES);
+        }
+    }
+
+    private static final Set<String> VALID_MODES = Set.of("dev", "test", "prod");
     private static final Set<String> VALID_BUILD_TOOLS = Set.of("maven", "gradle");
     static final int DEFAULT_HTTP_PORT = 8080;
     private static final int MAX_PORT_SCAN = 100;

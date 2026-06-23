@@ -185,7 +185,7 @@ public class CreateTools {
             createSourceDirectories(projectDir);
 
             // Generate AGENTS.md, CLAUDE.md, and .mcp.json
-            ProjectFiles.generateProjectInstructions(projectDir);
+            ProjectFiles.generateProjectInstructions(projectDir, processManager.isDevMode());
             ProjectFiles.generateMcpConfig(projectDir);
 
             // Auto-start the app in dev mode and wait for it to be ready
@@ -230,7 +230,12 @@ public class CreateTools {
 
                 response.append("\n\nNEXT: Call quarkus_skills with the relevant extension names "
                         + "(e.g., quarkus_skills query='panache,rest') to read the full patterns and guidelines before writing code. "
-                        + "Write code and tests, then run tests with quarkus_callTool toolName='devui-testing_runTests'.");
+                        + "Write code and tests, then run tests");
+                if (processManager.isDevMode()) {
+                    response.append(" with quarkus_callTool toolName='devui-testing_runTests'.");
+                } else {
+                    response.append(" with mvn test (or gradle test).");
+                }
 
                 return ToolResponse.success(response.toString());
             } catch (Exception startError) {

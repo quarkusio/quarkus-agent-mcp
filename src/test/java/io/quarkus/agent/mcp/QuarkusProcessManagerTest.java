@@ -406,4 +406,24 @@ class QuarkusProcessManagerTest {
         assertTrue(pb.command().contains("quarkus:run"));
         assertTrue(pb.command().contains("-Pmyprofile"));
     }
+
+    @Test
+    void validateModeAcceptsValidModes() throws Exception {
+        for (String validMode : new String[] { "dev", "test", "prod" }) {
+            QuarkusProcessManager pm = new QuarkusProcessManager();
+            Field f = QuarkusProcessManager.class.getDeclaredField("mode");
+            f.setAccessible(true);
+            f.set(pm, validMode);
+            pm.validateMode();
+        }
+    }
+
+    @Test
+    void validateModeRejectsInvalidMode() throws Exception {
+        QuarkusProcessManager pm = new QuarkusProcessManager();
+        Field f = QuarkusProcessManager.class.getDeclaredField("mode");
+        f.setAccessible(true);
+        f.set(pm, "invalid");
+        assertThrows(IllegalStateException.class, pm::validateMode);
+    }
 }
