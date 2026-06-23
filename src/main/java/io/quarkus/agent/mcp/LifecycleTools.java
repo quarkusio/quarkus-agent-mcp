@@ -63,7 +63,7 @@ public class LifecycleTools {
                 }
             }
 
-            List<String> createdFiles = ProjectFiles.ensureAgentFiles(projectDir);
+            List<String> createdFiles = ProjectFiles.ensureAgentFiles(projectDir, processManager.isDevMode());
             String agentFilesNote = createdFiles.isEmpty() ? ""
                     : "\nGenerated missing agent files: " + String.join(", ", createdFiles);
 

@@ -6,7 +6,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import java.util.List;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 @ApplicationScoped
@@ -23,15 +22,15 @@ public class StartupObserver {
     @Inject
     ToolManager toolManager;
 
-    @ConfigProperty(name = "agent-mcp.mode", defaultValue = "dev")
-    String mode;
+    @Inject
+    QuarkusProcessManager processManager;
 
     void onStart(@Observes StartupEvent event) {
         LOG.infof("Quarkus Agent MCP running on Java %s (%s) — %s mode",
-                Runtime.version(), System.getProperty("java.vm.name"), mode);
+                Runtime.version(), System.getProperty("java.vm.name"), processManager.getMode());
         containerManager.warmUpDefaultAsync();
 
-        if (!"dev".equals(mode)) {
+        if (!processManager.isDevMode()) {
             for (String toolName : DEV_MODE_ONLY_TOOLS) {
                 if (toolManager.removeTool(toolName) != null) {
                     LOG.infof("Removed dev-mode-only tool: %s", toolName);
