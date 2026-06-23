@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -47,6 +48,7 @@ public class RagSqlLoader {
 
     private static final String RAG_SQL_PATH = "META-INF/quarkus-rag.sql";
     private static final String RAG_DATA_SQL_PATH = "META-INF/quarkus-rag-data.sql";
+    private static final String RAG_ARTIFACT_POINTER_PATH = "META-INF/quarkus-rag-artifact.properties";
     private static final String DEPLOYMENT_SUFFIX = "-deployment";
     private static final String CORE_GROUP_ID = "io.quarkus";
     private static final String RAG_DOCUMENTS_TABLE = "rag_documents";
@@ -71,6 +73,9 @@ public class RagSqlLoader {
     private static final Pattern ROW_SOURCE_PATTERN = Pattern.compile("\"source\"\\s*:\\s*\"([^\"]+)\"");
 
     record RagFragment(String source, String sql) {
+    }
+
+    record RagArtifactPointer(String groupId, String artifactId) {
     }
 
     private final Map<String, Set<String>> loadedSources = new ConcurrentHashMap<>();
@@ -191,6 +196,20 @@ public class RagSqlLoader {
                 continue;
             }
 
+            // Check for a pointer to a separate RAG artifact
+            RagArtifactPointer pointer = readRagArtifactPointer(deploymentJar);
+            if (pointer != null) {
+                RagFragment fragment = resolveExternalRagArtifact(
+                        pointer, dep.version(), m2Repo, projectDir);
+                if (fragment != null) {
+                    fragments.add(fragment);
+                    LOG.debugf("Found RAG SQL via external artifact %s:%s:%s",
+                            pointer.groupId(), pointer.artifactId(), dep.version());
+                    continue;
+                }
+            }
+
+            // Fallback: read RAG SQL directly from the deployment JAR
             RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
             if (fragment != null) {
                 fragments.add(fragment);
@@ -198,6 +217,56 @@ public class RagSqlLoader {
             }
         }
         return fragments;
+    }
+
+    private RagArtifactPointer readRagArtifactPointer(Path jarPath) {
+        try (JarFile jar = new JarFile(jarPath.toFile())) {
+            JarEntry entry = jar.getJarEntry(RAG_ARTIFACT_POINTER_PATH);
+            if (entry == null) {
+                return null;
+            }
+            Properties props = new Properties();
+            try (InputStream is = jar.getInputStream(entry)) {
+                props.load(is);
+            }
+            String groupId = props.getProperty("groupId");
+            String artifactId = props.getProperty("artifactId");
+            if (groupId == null || artifactId == null) {
+                LOG.warnf("Invalid RAG artifact pointer in %s: groupId=%s, artifactId=%s",
+                        jarPath, groupId, artifactId);
+                return null;
+            }
+            return new RagArtifactPointer(groupId.trim(), artifactId.trim());
+        } catch (IOException e) {
+            LOG.debugf("Failed to read RAG artifact pointer from %s: %s",
+                    jarPath, e.getMessage());
+            return null;
+        }
+    }
+
+    private RagFragment resolveExternalRagArtifact(
+            RagArtifactPointer pointer, String version,
+            Path m2Repo, String projectDir) {
+        String groupPath = pointer.groupId().replace('.', '/');
+        Path ragJarPath = m2Repo.resolve(groupPath)
+                .resolve(pointer.artifactId())
+                .resolve(version)
+                .resolve(pointer.artifactId() + "-" + version + ".jar");
+
+        // Try local first
+        RagFragment fragment = readFragmentFromJar(ragJarPath, pointer.artifactId());
+        if (fragment != null) {
+            return fragment;
+        }
+
+        // Try downloading
+        Path downloaded = downloadArtifact(groupPath, pointer.artifactId(),
+                version, ragJarPath, projectDir);
+        if (downloaded != null) {
+            return readFragmentFromJar(downloaded, pointer.artifactId());
+        }
+
+        return null;
     }
 
     private Path resolveAggregatedJarPath(String version, Path m2Repo) {
@@ -208,22 +277,28 @@ public class RagSqlLoader {
     }
 
     private Path downloadFromMavenCentral(String version, Path targetPath) {
+        return downloadArtifact(AGGREGATED_GROUP_PATH, AGGREGATED_ARTIFACT_ID,
+                version, targetPath, null);
+    }
+
+    private Path downloadArtifact(String groupPath, String artifactId,
+            String version, Path targetPath, String projectDir) {
         if (version.endsWith("-SNAPSHOT")) {
             LOG.debugf("Skipping remote download for SNAPSHOT version %s", version);
             return null;
         }
 
-        SkillReader.MavenRepoInfo repoInfo = SkillReader.resolveMavenRepoInfo(null);
-        String artifactPath = "/" + AGGREGATED_GROUP_PATH + "/" + AGGREGATED_ARTIFACT_ID
+        SkillReader.MavenRepoInfo repoInfo = SkillReader.resolveMavenRepoInfo(projectDir);
+        String artifactUrlPath = "/" + groupPath + "/" + artifactId
                 + "/" + version
-                + "/" + AGGREGATED_ARTIFACT_ID + "-" + version + ".jar";
-        String url = repoInfo.url() + artifactPath;
+                + "/" + artifactId + "-" + version + ".jar";
+        String url = repoInfo.url() + artifactUrlPath;
 
         LOG.infof("RAG SQL not found locally, downloading from %s...", url);
 
         try {
             var request = webClient.getAbs(url).timeout(60_000);
-            SkillReader.addAuthHeader(request, repoInfo, null);
+            SkillReader.addAuthHeader(request, repoInfo, projectDir);
 
             var response = request.send().await().atMost(Duration.ofSeconds(65));
 
