@@ -23,16 +23,15 @@ public class StartupObserver {
     @Inject
     ToolManager toolManager;
 
-    @ConfigProperty(name = "agent-mcp.dev-mode", defaultValue = "true")
-    boolean devMode;
+    @ConfigProperty(name = "agent-mcp.mode", defaultValue = "dev")
+    String mode;
 
     void onStart(@Observes StartupEvent event) {
         LOG.infof("Quarkus Agent MCP running on Java %s (%s) — %s mode",
-                Runtime.version(), System.getProperty("java.vm.name"),
-                devMode ? "dev" : "prod");
+                Runtime.version(), System.getProperty("java.vm.name"), mode);
         containerManager.warmUpDefaultAsync();
 
-        if (!devMode) {
+        if (!"dev".equals(mode)) {
             for (String toolName : DEV_MODE_ONLY_TOOLS) {
                 if (toolManager.removeTool(toolName) != null) {
                     LOG.infof("Removed dev-mode-only tool: %s", toolName);
