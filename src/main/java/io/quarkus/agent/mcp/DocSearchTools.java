@@ -170,7 +170,9 @@ public class DocSearchTools {
 
             Filter sourceFilter = null;
             if (extension != null && !extension.isBlank()) {
-                sourceFilter = new ContainsString("source", extension.trim());
+                String ext = extension.trim();
+                sourceFilter = new ContainsString("extension", ext)
+                        .or(new ContainsString("source", ext));
             }
 
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
