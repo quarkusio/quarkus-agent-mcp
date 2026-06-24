@@ -255,6 +255,14 @@ The agent can search Quarkus documentation at any time using `quarkus_searchDocs
 
 On first use, a Docker/Podman container with the pre-indexed documentation is started automatically. If a project directory is provided, the documentation version matches the project's Quarkus version.
 
+Documentation from Quarkiverse and third-party extensions is also indexed automatically when those extensions are project dependencies. Extensions can ship their documentation embeddings either bundled in the deployment JAR or as a separate artifact (recommended for extensions with multiple doc pages — see the [Contributing Extension Documentation](docs/contributing-extension-docs.md) guide).
+
+To narrow results to a specific extension, use the `extension` parameter:
+
+```
+quarkus_searchDocs query="broadcasting messages" extension="quarkus-json-rpc"
+```
+
 ## MCP Tools Reference
 
 ### App Creation
@@ -294,7 +302,7 @@ On first use, a Docker/Podman container with the pre-indexed documentation is st
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_searchDocs` | Semantic search over Quarkus documentation | `query` (required), `maxResults`, `projectDir` |
+| `quarkus_searchDocs` | Semantic search over Quarkus documentation | `query` (required), `maxResults`, `projectDir`, `extension` |
 
 ### Agent Logging
 
@@ -461,6 +469,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 ## Guides
 
 - [Creating Extension Skills](docs/creating-extension-skills.md) - A practical guide for extension developers to discover, write, and test AI skills for their extensions
+- [Contributing Extension Documentation](docs/contributing-extension-docs.md) - How to make your extension's documentation searchable by the AI assistant via RAG
 
 ## Related Projects
 
