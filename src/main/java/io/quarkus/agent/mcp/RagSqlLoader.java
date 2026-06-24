@@ -145,7 +145,7 @@ public class RagSqlLoader {
         Path aggregatedJarPath = resolveAggregatedJarPath(quarkusVersion, m2Repo);
         RagFragment aggregated = readFragmentFromJar(aggregatedJarPath, "quarkus-documentation");
         if (aggregated != null) {
-            fragments.add(aggregated);
+            fragments.add(injectExtensionFromSource(aggregated));
             LOG.infof("Found aggregated RAG SQL artifact locally for Quarkus %s", quarkusVersion);
         } else {
             // Try downloading from Maven Central
@@ -153,7 +153,7 @@ public class RagSqlLoader {
             if (downloaded != null) {
                 aggregated = readFragmentFromJar(downloaded, "quarkus-documentation");
                 if (aggregated != null) {
-                    fragments.add(aggregated);
+                    fragments.add(injectExtensionFromSource(aggregated));
                     LOG.infof("Downloaded aggregated RAG SQL artifact for Quarkus %s", quarkusVersion);
                 }
             }
@@ -275,6 +275,13 @@ public class RagSqlLoader {
         return new RagFragment(fragment.source(), enriched);
     }
 
+    private RagFragment injectExtensionFromSource(RagFragment fragment) {
+        String enriched = fragment.sql().replaceAll(
+                "'\\{\"source\":\"([^\"]+)\"",
+                "'{\"extension\":\"$1\",\"source\":\"$1\"");
+        return new RagFragment(fragment.source(), enriched);
+    }
+
     private Path resolveAggregatedJarPath(String version, Path m2Repo) {
         return m2Repo.resolve(AGGREGATED_GROUP_PATH)
                 .resolve(AGGREGATED_ARTIFACT_ID)
@@ -349,7 +356,7 @@ public class RagSqlLoader {
 
                 RagFragment fragment = readFragmentFromJar(deploymentJar, artifactId);
                 if (fragment != null) {
-                    fragments.add(fragment);
+                    fragments.add(injectExtensionFromSource(fragment));
                     LOG.debugf("Found RAG SQL in %s", deploymentArtifactId);
                 }
             }

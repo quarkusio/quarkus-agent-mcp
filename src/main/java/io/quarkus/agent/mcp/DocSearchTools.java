@@ -128,7 +128,8 @@ public class DocSearchTools {
                     + "Also selects documentation matching the project's Quarkus version.", required = false) String projectDir,
             @ToolArg(description = "Optional extension name to restrict results to a specific extension's "
                     + "documentation (e.g. 'quarkus-json-rpc', 'quarkus-rest'). "
-                    + "When set, only documentation chunks from that extension are returned.", required = false) String extension) {
+                    + "When set, only documentation chunks from that extension are returned. "
+                    + "Works for both core Quarkus extensions and Quarkiverse extensions.", required = false) String extension) {
         try {
             if (query == null || query.isBlank()) {
                 return ToolResponse.error("Search query must not be empty.");
@@ -170,9 +171,7 @@ public class DocSearchTools {
 
             Filter sourceFilter = null;
             if (extension != null && !extension.isBlank()) {
-                String ext = extension.trim();
-                sourceFilter = new ContainsString("extension", ext)
-                        .or(new ContainsString("source", ext));
+                sourceFilter = new ContainsString("extension", extension.trim());
             }
 
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
