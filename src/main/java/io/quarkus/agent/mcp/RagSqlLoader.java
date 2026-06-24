@@ -202,7 +202,7 @@ public class RagSqlLoader {
                 RagFragment fragment = resolveExternalRagArtifact(
                         pointer, dep.version(), m2Repo, projectDir);
                 if (fragment != null) {
-                    fragments.add(fragment);
+                    fragments.add(injectExtensionMetadata(fragment, dep.artifactId()));
                     LOG.debugf("Found RAG SQL via external artifact %s:%s:%s",
                             pointer.groupId(), pointer.artifactId(), dep.version());
                     continue;
@@ -212,7 +212,7 @@ public class RagSqlLoader {
             // Fallback: read RAG SQL directly from the deployment JAR
             RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
             if (fragment != null) {
-                fragments.add(fragment);
+                fragments.add(injectExtensionMetadata(fragment, dep.artifactId()));
                 LOG.debugf("Found RAG SQL in non-core extension %s", dep.artifactId());
             }
         }
@@ -267,6 +267,12 @@ public class RagSqlLoader {
         }
 
         return null;
+    }
+
+    private RagFragment injectExtensionMetadata(RagFragment fragment, String extensionName) {
+        String enriched = fragment.sql().replace("'{\"source\":",
+                "'{\"extension\":\"" + extensionName + "\",\"source\":");
+        return new RagFragment(fragment.source(), enriched);
     }
 
     private Path resolveAggregatedJarPath(String version, Path m2Repo) {
