@@ -7,6 +7,8 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingSearchResult;
+import dev.langchain4j.store.embedding.filter.Filter;
+import dev.langchain4j.store.embedding.filter.comparison.ContainsString;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
@@ -123,7 +125,10 @@ public class DocSearchTools {
             @ToolArg(description = "Absolute path to the Quarkus project directory. "
                     + "Strongly recommended -- documentation is loaded from the project's extension "
                     + "dependencies, so searches without projectDir may return no results. "
-                    + "Also selects documentation matching the project's Quarkus version.", required = false) String projectDir) {
+                    + "Also selects documentation matching the project's Quarkus version.", required = false) String projectDir,
+            @ToolArg(description = "Optional extension name to restrict results to a specific extension's "
+                    + "documentation (e.g. 'quarkus-json-rpc', 'quarkus-rest'). "
+                    + "When set, only documentation chunks from that extension are returned.", required = false) String extension) {
         try {
             if (query == null || query.isBlank()) {
                 return ToolResponse.error("Search query must not be empty.");
@@ -163,8 +168,14 @@ public class DocSearchTools {
 
             Embedding queryEmbedding = embeddingModelLoader.getModel().embed(query).content();
 
+            Filter sourceFilter = null;
+            if (extension != null && !extension.isBlank()) {
+                sourceFilter = new ContainsString("source", extension.trim());
+            }
+
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
                     .queryEmbedding(queryEmbedding)
+                    .filter(sourceFilter)
                     .maxResults(SEARCH_CANDIDATES)
                     .minScore(minScore)
                     .build();
