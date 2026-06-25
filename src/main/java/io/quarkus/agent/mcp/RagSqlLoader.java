@@ -165,13 +165,13 @@ public class RagSqlLoader {
         }
 
         // 2. Non-core extensions: always scan (Quarkiverse, third-party)
-        fragments.addAll(scanNonCoreExtensionJars(m2Repo, projectDir));
+        fragments.addAll(scanNonCoreExtensionJars(m2Repo, projectDir, quarkusVersion));
 
         LOG.infof("Discovered %d RAG SQL fragment(s) for Quarkus %s", fragments.size(), quarkusVersion);
         return fragments;
     }
 
-    private List<RagFragment> scanNonCoreExtensionJars(Path m2Repo, String projectDir) {
+    private List<RagFragment> scanNonCoreExtensionJars(Path m2Repo, String projectDir, String quarkusVersion) {
         if (projectDir == null) {
             return List.of();
         }
@@ -196,13 +196,15 @@ public class RagSqlLoader {
                 continue;
             }
 
+            String guideUrl = readGuideUrl(m2Repo, dep);
+
             // Check for a pointer to a separate RAG artifact
             RagArtifactPointer pointer = readRagArtifactPointer(deploymentJar);
             if (pointer != null) {
                 RagFragment fragment = resolveExternalRagArtifact(
                         pointer, dep.version(), m2Repo, projectDir);
                 if (fragment != null) {
-                    fragments.add(injectExtensionMetadata(fragment, dep.artifactId()));
+                    fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
                     LOG.debugf("Found RAG SQL via external artifact %s:%s:%s",
                             pointer.groupId(), pointer.artifactId(), dep.version());
                     continue;
@@ -212,7 +214,7 @@ public class RagSqlLoader {
             // Fallback: read RAG SQL directly from the deployment JAR
             RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
             if (fragment != null) {
-                fragments.add(injectExtensionMetadata(fragment, dep.artifactId()));
+                fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
                 LOG.debugf("Found RAG SQL in non-core extension %s", dep.artifactId());
             }
         }
@@ -269,16 +271,76 @@ public class RagSqlLoader {
         return null;
     }
 
-    private RagFragment injectExtensionMetadata(RagFragment fragment, String extensionName) {
-        String enriched = fragment.sql().replace("'{\"source\":",
+    /**
+     * Fixes metadata in non-core extension SQL fragments. The upstream plugin generates
+     * metadata assuming core Quarkus conventions; this method corrects it at load time:
+     * <ul>
+     *   <li>{@code source} — replaced with the correct runtime artifact ID</li>
+     *   <li>{@code quarkus_version} — renamed to {@code extension_version}; actual Quarkus version injected</li>
+     *   <li>{@code url} — replaced with the guide URL from {@code quarkus-extension.yaml}, or removed if wrong</li>
+     *   <li>{@code extension} — added (existing behavior)</li>
+     * </ul>
+     */
+    static RagFragment injectExtensionMetadata(RagFragment fragment, String extensionName,
+            String quarkusVersion, String guideUrl) {
+        String sql = fragment.sql();
+
+        // Fix source in DELETE statement
+        sql = SOURCE_PATTERN.matcher(sql).replaceAll(
+                Matcher.quoteReplacement("metadata->>'source' = '" + extensionName + "'"));
+
+        // Fix source value in JSON metadata (source is always the first field)
+        sql = sql.replaceAll("'\\{\"source\":\"[^\"]+\"",
+                "'{\"source\":\"" + extensionName + "\"");
+
+        // Add extension field before source
+        sql = sql.replace("'{\"source\":",
                 "'{\"extension\":\"" + extensionName + "\",\"source\":");
-        return new RagFragment(fragment.source(), enriched);
+
+        // Rename version key to extension_version and inject correct quarkus_version.
+        // Handles both old plugin format ("quarkus_version":) and new format (,"version":).
+        if (quarkusVersion != null) {
+            sql = sql.replace("\"quarkus_version\":", "\"extension_version\":");
+            sql = sql.replace(",\"version\":", ",\"extension_version\":");
+            sql = sql.replace("\"extension_version\":",
+                    "\"quarkus_version\":\"" + quarkusVersion + "\",\"extension_version\":");
+        }
+
+        // Fix URL: use guide URL from extension metadata, or remove wrong quarkus.io URLs
+        if (guideUrl != null) {
+            sql = sql.replaceAll("\"url\":\"[^\"]*\"",
+                    Matcher.quoteReplacement("\"url\":\"" + guideUrl + "\""));
+        } else {
+            sql = sql.replaceAll(",\"url\":\"https://quarkus\\.io/guides/[^\"]*\"", "");
+        }
+
+        return new RagFragment(extensionName, sql);
+    }
+
+    private String readGuideUrl(Path m2Repo, DependencyResolver.Dependency dep) {
+        String groupPath = dep.groupId().replace('.', '/');
+        Path runtimeJar = m2Repo.resolve(groupPath)
+                .resolve(dep.artifactId())
+                .resolve(dep.version())
+                .resolve(dep.artifactId() + "-" + dep.version() + ".jar");
+        if (!Files.isRegularFile(runtimeJar)) {
+            return null;
+        }
+        try (JarFile jar = new JarFile(runtimeJar.toFile())) {
+            SkillReader.ExtensionMetadata meta = SkillReader.readExtensionMetadata(jar);
+            return meta != null ? meta.guide : null;
+        } catch (IOException e) {
+            LOG.debugf("Failed to read guide URL from %s: %s", runtimeJar, e.getMessage());
+            return null;
+        }
     }
 
     private RagFragment injectExtensionFromSource(RagFragment fragment) {
         String enriched = fragment.sql().replaceAll(
                 "'\\{\"source\":\"([^\"]+)\"",
                 "'{\"extension\":\"$1\",\"source\":\"$1\"");
+        // Handle new plugin format: rename generic "version" to "quarkus_version" for core extensions
+        enriched = enriched.replace(",\"version\":", ",\"quarkus_version\":");
         return new RagFragment(fragment.source(), enriched);
     }
 
