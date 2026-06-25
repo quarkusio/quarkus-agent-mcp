@@ -3,6 +3,7 @@ package io.quarkus.agent.mcp;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -261,14 +263,69 @@ public class RagSqlLoader {
             return fragment;
         }
 
-        // Try downloading
+        // Try fast HTTP download (works for non-SNAPSHOT releases)
         Path downloaded = downloadArtifact(groupPath, pointer.artifactId(),
                 version, ragJarPath, projectDir);
         if (downloaded != null) {
             return readFragmentFromJar(downloaded, pointer.artifactId());
         }
 
+        // Fallback: fetch via Maven (handles SNAPSHOTs and custom repos)
+        if (fetchArtifactViaMaven(pointer, version, projectDir)) {
+            fragment = readFragmentFromJar(ragJarPath, pointer.artifactId());
+            if (fragment != null) {
+                return fragment;
+            }
+        }
+
         return null;
+    }
+
+    private boolean fetchArtifactViaMaven(RagArtifactPointer pointer, String version, String projectDir) {
+        if (projectDir == null) {
+            return false;
+        }
+        File dir = new File(projectDir);
+        if (!dir.isDirectory()) {
+            return false;
+        }
+        String mvnCmd = ProcessUtils.resolveMavenCommand(dir);
+        String artifact = pointer.groupId() + ":" + pointer.artifactId() + ":" + version;
+        LOG.infof("RAG artifact not found locally, fetching %s via Maven...", artifact);
+
+        ProcessBuilder pb = new ProcessBuilder(
+                mvnCmd, "dependency:get",
+                "-Dartifact=" + artifact,
+                "-Dtransitive=false",
+                "-q")
+                .directory(dir)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD);
+        try {
+            Process process = pb.start();
+            try {
+                if (!process.waitFor(120, TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                    LOG.debugf("Maven dependency:get timed out for %s", artifact);
+                    return false;
+                }
+                if (process.exitValue() == 0) {
+                    LOG.infof("Successfully fetched RAG artifact %s via Maven", artifact);
+                    return true;
+                }
+                LOG.debugf("Maven dependency:get failed for %s (exit code %d)", artifact, process.exitValue());
+                return false;
+            } finally {
+                process.destroyForcibly();
+            }
+        } catch (IOException e) {
+            LOG.debugf("Failed to run Maven dependency:get for %s: %s", artifact, e.getMessage());
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.debugf("Maven dependency:get interrupted for %s", artifact);
+            return false;
+        }
     }
 
     /**
