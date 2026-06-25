@@ -196,14 +196,13 @@ public class RagSqlLoader {
                 continue;
             }
 
-            String guideUrl = readGuideUrl(m2Repo, dep);
-
             // Check for a pointer to a separate RAG artifact
             RagArtifactPointer pointer = readRagArtifactPointer(deploymentJar);
             if (pointer != null) {
                 RagFragment fragment = resolveExternalRagArtifact(
                         pointer, dep.version(), m2Repo, projectDir);
                 if (fragment != null) {
+                    String guideUrl = readGuideUrl(m2Repo, dep);
                     fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
                     LOG.debugf("Found RAG SQL via external artifact %s:%s:%s",
                             pointer.groupId(), pointer.artifactId(), dep.version());
@@ -214,6 +213,7 @@ public class RagSqlLoader {
             // Fallback: read RAG SQL directly from the deployment JAR
             RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
             if (fragment != null) {
+                String guideUrl = readGuideUrl(m2Repo, dep);
                 fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
                 LOG.debugf("Found RAG SQL in non-core extension %s", dep.artifactId());
             }
@@ -291,7 +291,7 @@ public class RagSqlLoader {
 
         // Fix source value in JSON metadata (source is always the first field)
         sql = sql.replaceAll("'\\{\"source\":\"[^\"]+\"",
-                "'{\"source\":\"" + extensionName + "\"");
+                Matcher.quoteReplacement("'{\"source\":\"" + extensionName + "\""));
 
         // Add extension field before source
         sql = sql.replace("'{\"source\":",
