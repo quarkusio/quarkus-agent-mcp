@@ -113,4 +113,124 @@ class RagSqlLoaderTest {
         String sql = "DELETE FROM rag_documents WHERE metadata ->>'source'  =  'quarkus-hibernate-orm';\n";
         assertEquals("quarkus-hibernate-orm", RagSqlLoader.extractSource(sql, "fallback"));
     }
+
+    // ── injectExtensionMetadata tests ───────────────────────────────────────────
+
+    private static final String NON_CORE_SQL = """
+            -- quarkus-rag fragment: my-ext-deployment 1.2.0-SNAPSHOT
+            DELETE FROM rag_documents WHERE metadata->>'source' = 'quarkus-index';
+
+            INSERT INTO rag_documents (embedding_id, embedding, text, metadata) VALUES (\
+            'a1b2c3', '[0.1,0.2]'::vector, 'Some documentation text', \
+            '{"source":"quarkus-index","quarkus_version":"1.2.0-SNAPSHOT","title":"My Extension",\
+            "url":"https://quarkus.io/guides/index","section_title":"Config","section_level":"1",\
+            "section_path":"Config"}'::jsonb);
+
+            INSERT INTO rag_documents (embedding_id, embedding, text, metadata) VALUES (\
+            'd4e5f6', '[0.3,0.4]'::vector, 'More docs', \
+            '{"source":"quarkus-index","quarkus_version":"1.2.0-SNAPSHOT","title":"My Extension",\
+            "url":"https://quarkus.io/guides/index","section_title":"Usage","section_level":"1",\
+            "section_path":"Usage"}'::jsonb);
+            """;
+
+    @Test
+    void injectExtensionMetadataFixesSourceInDeleteAndInsert() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+
+        assertEquals("quarkus-vault", result.source());
+        assertTrue(result.sql().contains("metadata->>'source' = 'quarkus-vault'"),
+                "DELETE should use corrected source");
+        assertFalse(result.sql().contains("metadata->>'source' = 'quarkus-index'"),
+                "Old source should be gone from DELETE");
+        assertTrue(result.sql().contains("\"source\":\"quarkus-vault\""),
+                "INSERT metadata should use corrected source");
+        assertFalse(result.sql().contains("\"source\":\"quarkus-index\""),
+                "Old source should be gone from INSERT metadata");
+    }
+
+    @Test
+    void injectExtensionMetadataAddsExtensionField() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+
+        assertTrue(result.sql().contains("\"extension\":\"quarkus-vault\""),
+                "Extension field should be injected");
+        assertTrue(result.sql().contains("\"extension\":\"quarkus-vault\",\"source\":\"quarkus-vault\""),
+                "Extension should appear before source");
+    }
+
+    @Test
+    void injectExtensionMetadataFixesVersionFields() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+
+        assertTrue(result.sql().contains("\"quarkus_version\":\"3.21.0\""),
+                "quarkus_version should have the actual Quarkus version");
+        assertTrue(result.sql().contains("\"extension_version\":\"1.2.0-SNAPSHOT\""),
+                "extension_version should have the original extension version");
+        assertTrue(result.sql().contains("\"quarkus_version\":\"3.21.0\",\"extension_version\":\"1.2.0-SNAPSHOT\""),
+                "quarkus_version should come before extension_version");
+    }
+
+    @Test
+    void injectExtensionMetadataReplacesUrlWhenGuideAvailable() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        String guideUrl = "https://docs.quarkiverse.io/quarkus-vault/dev/index.html";
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", guideUrl);
+
+        assertTrue(result.sql().contains("\"url\":\"" + guideUrl + "\""),
+                "URL should be replaced with guide URL from extension metadata");
+        assertFalse(result.sql().contains("quarkus.io/guides"),
+                "Wrong quarkus.io URL should be gone");
+    }
+
+    @Test
+    void injectExtensionMetadataRemovesWrongUrlWhenNoGuide() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+
+        assertFalse(result.sql().contains("quarkus.io/guides"),
+                "Wrong quarkus.io URL should be removed");
+        assertFalse(result.sql().contains("\"url\""),
+                "No url field should remain");
+    }
+
+    @Test
+    void injectExtensionMetadataPreservesNonQuarkusUrl() {
+        String sqlWithCustomUrl = NON_CORE_SQL.replace(
+                "https://quarkus.io/guides/index",
+                "https://docs.example.com/my-ext/guide");
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", sqlWithCustomUrl);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "my-ext", "3.21.0", null);
+
+        assertTrue(result.sql().contains("\"url\":\"https://docs.example.com/my-ext/guide\""),
+                "Non-quarkus.io URLs should be preserved when no guide URL is available");
+    }
+
+    @Test
+    void injectExtensionMetadataHandlesNewPluginVersionKey() {
+        // New plugin format uses "version" instead of "quarkus_version"
+        String newFormatSql = NON_CORE_SQL.replace("\"quarkus_version\":", "\"version\":");
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", newFormatSql);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+
+        assertTrue(result.sql().contains("\"quarkus_version\":\"3.21.0\""),
+                "quarkus_version should have the actual Quarkus version");
+        assertTrue(result.sql().contains("\"extension_version\":\"1.2.0-SNAPSHOT\""),
+                "extension_version should have the original extension version");
+        assertFalse(result.sql().contains(",\"version\":"),
+                "Generic version key should be gone");
+    }
+
+    @Test
+    void injectExtensionMetadataSkipsVersionFixWhenQuarkusVersionNull() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", null, null);
+
+        assertTrue(result.sql().contains("\"quarkus_version\":\"1.2.0-SNAPSHOT\""),
+                "quarkus_version should remain unchanged when quarkusVersion is null");
+        assertFalse(result.sql().contains("\"extension_version\""),
+                "extension_version should not be added when quarkusVersion is null");
+    }
 }
