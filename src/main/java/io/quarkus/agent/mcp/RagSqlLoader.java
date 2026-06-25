@@ -306,20 +306,21 @@ public class RagSqlLoader {
             try {
                 if (!process.waitFor(120, TimeUnit.SECONDS)) {
                     process.destroyForcibly();
-                    LOG.debugf("Maven dependency:get timed out for %s", artifact);
+                    LOG.warnf("Maven dependency:get timed out for %s — documentation search may be limited", artifact);
                     return false;
                 }
                 if (process.exitValue() == 0) {
                     LOG.infof("Successfully fetched RAG artifact %s via Maven", artifact);
                     return true;
                 }
-                LOG.debugf("Maven dependency:get failed for %s (exit code %d)", artifact, process.exitValue());
+                LOG.warnf("Maven dependency:get failed for %s (exit code %d) — RAG data for this extension will be unavailable",
+                        artifact, process.exitValue());
                 return false;
             } finally {
                 process.destroyForcibly();
             }
         } catch (IOException e) {
-            LOG.debugf("Failed to run Maven dependency:get for %s: %s", artifact, e.getMessage());
+            LOG.warnf("Failed to start Maven for dependency:get (%s): %s", artifact, e.getMessage());
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
