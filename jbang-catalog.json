@@ -7,7 +7,9 @@
        "runtime-options": [
         "--add-opens",
         "java.base/java.lang=ALL-UNNAMED",
-        "--enable-native-access=ALL-UNNAMED"
+        "--enable-native-access=ALL-UNNAMED",
+        "-Xmx512m",
+        "-XX:+UseSerialGC"
       ]
     }
   }
