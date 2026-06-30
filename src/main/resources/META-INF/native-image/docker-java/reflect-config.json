@@ -3658,5 +3658,1115 @@
     "allDeclaredConstructors": true,
     "allDeclaredMethods": true,
     "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.Awaitility",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.classpath.ClassPathResolver",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.constraint.AtMostWaitConstraint",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.constraint.HoldsPredicateWaitConstraint",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.constraint.IntervalWaitConstraint",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.constraint.WaitConstraint",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.AbstractHamcrestCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.AbstractHamcrestCondition$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.AssertionCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.AssertionCondition$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.CallableCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.CallableCondition$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.CallableCondition$ConditionEvaluationWrapper",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.CallableHamcrestCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.CheckedExceptionRethrower",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.Condition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionAwaiter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionAwaiter$ConditionPoller",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationHandler",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationHandler$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationHandler$StopWatch",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationListener",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationLogger",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluationResult",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionEvaluator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionFactory",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionFactory$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionSettings",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ConditionTimeoutException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.DeadlockException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.DurationFactory",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.DurationFactory$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.EvaluatedCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.EvaluationCleanup",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ExceptionIgnorer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ExecutorLifecycle",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FailFastCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FailFastCondition$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FailFastCondition$CallableFailFastCondition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FailFastCondition$CallableFailFastCondition$FailFastAssertion",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FieldSupplierBuilder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FieldSupplierBuilder$AnnotationFieldSupplier",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FieldSupplierBuilder$NameAndAnnotationFieldSupplier",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FieldSupplierBuilder$NameAndTypeFieldSupplier",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.FieldSupplierBuilder$NameFieldSupplier",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ForeverDuration",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.HamcrestExceptionIgnorer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.HamcrestToStringFilter",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.IgnoredException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.InternalExecutorServiceFactory",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.JavaVersionDetector",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.LambdaErrorMessageGenerator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.OriginalDefaultUncaughtExceptionHandler",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.PredicateExceptionIgnorer",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.SameThreadExecutorService",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.StartEvaluationEvent",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.TemporalDuration",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.TerminalFailureException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.ThrowingRunnable",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.TimeoutEvent",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.core.Uninterruptibles",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.Durations",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.pollinterval.FibonacciPollInterval",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.pollinterval.FixedPollInterval",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.pollinterval.IterativePollInterval",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.pollinterval.PollInterval",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.AssignableToFieldTypeMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.exception.FieldNotFoundException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.exception.TooManyFieldsFoundException",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.FieldAnnotationMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.FieldMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.FieldNameAndTypeMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.FieldNameMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.FieldTypeMatcherStrategy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.reflect.WhiteboxImpl",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.awaitility.spi.Timeout",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.BaseDescription",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.BaseMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.HasProperty",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.HasPropertyWithValue",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.HasPropertyWithValue$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.HasPropertyWithValue$2",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.PropertyUtil",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.SamePropertyValuesAs",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.beans.SamePropertyValuesAs$PropertyMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.ArrayAsIterableMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.ArrayMatching",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.HasItemInArray",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsArray",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsArrayContainingInAnyOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsArrayContainingInOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsArrayWithSize",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsCollectionWithSize",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsEmptyCollection",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsEmptyIterable",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIn",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInAnyOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInAnyOrder$Matching",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInOrder$MatchSeries",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInRelativeOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableContainingInRelativeOrder$MatchSeriesInRelativeOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsIterableWithSize",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsMapContaining",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.collection.IsMapWithSize",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.comparator.ComparatorMatcherBuilder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.comparator.ComparatorMatcherBuilder$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.comparator.ComparatorMatcherBuilder$ComparatorMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Condition",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Condition$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Condition$Matched",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Condition$NotMatched",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Condition$Step",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.AllOf",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.AnyOf",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.CombinableMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.CombinableMatcher$CombinableBothMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.CombinableMatcher$CombinableEitherMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.DescribedAs",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.Every",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.Is",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsAnything",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsCollectionContaining",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsEqual",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsInstanceOf",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsIterableContaining",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsNot",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsNull",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.IsSame",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.CoreMatchers",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.ShortcutCombination",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.StringContains",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.StringEndsWith",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.StringRegularExpression",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.StringStartsWith",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.core.SubstringMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.CustomMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.CustomTypeSafeMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Description",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Description$NullDescription",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.DiagnosingMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.FeatureMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.internal.ArrayIterator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.internal.NullSafety",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.internal.ReflectiveTypeFinder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.internal.SelfDescribingValue",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.internal.SelfDescribingValueIterator",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$10",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$2",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$3",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$4",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$5",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$6",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$7",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$8",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$9",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.io.FileMatchers$FileStatus",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Matcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.MatcherAssert",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.Matchers",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.number.BigDecimalCloseTo",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.number.IsCloseTo",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.number.IsNaN",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.number.OrderingComparison",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.object.HasEqualValues",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.object.HasEqualValues$FieldMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.object.HasToString",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.object.IsCompatibleType",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.object.IsEventFrom",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.SelfDescribing",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.StringDescription",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.CharSequenceLength",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.IsBlankString",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.IsEmptyString",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.IsEqualCompressingWhiteSpace",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.IsEqualIgnoringCase",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.MatchesPattern",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.text.StringContainsInOrder",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.TypeSafeDiagnosingMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.TypeSafeMatcher",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.xml.HasXPath",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.testcontainers.shaded.org.hamcrest.xml.HasXPath$1",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.postgresql.Driver",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allDeclaredFields": true
   }
 ]
