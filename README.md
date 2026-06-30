@@ -138,6 +138,28 @@ Download the uber-jar from the [latest GitHub Release](https://github.com/quarku
 claude mcp add quarkus-agent -- java -jar /path/to/quarkus-agent-mcp-runner.jar
 ```
 
+### Native binary
+
+Pre-built native binaries are available on each [GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest) for Linux and macOS. They start instantly and use ~100-200 MB of memory instead of 1+ GB on the JVM — ideal for VPS and resource-constrained environments.
+
+| Platform | Artifact |
+|----------|----------|
+| Linux x86_64 | `quarkus-agent-mcp-<version>-linux-x86_64` |
+| macOS Intel | `quarkus-agent-mcp-<version>-macos-x86_64` |
+| macOS Apple Silicon | `quarkus-agent-mcp-<version>-macos-aarch64` |
+
+```bash
+# Download (replace the artifact name for your platform)
+curl -L -o quarkus-agent-mcp \
+  https://github.com/quarkusio/quarkus-agent-mcp/releases/latest/download/quarkus-agent-mcp-linux-x86_64
+chmod +x quarkus-agent-mcp
+
+# Register with Claude Code
+claude mcp add quarkus-agent -- /path/to/quarkus-agent-mcp
+```
+
+No JVM or JBang installation required.
+
 ### Build from source
 
 ```bash
@@ -388,7 +410,7 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 For instant startup (no JVM warmup):
 
 ```bash
-./mvnw package -Dnative -DskipTests -Dquarkus.package.jar.type=uber-jar
+./mvnw package -Dnative -DskipTests
 ```
 
 Then reference the native binary in your MCP config:
