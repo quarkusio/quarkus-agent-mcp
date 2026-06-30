@@ -34,7 +34,7 @@ This installs the plugin and configures the MCP server automatically. Requires [
 #### Claude Code
 
 ```bash
-claude mcp add quarkus-agent -- jbang quarkus-agent-mcp@quarkusio
+claude mcp add -s user quarkus-agent -- jbang quarkus-agent-mcp@quarkusio
 ```
 
 #### VS Code / GitHub Copilot
@@ -135,7 +135,7 @@ Alternatively, use the direct download method with an absolute path to `java`:
 Download the uber-jar from the [latest GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest), then:
 
 ```bash
-claude mcp add quarkus-agent -- java -jar /path/to/quarkus-agent-mcp-runner.jar
+claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp-runner.jar
 ```
 
 ### Native binary
@@ -157,7 +157,7 @@ curl -L -o quarkus-agent-mcp \
 chmod +x quarkus-agent-mcp
 
 # Register with Claude Code
-claude mcp add quarkus-agent -- /path/to/quarkus-agent-mcp
+claude mcp add -s user quarkus-agent -- /path/to/quarkus-agent-mcp
 ```
 
 No JVM or JBang installation required.
@@ -173,7 +173,7 @@ cd quarkus-agent-mcp
 This produces the uber-jar at `target/quarkus-agent-mcp-1.0.0-SNAPSHOT-runner.jar` (version may vary).
 
 ```bash
-claude mcp add quarkus-agent -- java -jar /path/to/quarkus-agent-mcp/target/quarkus-agent-mcp-1.1.8-runner.jar
+claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp/target/quarkus-agent-mcp-1.1.8-runner.jar
 ```
 
 #### Verify
@@ -337,7 +337,7 @@ File logging can be enabled permanently by setting `agent-mcp.log.enabled=true`.
 **Claude Code:**
 
 ```bash
-claude mcp add quarkus-agent -e AGENT_MCP_LOG_ENABLED=true -- jbang quarkus-agent-mcp@quarkusio
+claude mcp add -s user quarkus-agent -e AGENT_MCP_LOG_ENABLED=true -- jbang quarkus-agent-mcp@quarkusio
 ```
 
 **VS Code / GitHub Copilot:**
@@ -418,7 +418,7 @@ For instant startup (no JVM warmup):
 Then reference the native binary in your MCP config:
 
 ```bash
-claude mcp add quarkus-agent -- ./target/quarkus-agent-mcp-*-runner
+claude mcp add -s user quarkus-agent -- ./target/quarkus-agent-mcp-*-runner
 ```
 
 ## Presentation
