@@ -31,7 +31,7 @@ final class ProcessUtils {
             boolean win = OS.WINDOWS.isCurrent();
             File wrapper = win ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
             if (wrapper.exists()) {
-                return win ? "mvnw.cmd" : "./mvnw";
+                return wrapper.getAbsolutePath();
             }
             return win ? "mvn.cmd" : "mvn";
         });
@@ -41,7 +41,7 @@ final class ProcessUtils {
         boolean win = OS.WINDOWS.isCurrent();
         File wrapper = win ? new File(projectDir, "gradlew.bat") : new File(projectDir, "gradlew");
         if (wrapper.exists()) {
-            return win ? "gradlew.bat" : "./gradlew";
+            return wrapper.getAbsolutePath();
         }
         return win ? "gradle.bat" : "gradle";
     }
