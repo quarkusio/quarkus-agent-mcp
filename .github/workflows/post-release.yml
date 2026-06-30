@@ -9,17 +9,26 @@ permissions:
   contents: write
 
 jobs:
-  post-release:
+  release-version:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
     steps:
       - name: Get release version
+        id: get-version
         run: |
           RELEASE_VERSION=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
-          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> $GITHUB_ENV
+          echo "version=${RELEASE_VERSION}" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  upload-uber-jar:
+    needs: release-version
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+    steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_VERSION }}
@@ -50,6 +59,54 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  upload-native-binary:
+    needs: release-version
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux-x86_64
+            graalvm-distribution: mandrel
+          - os: macos-13
+            artifact: macos-x86_64
+            graalvm-distribution: graalvm
+          - os: macos-14
+            artifact: macos-aarch64
+            graalvm-distribution: graalvm
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_VERSION }}
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: 25
+          distribution: ${{ matrix.graalvm-distribution }}
+          cache: maven
+
+      - name: Build native binary
+        run: ./mvnw -B package -DskipTests -DskipITs -Dnative
+
+      - name: Upload native binary to GitHub Release
+        run: |
+          mv target/quarkus-agent-mcp-${RELEASE_VERSION}-runner \
+             target/quarkus-agent-mcp-${RELEASE_VERSION}-${{ matrix.artifact }}
+          gh release upload ${RELEASE_VERSION} \
+            target/quarkus-agent-mcp-${RELEASE_VERSION}-${{ matrix.artifact }} \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-plugin-version:
+    needs: [release-version, upload-uber-jar]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+    steps:
       - uses: actions/checkout@v6
         with:
           ref: main

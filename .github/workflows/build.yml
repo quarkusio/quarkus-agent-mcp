@@ -27,3 +27,25 @@ jobs:
         with:
           name: quarkus-agent-mcp-runner
           path: target/quarkus-app/
+
+  native-build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            graalvm-distribution: mandrel
+          - os: macos-14
+            graalvm-distribution: graalvm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: 25
+          distribution: ${{ matrix.graalvm-distribution }}
+          cache: maven
+
+      - name: Build native binary
+        run: ./mvnw package -DskipTests -Dnative
