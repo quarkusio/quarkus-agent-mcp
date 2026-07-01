@@ -39,6 +39,9 @@ public class QuarkusProcessManager {
     @ConfigProperty(name = "agent-mcp.process.gradle-cmd")
     Optional<String> gradleCmd;
 
+    @ConfigProperty(name = "agent-mcp.extra-args")
+    Optional<String> configExtraArgs;
+
     @ConfigProperty(name = "agent-mcp.app-log.enabled")
     Optional<Boolean> appLogEnabled;
 
@@ -211,6 +214,12 @@ public class QuarkusProcessManager {
             pb.command().add("-Dquarkus.http.port=" + httpPort);
             pb.command().add("-Dquarkus.http.test-port=0");
         }
+
+        configExtraArgs.filter(s -> !s.isBlank()).ifPresent(args -> {
+            for (String token : args.trim().split("\\s+")) {
+                pb.command().add(token);
+            }
+        });
 
         if (extraArgs != null && !extraArgs.isBlank()) {
             for (String token : extraArgs.trim().split("\\s+")) {

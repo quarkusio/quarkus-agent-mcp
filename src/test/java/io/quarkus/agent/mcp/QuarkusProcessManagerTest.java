@@ -179,11 +179,18 @@ class QuarkusProcessManagerTest {
     }
 
     private void initOptionalFields(String mode) throws Exception {
+        initOptionalFields(mode, Optional.empty());
+    }
+
+    private void initOptionalFields(String mode, Optional<String> extraArgs) throws Exception {
         for (String fieldName : new String[] { "gradleCmd", "appLogEnabled" }) {
             Field f = QuarkusProcessManager.class.getDeclaredField(fieldName);
             f.setAccessible(true);
             f.set(manager, Optional.empty());
         }
+        Field configExtraArgsField = QuarkusProcessManager.class.getDeclaredField("configExtraArgs");
+        configExtraArgsField.setAccessible(true);
+        configExtraArgsField.set(manager, extraArgs);
         Field modeField = QuarkusProcessManager.class.getDeclaredField("mode");
         modeField.setAccessible(true);
         modeField.set(manager, mode);
@@ -425,5 +432,31 @@ class QuarkusProcessManagerTest {
         f.setAccessible(true);
         f.set(pm, "invalid");
         assertThrows(IllegalStateException.class, pm::validateMode);
+    }
+
+    @Test
+    void processBuilderIncludesConfigExtraArgs() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields("dev", Optional.of("-DdebugHost=*"));
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null, (String) null);
+        assertTrue(pb.command().contains("-DdebugHost=*"));
+    }
+
+    @Test
+    void processBuilderAppendsToolExtraArgsAfterConfigExtraArgs() throws Exception {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+        initOptionalFields("dev", Optional.of("-DdebugHost=*"));
+        Method m = QuarkusProcessManager.class.getDeclaredMethod(
+                "createProcessBuilder", String.class, String.class, Integer.class, String.class, String.class);
+        m.setAccessible(true);
+        ProcessBuilder pb = (ProcessBuilder) m.invoke(manager, tempDir.toString(), "maven", (Integer) null, (String) null, "-Ddebug=5005");
+        int configIdx = pb.command().indexOf("-DdebugHost=*");
+        int toolIdx = pb.command().indexOf("-Ddebug=5005");
+        assertTrue(configIdx >= 0, "config extra arg should be present");
+        assertTrue(toolIdx >= 0, "tool extra arg should be present");
+        assertTrue(configIdx < toolIdx, "config extra args should come before tool extra args");
     }
 }
