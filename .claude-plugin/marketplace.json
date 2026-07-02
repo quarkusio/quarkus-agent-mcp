@@ -12,7 +12,7 @@
       "category": "development",
       "source": "./plugins/quarkus-agent",
       "homepage": "https://github.com/quarkusio/quarkus-agent-mcp",
-      "version": "1.2.0"
+      "version": "1.2.1"
     }
   ]
 }
