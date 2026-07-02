@@ -138,29 +138,61 @@ Download the uber-jar from the [latest GitHub Release](https://github.com/quarku
 claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp-runner.jar
 ```
 
-### Native binary
+### Native binary (Linux & macOS)
 
-Pre-built native binaries are available on each [GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest) for Linux and macOS. They start instantly and use ~100-200 MB of memory instead of 1+ GB on the JVM — ideal for VPS and resource-constrained environments.
+Pre-built native binaries are available on each [GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest). They start instantly and use significantly less memory than the JVM version — ideal for VPS and resource-constrained environments. No JVM or JBang installation required.
 
-| Platform | Artifact |
-|----------|----------|
-| Linux x86_64 | `quarkus-agent-mcp-<version>-linux-x86_64` |
-| macOS Intel | `quarkus-agent-mcp-<version>-macos-x86_64` |
-| macOS Apple Silicon | `quarkus-agent-mcp-<version>-macos-aarch64` |
+> **Note:** Windows is not supported for the native binary. Use the [JBang](#via-jbang-recommended) or [direct download](#via-direct-download) method instead.
+
+#### Quick install (recommended)
+
+Detects your platform, downloads the latest binary to `~/.local/bin/`, and registers it with Claude Code:
 
 ```bash
-# Download the latest version (replace PLATFORM with your platform from the table above)
-PLATFORM=linux-x86_64
-VERSION=$(curl -sI https://github.com/quarkusio/quarkus-agent-mcp/releases/latest | grep -i ^location: | sed 's|.*/||' | tr -d '\r')
-curl -L -o quarkus-agent-mcp \
-  "https://github.com/quarkusio/quarkus-agent-mcp/releases/download/${VERSION}/quarkus-agent-mcp-${VERSION}-${PLATFORM}"
-chmod +x quarkus-agent-mcp
-
-# Register with Claude Code
-claude mcp add -s user quarkus-agent -- /path/to/quarkus-agent-mcp
+curl -sL https://raw.githubusercontent.com/quarkusio/quarkus-agent-mcp/main/install.sh | bash
 ```
 
-No JVM or JBang installation required.
+To update to a newer version, run the same command again.
+
+#### Manual install
+
+##### Linux (x86_64)
+
+```bash
+VERSION=$(curl -sI https://github.com/quarkusio/quarkus-agent-mcp/releases/latest | grep -i ^location: | sed 's|.*/||' | tr -d '\r')
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/quarkus-agent-mcp \
+  "https://github.com/quarkusio/quarkus-agent-mcp/releases/download/${VERSION}/quarkus-agent-mcp-${VERSION}-linux-x86_64"
+chmod +x ~/.local/bin/quarkus-agent-mcp
+
+claude mcp add -s user quarkus-agent -- ~/.local/bin/quarkus-agent-mcp
+```
+
+##### macOS (Apple Silicon)
+
+```bash
+VERSION=$(curl -sI https://github.com/quarkusio/quarkus-agent-mcp/releases/latest | grep -i ^location: | sed 's|.*/||' | tr -d '\r')
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/quarkus-agent-mcp \
+  "https://github.com/quarkusio/quarkus-agent-mcp/releases/download/${VERSION}/quarkus-agent-mcp-${VERSION}-macos-aarch64"
+chmod +x ~/.local/bin/quarkus-agent-mcp
+
+claude mcp add -s user quarkus-agent -- ~/.local/bin/quarkus-agent-mcp
+```
+
+##### macOS (Intel)
+
+```bash
+VERSION=$(curl -sI https://github.com/quarkusio/quarkus-agent-mcp/releases/latest | grep -i ^location: | sed 's|.*/||' | tr -d '\r')
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/quarkus-agent-mcp \
+  "https://github.com/quarkusio/quarkus-agent-mcp/releases/download/${VERSION}/quarkus-agent-mcp-${VERSION}-macos-x86_64"
+chmod +x ~/.local/bin/quarkus-agent-mcp
+
+claude mcp add -s user quarkus-agent -- ~/.local/bin/quarkus-agent-mcp
+```
+
+To update to a newer version, re-run the install script above or repeat these commands.
 
 ### Build from source
 

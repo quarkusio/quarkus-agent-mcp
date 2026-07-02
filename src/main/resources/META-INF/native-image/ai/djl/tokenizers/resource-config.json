@@ -1,9 +1,0 @@
-{
-  "resources": {
-    "includes": [
-      {"pattern": "native/lib/.*"},
-      {"pattern": "ai/onnxruntime/native/.*"},
-      {"pattern": "bge-small-en-v1\\.5-q.*"}
-    ]
-  }
-}

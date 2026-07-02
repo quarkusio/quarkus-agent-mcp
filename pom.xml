@@ -54,7 +54,6 @@
         <langchain4j.version>1.12.2-beta22</langchain4j.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
-        <djl.version>0.28.0</djl.version>
     </properties>
 
     <dependencyManagement>
@@ -65,18 +64,6 @@
                 <version>${quarkus.platform.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <!-- Pin DJL to 0.28.x: version 0.31.1 (pulled by langchain4j) fails to load
-                 the Huggingface tokenizer native library on macOS with "Unexpected flavor: cpu" -->
-            <dependency>
-                <groupId>ai.djl</groupId>
-                <artifactId>api</artifactId>
-                <version>${djl.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>ai.djl.huggingface</groupId>
-                <artifactId>tokenizers</artifactId>
-                <version>${djl.version}</version>
             </dependency>
             <!-- Quarkus BOM pins docker-java at 3.7.0, but Testcontainers 2.x needs 3.7.1
                  which fixes Docker API version negotiation on Docker Engine 29+ (Windows) -->
@@ -109,12 +96,6 @@
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-pgvector</artifactId>
-            <version>${langchain4j.version}</version>
-        </dependency>
-        <!-- BGE Small EN v1.5 embedding model - must match chappie-docling-rag -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-embeddings-bge-small-en-v15-q</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
         <dependency>

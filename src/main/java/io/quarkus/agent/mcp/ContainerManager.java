@@ -172,6 +172,16 @@ public class ContainerManager {
         return container.getHost();
     }
 
+    public String getEmbeddingHost() {
+        GenericContainer<?> container = getContainer(null);
+        return container.getHost();
+    }
+
+    public int getEmbeddingPort() {
+        GenericContainer<?> container = getContainer(null);
+        return container.getMappedPort(9222);
+    }
+
     private void checkDockerAvailable() {
         if (dockerAvailable == null) {
             try {
@@ -222,14 +232,17 @@ public class ContainerManager {
         LOG.infof("Starting pgvector container for Quarkus %s docs (%s)...", versionKey, image);
 
         GenericContainer<?> container = new GenericContainer<>(DockerImageName.parse(image))
-                .withExposedPorts(5432)
+                .withExposedPorts(5432, 9222)
                 .withEnv("POSTGRES_USER", pgUser)
                 .withEnv("POSTGRES_PASSWORD", pgPassword)
                 .withEnv("POSTGRES_DB", pgDatabase)
                 .withReuse(true)
                 .withLabel("quarkus-agent-mcp", "doc-search")
                 .withLabel("quarkus-agent-mcp.version", versionKey)
-                .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\n", 2));
+                .waitingFor(new org.testcontainers.containers.wait.strategy.WaitAllStrategy()
+                        .withStrategy(Wait.forLogMessage(".*database system is ready to accept connections.*\\n", 2))
+                        .withStrategy(Wait.forHttp("/health").forPort(9222).forStatusCode(200))
+                        .withStartupTimeout(java.time.Duration.ofMinutes(3)));
 
         container.start();
         containers.put(versionKey, container);
