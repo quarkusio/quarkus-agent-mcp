@@ -95,7 +95,7 @@ public class DocSearchTools {
     String pgDatabase;
 
     @Inject
-    EmbeddingModelLoader embeddingModelLoader;
+    EmbeddingClient embeddingClient;
 
     @Inject
     ContainerManager containerManager;
@@ -135,20 +135,11 @@ public class DocSearchTools {
                 return ToolResponse.error("Search query must not be empty.");
             }
 
-            if (embeddingModelLoader.isFailed()) {
+            if (embeddingClient.isFailed()) {
                 return ToolResponse.error(
-                        "Embedding model failed to load: " + embeddingModelLoader.getFailureMessage());
+                        "Documentation search is unavailable: " + embeddingClient.getFailureMessage());
             }
-            if (!embeddingModelLoader.isReady()) {
-                return ToolResponse.success(
-                        "Documentation search is still warming up (loading embedding model). Please retry in a few seconds.");
-            }
-
-            if (containerManager.isDefaultWarmupDone() && containerManager.getDefaultWarmupError() != null) {
-                return ToolResponse.error(
-                        "Documentation search is unavailable: " + containerManager.getDefaultWarmupError());
-            }
-            if (!containerManager.isDefaultReady()) {
+            if (!embeddingClient.isReady()) {
                 return ToolResponse.success(
                         "Documentation search is still warming up (starting doc database). Please retry in a few seconds.");
             }
@@ -167,7 +158,7 @@ public class DocSearchTools {
                 maybeLoadIncrementalRagData(quarkusVersion, projectDir);
             }
 
-            Embedding queryEmbedding = embeddingModelLoader.getModel().embed(query).content();
+            Embedding queryEmbedding = new Embedding(embeddingClient.embed(query));
 
             Filter sourceFilter = null;
             if (extension != null && !extension.isBlank()) {
