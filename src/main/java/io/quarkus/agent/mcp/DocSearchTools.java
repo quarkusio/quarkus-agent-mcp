@@ -56,6 +56,12 @@ public class DocSearchTools {
             "rest", "rest-json", "rest-client", "rest-data-panache",
             "rest-virtual-threads", "rest-migration");
 
+    private static final Set<String> GENERIC_KEYWORDS = Set.of(
+            "quarkus", "java", "jakarta", "the", "a", "an", "how", "to", "with",
+            "using", "and", "or", "for", "in", "on", "is", "it", "this", "that");
+
+    private final ConcurrentHashMap<String, String> keywordToExtension = new ConcurrentHashMap<>();
+
     private static final Map<String, String> SYNONYMS = Map.ofEntries(
             Map.entry("startup", "lifecycle"),
             Map.entry("injection", "cdi"),
@@ -160,9 +166,17 @@ public class DocSearchTools {
 
             Embedding queryEmbedding = new Embedding(embeddingClient.embed(query));
 
+            String effectiveExtension = extension;
+            if ((effectiveExtension == null || effectiveExtension.isBlank())) {
+                effectiveExtension = inferExtension(query);
+                if (effectiveExtension != null) {
+                    LOG.debugf("Auto-inferred extension filter: %s", effectiveExtension);
+                }
+            }
+
             Filter sourceFilter = null;
-            if (extension != null && !extension.isBlank()) {
-                sourceFilter = new ContainsString("extension", extension.trim());
+            if (effectiveExtension != null && !effectiveExtension.isBlank()) {
+                sourceFilter = new ContainsString("extension", effectiveExtension.trim());
             }
 
             EmbeddingSearchRequest searchRequest = EmbeddingSearchRequest.builder()
@@ -256,6 +270,11 @@ public class DocSearchTools {
                     .useIndex(false)
                     .build();
             LOG.info("Connected to pgvector embedding store.");
+
+            if (keywordToExtension.isEmpty()) {
+                String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + pgDatabase;
+                buildKeywordIndex(jdbcUrl, pgUser, pgPassword);
+            }
 
             embeddingStores.put(key, store);
             return store;
@@ -369,6 +388,72 @@ public class DocSearchTools {
     private static String metadataOrEmpty(TextSegment segment, String key) {
         String value = segment.metadata().getString(key);
         return value != null ? value.toLowerCase() : "";
+    }
+
+    private String inferExtension(String query) {
+        String queryLower = query.toLowerCase();
+        String bestMatch = null;
+        int bestLength = 0;
+        for (Map.Entry<String, String> entry : keywordToExtension.entrySet()) {
+            String keyword = entry.getKey();
+            if (queryLower.contains(keyword) && keyword.length() > bestLength) {
+                bestMatch = entry.getValue();
+                bestLength = keyword.length();
+            }
+        }
+        return bestMatch;
+    }
+
+    void buildKeywordIndex(String jdbcUrl, String user, String password) {
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection(jdbcUrl, user, password);
+                java.sql.Statement stmt = conn.createStatement();
+                java.sql.ResultSet rs = stmt.executeQuery(
+                        "SELECT DISTINCT metadata->>'extension' AS ext, "
+                                + "metadata->>'topics' AS topics, "
+                                + "metadata->>'categories' AS categories "
+                                + "FROM rag_documents "
+                                + "WHERE metadata->>'extension' IS NOT NULL")) {
+            while (rs.next()) {
+                String ext = rs.getString("ext");
+                if (ext == null || ext.isBlank()) {
+                    continue;
+                }
+                String extLower = ext.toLowerCase().trim();
+                registerKeywordsFromExtensionName(extLower, ext);
+
+                String topics = rs.getString("topics");
+                if (topics != null) {
+                    registerKeywords(topics, ext);
+                }
+                String categories = rs.getString("categories");
+                if (categories != null) {
+                    registerKeywords(categories, ext);
+                }
+            }
+            LOG.infof("Built keyword index with %d entries from RAG metadata", keywordToExtension.size());
+        } catch (Exception e) {
+            LOG.debugf("Failed to build keyword index: %s", e.getMessage());
+        }
+    }
+
+    private void registerKeywordsFromExtensionName(String extLower, String ext) {
+        keywordToExtension.putIfAbsent(extLower, ext);
+        String withoutPrefix = extLower.replaceFirst("^quarkus-", "");
+        keywordToExtension.putIfAbsent(withoutPrefix, ext);
+        for (String part : withoutPrefix.split("-")) {
+            if (part.length() > 2 && !GENERIC_KEYWORDS.contains(part)) {
+                keywordToExtension.putIfAbsent(part, ext);
+            }
+        }
+    }
+
+    private void registerKeywords(String text, String ext) {
+        for (String token : text.toLowerCase().split("[,\\s]+")) {
+            String trimmed = token.trim();
+            if (trimmed.length() > 2 && !GENERIC_KEYWORDS.contains(trimmed)) {
+                keywordToExtension.putIfAbsent(trimmed, ext);
+            }
+        }
     }
 
     private record ScoredMatch(EmbeddingMatch<TextSegment> match, double score) {
