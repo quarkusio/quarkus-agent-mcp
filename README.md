@@ -61,12 +61,20 @@ Add to `.bob/mcp.json`:
 {
   "mcpServers": {
     "quarkus-agent": {
-      "command": "jbang",
-      "args": ["quarkus-agent-mcp@quarkusio"]
+      "command": "/home/you/.jbang/bin/jbang",
+      "args": [
+        "quarkus-agent-mcp@quarkusio"
+      ],
+      "env": {
+        "JAVA_HOME": "/path/to/your/java/home"
+      },
+      "disabled": false
     }
   }
 }
 ```
+
+> **Why absolute paths?** Bob inherits system PATH, not your shell PATH. See [Troubleshooting](#jbang-or-java-not-found-enoent) below.
 
 #### Cursor
 
