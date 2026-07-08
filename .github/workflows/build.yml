@@ -19,8 +19,8 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build
-        run: ./mvnw package -DskipTests
+      - name: Build and test
+        run: ./mvnw verify
 
       - name: Upload runner jar
         uses: actions/upload-artifact@v4
