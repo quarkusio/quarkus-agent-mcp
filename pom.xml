@@ -52,7 +52,7 @@
         <quarkus.platform.version>3.36.0</quarkus.platform.version>
         <quarkus-mcp-server.version>1.13.1</quarkus-mcp-server.version>
         <langchain4j.version>1.12.2-beta22</langchain4j.version>
-        <skipITs>true</skipITs>
+        <skipITs>false</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
     </properties>
 
