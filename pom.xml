@@ -225,6 +225,7 @@
             </activation>
             <properties>
                 <quarkus.package.jar.type>uber-jar</quarkus.package.jar.type>
+                <skipITs>true</skipITs>
             </properties>
             <build>
                 <plugins>
