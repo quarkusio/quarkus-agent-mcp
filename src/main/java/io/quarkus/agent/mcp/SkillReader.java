@@ -134,7 +134,9 @@ public class SkillReader {
     @Inject
     WebClient webClient;
 
-    private static final Path DEFAULT_LOCAL_SKILLS_DIR = Path.of(System.getProperty("user.home"), ".quarkus", "skills");
+    private static Path defaultLocalSkillsDir() {
+        return Path.of(System.getProperty("user.home"), ".quarkus", "skills");
+    }
 
     /**
      * Reads all available skills using the default local skills directory
@@ -246,7 +248,7 @@ public class SkillReader {
         overlaySkills(skillsByName, readBundledSkills(metadataOnly, loadModules), "bundled (classpath)");
 
         // Layer 2: Overlay user-level skills (~/.quarkus/skills/ or configured dir)
-        Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
+        Path effectiveLocalDir = localSkillsDir != null ? localSkillsDir : defaultLocalSkillsDir();
         overlaySkills(skillsByName, readLocalSkills(effectiveLocalDir, metadataOnly, loadModules),
                 effectiveLocalDir.toString());
 
@@ -1107,7 +1109,7 @@ public class SkillReader {
         if (projectScope) {
             baseDir = Path.of(projectDir, ".agent", "skills");
         } else {
-            baseDir = localSkillsDir != null ? localSkillsDir : DEFAULT_LOCAL_SKILLS_DIR;
+            baseDir = localSkillsDir != null ? localSkillsDir : defaultLocalSkillsDir();
         }
 
         Path skillDir = baseDir.resolve(skillName);
