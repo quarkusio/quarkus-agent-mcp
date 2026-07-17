@@ -21,8 +21,13 @@ public class AgentLogTools {
 
     private static final org.jboss.logging.Logger LOG = org.jboss.logging.Logger.getLogger(AgentLogTools.class);
 
-    private static final Path LOG_DIR = Path.of(System.getProperty("user.home"), ".quarkus", "agent-mcp");
-    private static final Path LOG_FILE = LOG_DIR.resolve("agent-mcp.log");
+    private static Path logDir() {
+        return Path.of(System.getProperty("user.home"), ".quarkus", "agent-mcp");
+    }
+
+    private static Path logFile() {
+        return logDir().resolve("agent-mcp.log");
+    }
     private static volatile FileHandler activeHandler;
 
     @ConfigProperty(name = "agent-mcp.log.enabled")
@@ -59,20 +64,22 @@ public class AgentLogTools {
 
     private synchronized ToolResponse enableLogging() {
         if (activeHandler != null) {
-            return ToolResponse.success("File logging is already enabled. Log file: " + LOG_FILE);
+            return ToolResponse.success("File logging is already enabled. Log file: " + logFile());
         }
         try {
-            Files.createDirectories(LOG_DIR);
+            Path logDir = logDir();
+            Path logFile = logFile();
+            Files.createDirectories(logDir);
 
-            FileHandler handler = new FileHandler(LOG_FILE.toString(), true);
+            FileHandler handler = new FileHandler(logFile.toString(), true);
             handler.setFormatter(new PatternFormatter("%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c{3.}] (%t) %s%e%n"));
 
             Logger rootLogger = Logger.getLogger("");
             rootLogger.addHandler(handler);
             activeHandler = handler;
 
-            LOG.info("File logging enabled: " + LOG_FILE);
-            return ToolResponse.success("File logging enabled. Log file: " + LOG_FILE);
+            LOG.info("File logging enabled: " + logFile);
+            return ToolResponse.success("File logging enabled. Log file: " + logFile);
         } catch (IOException e) {
             LOG.error("Failed to enable file logging", e);
             return ToolResponse.error("Failed to enable file logging: " + e.getMessage());
@@ -89,17 +96,18 @@ public class AgentLogTools {
         handler.close();
         activeHandler = null;
 
-        return ToolResponse.success("File logging disabled. Log file preserved at: " + LOG_FILE);
+        return ToolResponse.success("File logging disabled. Log file preserved at: " + logFile());
     }
 
     private ToolResponse readLog(Integer lines) {
-        if (!Files.exists(LOG_FILE)) {
+        Path logFile = logFile();
+        if (!Files.exists(logFile)) {
             return ToolResponse.error(
                     "No log file found. Call quarkus_agent_log with action 'enable' first to start logging.");
         }
         try {
             int count = (lines != null && lines > 0) ? Math.min(lines, 10000) : 100;
-            List<String> tail = LogFileReader.readTail(LOG_FILE, count);
+            List<String> tail = LogFileReader.readTail(logFile, count);
             return ToolResponse.success(String.join("\n", tail));
         } catch (IOException e) {
             LOG.error("Failed to read log file", e);
