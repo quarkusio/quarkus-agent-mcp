@@ -28,6 +28,7 @@ public class StartupObserver {
     void onStart(@Observes StartupEvent event) {
         LOG.infof("Quarkus Agent MCP running on Java %s (%s) — %s mode",
                 Runtime.version(), System.getProperty("java.vm.name"), processManager.getMode());
+        System.err.println("Quarkus Agent MCP server ready (stdio) — " + processManager.getMode() + " mode");
         containerManager.warmUpDefaultAsync();
 
         if (!processManager.isDevMode()) {
