@@ -31,7 +31,8 @@ public class McpIT {
             "quarkus_skills",
             "quarkus_updateSkill",
             "quarkus_saveSkill",
-            "quarkus_callTool");
+            "quarkus_callTool",
+            "quarkus_update");
 
     @Test
     public void toolsList() {
