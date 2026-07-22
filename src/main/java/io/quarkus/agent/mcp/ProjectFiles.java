@@ -9,7 +9,7 @@ import java.util.List;
 import org.jboss.logging.Logger;
 
 /**
- * Generates agent instruction files (AGENTS.md, CLAUDE.md, .mcp.json)
+ * Generates agent instruction files (AGENTS.md, CLAUDE.md)
  * that coding agents rely on when working with a Quarkus project.
  * Used by {@link CreateTools} (always writes) and {@link LifecycleTools} (writes only if missing).
  */
@@ -22,7 +22,6 @@ public final class ProjectFiles {
 
     static final String AGENTS_MD = "AGENTS.md";
     static final String CLAUDE_MD = "CLAUDE.md";
-    static final String MCP_JSON = ".mcp.json";
 
     /**
      * Checks for missing agent files and generates any that don't exist.
@@ -41,10 +40,6 @@ public final class ProjectFiles {
         if (!Files.exists(dir.resolve(CLAUDE_MD))) {
             generateClaudeMd(projectDir);
             created.add(CLAUDE_MD);
-        }
-        if (!Files.exists(dir.resolve(MCP_JSON))) {
-            generateMcpConfig(projectDir);
-            created.add(MCP_JSON);
         }
 
         return created;
@@ -221,24 +216,4 @@ public final class ProjectFiles {
         }
     }
 
-    static void generateMcpConfig(String projectDir) {
-        try {
-            String mcpJson = """
-                    {
-                      "mcpServers": {
-                        "quarkus-agent": {
-                          "command": "jbang",
-                          "args": [
-                            "quarkus-agent-mcp@quarkusio"
-                          ]
-                        }
-                      }
-                    }
-                    """;
-            Files.writeString(Path.of(projectDir, MCP_JSON), mcpJson, StandardCharsets.UTF_8);
-            LOG.debugf("Generated %s in %s", MCP_JSON, projectDir);
-        } catch (IOException e) {
-            LOG.warnf("Failed to generate %s in %s: %s", MCP_JSON, projectDir, e.getMessage());
-        }
-    }
 }
