@@ -15,24 +15,21 @@ class ProjectFilesTest {
     void ensureAgentFiles_createsAllInEmptyDir(@TempDir Path tempDir) {
         List<String> created = ProjectFiles.ensureAgentFiles(tempDir.toString(), true);
 
-        assertEquals(List.of("AGENTS.md", "CLAUDE.md", ".mcp.json"), created);
+        assertEquals(List.of("AGENTS.md", "CLAUDE.md"), created);
         assertTrue(Files.exists(tempDir.resolve("AGENTS.md")));
         assertTrue(Files.exists(tempDir.resolve("CLAUDE.md")));
-        assertTrue(Files.exists(tempDir.resolve(".mcp.json")));
     }
 
     @Test
     void ensureAgentFiles_skipsExistingFiles(@TempDir Path tempDir) throws IOException {
         Files.writeString(tempDir.resolve("AGENTS.md"), "custom content");
         Files.writeString(tempDir.resolve("CLAUDE.md"), "custom claude");
-        Files.writeString(tempDir.resolve(".mcp.json"), "{}");
 
         List<String> created = ProjectFiles.ensureAgentFiles(tempDir.toString(), true);
 
         assertTrue(created.isEmpty());
         assertEquals("custom content", Files.readString(tempDir.resolve("AGENTS.md")));
         assertEquals("custom claude", Files.readString(tempDir.resolve("CLAUDE.md")));
-        assertEquals("{}", Files.readString(tempDir.resolve(".mcp.json")));
     }
 
     @Test
@@ -41,10 +38,9 @@ class ProjectFilesTest {
 
         List<String> created = ProjectFiles.ensureAgentFiles(tempDir.toString(), true);
 
-        assertEquals(List.of("CLAUDE.md", ".mcp.json"), created);
+        assertEquals(List.of("CLAUDE.md"), created);
         assertEquals("custom content", Files.readString(tempDir.resolve("AGENTS.md")));
         assertTrue(Files.exists(tempDir.resolve("CLAUDE.md")));
-        assertTrue(Files.exists(tempDir.resolve(".mcp.json")));
     }
 
     @Test
@@ -63,16 +59,6 @@ class ProjectFilesTest {
 
         String content = Files.readString(tempDir.resolve("CLAUDE.md"));
         assertTrue(content.contains("AGENTS.md"));
-    }
-
-    @Test
-    void generatedMcpJson_containsServerConfig(@TempDir Path tempDir) throws IOException {
-        ProjectFiles.ensureAgentFiles(tempDir.toString(), true);
-
-        String content = Files.readString(tempDir.resolve(".mcp.json"));
-        assertTrue(content.contains("quarkus-agent"));
-        assertTrue(content.contains("jbang"));
-        assertTrue(content.contains("quarkus-agent-mcp@quarkusio"));
     }
 
     @Test

@@ -184,9 +184,8 @@ public class CreateTools {
             // full restart.
             createSourceDirectories(projectDir);
 
-            // Generate AGENTS.md, CLAUDE.md, and .mcp.json
+            // Generate AGENTS.md and CLAUDE.md
             ProjectFiles.generateProjectInstructions(projectDir, processManager.isDevMode());
-            ProjectFiles.generateMcpConfig(projectDir);
 
             // Auto-start the app in dev mode and wait for it to be ready
             try {
