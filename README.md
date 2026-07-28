@@ -1,5 +1,7 @@
 # Quarkus Agent MCP
 
+[![MCP Toplist](https://mcptoplist.com/badge/pulsemcp%2Fquarkus-agent-mcp.svg)](https://mcptoplist.com/server/pulsemcp%2Fquarkus-agent-mcp)
+
 <p align="center">
   <img src="logo.png" width="250" alt="Quarkus Agent MCP Logo">
 </p>
