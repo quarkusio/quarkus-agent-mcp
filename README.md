@@ -257,18 +257,24 @@ NEW PROJECT                           EXISTING PROJECT
                                       2. quarkus_skills
 2. quarkus_skills                        → learn extension patterns
    → learn extension patterns            → query 'quarkus-update' to check version
-                                      3. quarkus_searchDocs
-3. quarkus_searchDocs                    → look up APIs, config
-   → look up APIs, config
-                                      4. Write code + tests
-4. Write code + tests
-                                      5. Run tests
-5. Run tests                             → quarkus_callTool
-   → quarkus_callTool                    → devui-testing_runTests
-   → devui-testing_runTests
+
+3. quarkus_searchDocs                 3. quarkus_searchDocs
+   → look up APIs, config                → look up APIs, config
+
+4. Write code + tests                 4. Write code + tests
+
+5. Run tests                          5. Run tests
+   → quarkus_callTool                    → quarkus_callTool
+   → devui-testing_runTests              → devui-testing_runTests
 
 6. Iterate
 ```
+
+If the app is **already running in your own terminal**, use `quarkus_attach` instead of `quarkus_start` and the rest of the workflow is unchanged.
+
+Attaching requires that the app expose a Dev MCP server. `quarkus_start` passes `-Dquarkus.dev-mcp.enabled=true` itself, so apps it launches always do; an app you started by hand does so only if Dev MCP is enabled for it — commonly `enabled=true` in `~/.quarkus/dev-mcp.properties`, which applies to every project, or `quarkus.dev-mcp.enabled=true` in the project's `application.properties`. `quarkus_attach` calls the server before registering anything and reports what to fix if it gets no answer, rather than attaching to something the proxy tools cannot reach.
+
+Since the process belongs to your terminal, `quarkus_stop` only detaches, and `quarkus_restart` and `quarkus_logs` give way to `devui-logstream_forceRestart` and `devui-logstream_logHistory` through `quarkus_callTool`.
 
 **Key points:**
 
@@ -349,7 +355,8 @@ quarkus_searchDocs query="broadcasting messages" extension="quarkus-json-rpc"
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `quarkus_start` | Start a Quarkus app in dev mode | `projectDir` (required), `buildTool` |
-| `quarkus_stop` | Graceful shutdown | `projectDir` (required) |
+| `quarkus_attach` | Attach to a Quarkus app already running in dev mode (e.g. started in a terminal). Verifies its Dev MCP server responds before attaching | `projectDir` (required), `httpPort` (read from `application.properties` if omitted) |
+| `quarkus_stop` | Graceful shutdown — only detaches for an attached app | `projectDir` (required) |
 | `quarkus_restart` | Force restart (usually not needed — hot reload is automatic) | `projectDir` (required) |
 | `quarkus_status` | Get app state | `projectDir` (required) |
 | `quarkus_logs` | Get recent log output | `projectDir` (required), `lines` |

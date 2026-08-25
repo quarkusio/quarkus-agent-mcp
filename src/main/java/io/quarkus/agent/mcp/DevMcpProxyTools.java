@@ -35,6 +35,7 @@ public class DevMcpProxyTools {
     private static final Logger LOG = Logger.getLogger(DevMcpProxyTools.class);
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_RETRIES = 3;
     private static final long INITIAL_RETRY_DELAY_MS = 2000;
 
@@ -604,6 +605,42 @@ public class DevMcpProxyTools {
             return sb.toString();
         }
         return "";
+    }
+
+    /**
+     * Checks whether a Dev MCP server answers on the given port. Used by quarkus_attach to fail
+     * immediately instead of registering an app the proxy tools cannot reach. Unlike
+     * {@link #callDevMcp} this does not retry, so a wrong port reports back in seconds.
+     *
+     * @return empty when the server responded, otherwise the reason it did not
+     */
+    Optional<String> probeDevMcp(int port, String devMcpPath) {
+        String endpoint = "http://localhost:" + port + devMcpPath;
+        String jsonRpcRequest;
+        try {
+            jsonRpcRequest = mapper.writeValueAsString(Map.of(
+                    "jsonrpc", "2.0",
+                    "id", requestId.incrementAndGet(),
+                    "method", "tools/list",
+                    "params", Map.of()));
+        } catch (JsonProcessingException e) {
+            return Optional.of("Failed to serialize the probe request: " + e.getMessage());
+        }
+        try {
+            var response = webClient.postAbs(endpoint)
+                    .putHeader("Content-Type", "application/json")
+                    .putHeader("Accept", "application/json, text/event-stream")
+                    .timeout(PROBE_TIMEOUT.toMillis())
+                    .sendBuffer(Buffer.buffer(jsonRpcRequest))
+                    .await().atMost(PROBE_TIMEOUT.plusSeconds(2));
+            if (response.statusCode() == 200) {
+                return Optional.empty();
+            }
+            return Optional.of(endpoint + " returned HTTP " + response.statusCode());
+        } catch (Exception e) {
+            String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return Optional.of("No Dev MCP server answered at " + endpoint + " (" + reason + ")");
+        }
     }
 
     private Uni<JsonNode> fetchDevMcpTools(int port, String devMcpPath) {

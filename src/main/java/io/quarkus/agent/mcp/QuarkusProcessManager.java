@@ -7,12 +7,15 @@ import jakarta.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -75,9 +78,8 @@ public class QuarkusProcessManager {
             throw new IllegalArgumentException(
                     "Invalid build tool: '" + buildTool + "'. Must be 'maven' or 'gradle'.");
         }
-        if (httpPort != null && (httpPort < 1 || httpPort > 65535)) {
-            throw new IllegalArgumentException(
-                    "Invalid HTTP port: " + httpPort + ". Must be between 1 and 65535.");
+        if (httpPort != null) {
+            validatePort(httpPort);
         }
         String normalizedDir = normalize(projectDir);
 
@@ -132,6 +134,12 @@ public class QuarkusProcessManager {
             throw new IllegalStateException(
                     "No Quarkus instance found at: " + normalizedDir + ". Use quarkus_start first.");
         }
+        if (instance.isExternal()) {
+            throw new IllegalStateException(
+                    "Cannot restart an attached application at: " + normalizedDir
+                            + ". This server does not own the process. "
+                            + "Call devui-logstream_forceRestart via quarkus_callTool instead.");
+        }
 
         if (isDevMode() && instance.isAlive()) {
             instance.restart();
@@ -148,6 +156,37 @@ public class QuarkusProcessManager {
             start(normalizedDir, savedBuildTool, savedHttpPort, savedMavenProfiles, savedExtraArgs);
             LOG.infof("Full restart at: %s", normalizedDir);
         }
+    }
+
+    /**
+     * Checks that projectDir can be attached to, without registering anything.
+     * Lets a caller reject a bad path before it goes looking for a Dev MCP server on the network.
+     *
+     * @return the normalized project directory
+     */
+    public synchronized String validateAttachable(String projectDir) {
+        String normalizedDir = normalize(projectDir);
+        if (!new File(normalizedDir).isDirectory()) {
+            throw new IllegalArgumentException("Not a directory: " + projectDir);
+        }
+        // Throws if there is no pom.xml or build.gradle, i.e. this is not a Quarkus project.
+        detectBuildTool(normalizedDir);
+        QuarkusInstance existing = instances.get(normalizedDir);
+        if (existing != null && existing.isAlive()) {
+            throw new IllegalStateException("A Quarkus instance is already registered at: " + normalizedDir);
+        }
+        return normalizedDir;
+    }
+
+    /**
+     * Registers an application that is already running outside this server, so the Dev MCP
+     * proxy tools can reach it. No process is started and none is owned.
+     */
+    public synchronized void register(String projectDir, int httpPort) {
+        validatePort(httpPort);
+        String normalizedDir = validateAttachable(projectDir);
+        instances.put(normalizedDir, new QuarkusInstance(normalizedDir, httpPort));
+        LOG.infof("Attached to external Quarkus instance at: %s (port: %d)", normalizedDir, httpPort);
     }
 
     public QuarkusInstance getInstance(String projectDir) {
@@ -173,6 +212,13 @@ public class QuarkusProcessManager {
             }
         }
         instances.clear();
+    }
+
+    private static void validatePort(int httpPort) {
+        if (httpPort < 1 || httpPort > 65535) {
+            throw new IllegalArgumentException(
+                    "Invalid HTTP port: " + httpPort + ". Must be between 1 and 65535.");
+        }
     }
 
     private String normalize(String projectDir) {
@@ -286,6 +332,41 @@ public class QuarkusProcessManager {
     static Path computeLogFile(String projectDir) {
         String dirName = Path.of(projectDir).getFileName().toString();
         return Path.of(System.getProperty("user.home"), ".quarkus", "apps", dirName, "quarkus-dev.log");
+    }
+
+    /**
+     * Best-effort guess at the port an already-running application listens on, read from
+     * application.properties. The dev profile wins, since attaching only applies to dev mode.
+     *
+     * <p>A port set on the command line, in a YAML config file, or in an environment variable is
+     * invisible here, so callers must verify the guess rather than trust it, and users can always
+     * pass the port explicitly.
+     */
+    static int detectHttpPort(String projectDir) {
+        Path file = Path.of(projectDir, "src", "main", "resources", "application.properties");
+        if (!Files.exists(file)) {
+            return DEFAULT_HTTP_PORT;
+        }
+        Properties props = new Properties();
+        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            props.load(reader);
+        } catch (IOException e) {
+            LOG.debugf("Could not read %s: %s", file, e.getMessage());
+            return DEFAULT_HTTP_PORT;
+        }
+        for (String key : new String[] { "%dev.quarkus.http.port", "quarkus.http.port" }) {
+            String val = props.getProperty(key);
+            if (val == null || val.isBlank()) {
+                continue;
+            }
+            try {
+                return Integer.parseInt(val.trim());
+            } catch (NumberFormatException e) {
+                // A config expression such as ${PORT:8080}, or a typo. Fall through to the default.
+                LOG.debugf("Ignoring non-numeric %s: '%s'", key, val);
+            }
+        }
+        return DEFAULT_HTTP_PORT;
     }
 
 }

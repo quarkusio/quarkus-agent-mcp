@@ -262,4 +262,45 @@ class QuarkusInstanceTest {
 
         assertThrows(IllegalStateException.class, instance::restart);
     }
+
+    @Test
+    void externalInstanceIsRunningWithCorrectPort() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 9090);
+
+        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+        assertEquals(9090, instance.getHttpPort());
+        assertTrue(instance.isExternal());
+        assertTrue(instance.isAlive());
+    }
+
+    @Test
+    void externalInstanceHasDefaultDevMcpPath() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 8080);
+
+        assertEquals(QuarkusInstance.DEFAULT_DEV_MCP_PATH, instance.getDevMcpPath());
+    }
+
+    @Test
+    void externalInstanceStopSetsStatusWithoutKillingProcess() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 8080);
+
+        instance.stop();
+
+        assertEquals(QuarkusInstance.Status.STOPPED, instance.getStatus());
+        assertFalse(instance.isAlive());
+    }
+
+    @Test
+    void externalInstanceRestartThrows() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 8080);
+
+        assertThrows(IllegalStateException.class, instance::restart);
+    }
+
+    @Test
+    void externalInstanceSendInputThrows() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 8080);
+
+        assertThrows(IllegalStateException.class, () -> instance.sendInput('s'));
+    }
 }

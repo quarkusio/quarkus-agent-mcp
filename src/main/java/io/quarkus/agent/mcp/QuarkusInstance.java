@@ -39,6 +39,8 @@ public class QuarkusInstance {
 
     static final int MAX_LOG_LINES = 500;
 
+    static final String DEFAULT_DEV_MCP_PATH = "/q/dev-mcp";
+
     // Quarkus dev output may be wrapped in ANSI escape codes (Gradle forces color
     // on the forked dev JVM), which must be stripped before URI parsing.
     private static final Pattern ANSI = Pattern.compile("\\u001B\\[[0-9;]*m");
@@ -68,6 +70,26 @@ public class QuarkusInstance {
         executor.submit(() -> captureStream(process.getInputStream()));
         executor.submit(() -> captureStream(process.getErrorStream()));
         executor.submit(() -> monitorExit());
+    }
+
+    /**
+     * Creates an instance for an application started outside this server (see quarkus_attach).
+     * There is no child process to manage, so the lifecycle operations that drive one
+     * (restart, stop, stdin) are unavailable and log capture is empty.
+     */
+    public QuarkusInstance(String projectDir, int httpPort) {
+        this.projectDir = projectDir;
+        this.buildTool = null;
+        this.requestedHttpPort = httpPort;
+        this.mavenProfiles = null;
+        this.extraArgs = null;
+        this.process = null;
+        this.httpPort = httpPort;
+        this.status.set(Status.RUNNING);
+    }
+
+    public boolean isExternal() {
+        return process == null;
     }
 
     private void captureStream(InputStream inputStream) {
@@ -198,6 +220,9 @@ public class QuarkusInstance {
     }
 
     private void reconcileStatus() {
+        if (isExternal()) {
+            return;
+        }
         if (status.get() == Status.RUNNING && !process.isAlive()) {
             status.compareAndSet(Status.RUNNING, Status.CRASHED);
         }
@@ -211,6 +236,9 @@ public class QuarkusInstance {
     }
 
     public void sendInput(char c) {
+        if (isExternal()) {
+            throw new IllegalStateException("Cannot send input to an externally-managed process.");
+        }
         OutputStream os = process.getOutputStream();
         try {
             os.write(c);
@@ -222,6 +250,11 @@ public class QuarkusInstance {
     }
 
     public void restart() {
+        if (isExternal()) {
+            throw new IllegalStateException(
+                    "Cannot restart an externally-managed process: this server has no stdin to send 's' to. "
+                            + "Call devui-logstream_forceRestart via quarkus_callTool instead.");
+        }
         if (!process.isAlive()) {
             throw new IllegalStateException(
                     "Process is not running. Use quarkus_start to start a new instance.");
@@ -234,6 +267,10 @@ public class QuarkusInstance {
     }
 
     public void stop() {
+        if (isExternal()) {
+            status.set(Status.STOPPED);
+            return;
+        }
         disableFileLogging();
         status.set(Status.STOPPED);
         if (process.isAlive()) {
@@ -254,6 +291,9 @@ public class QuarkusInstance {
     }
 
     public boolean isAlive() {
+        if (isExternal()) {
+            return status.get() == Status.RUNNING;
+        }
         return process.isAlive();
     }
 
@@ -263,7 +303,7 @@ public class QuarkusInstance {
 
     public String getDevMcpPath() {
         String path = devMcpPath;
-        return path != null ? path : "/q/dev-mcp";
+        return path != null ? path : DEFAULT_DEV_MCP_PATH;
     }
 
     public String getBuildTool() {

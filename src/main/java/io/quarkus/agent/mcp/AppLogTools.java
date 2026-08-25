@@ -46,6 +46,9 @@ public class AppLogTools {
         if (instance == null) {
             return ToolResponse.error("No managed Quarkus instance found at: " + projectDir);
         }
+        if (instance.isExternal()) {
+            return ToolResponse.error(externalNotCaptured(projectDir));
+        }
         if (instance.getLogFile() != null) {
             return ToolResponse.success("App file logging is already enabled. Log file: " + instance.getLogFile());
         }
@@ -59,6 +62,9 @@ public class AppLogTools {
         if (instance == null) {
             return ToolResponse.error("No managed Quarkus instance found at: " + projectDir);
         }
+        if (instance.isExternal()) {
+            return ToolResponse.error(externalNotCaptured(projectDir));
+        }
         Path logFile = instance.getLogFile();
         instance.disableFileLogging();
         if (logFile != null) {
@@ -67,7 +73,22 @@ public class AppLogTools {
         return ToolResponse.success("App file logging is not enabled.");
     }
 
+    /**
+     * File logging is fed by the child process's captured output, so it has nothing to write for an
+     * application this server did not start. Reading the file would return output from an earlier
+     * managed run, which is worse than saying so.
+     */
+    private static String externalNotCaptured(String projectDir) {
+        return "This server did not start the application at: " + projectDir
+                + ", so its output is not captured — the logs go to the terminal that started it. "
+                + "Call devui-logstream_logHistory via quarkus_callTool for recent log lines.";
+    }
+
     private ToolResponse readAppLog(String projectDir, Integer lines) {
+        QuarkusInstance instance = processManager.getInstance(projectDir);
+        if (instance != null && instance.isExternal()) {
+            return ToolResponse.error(externalNotCaptured(projectDir));
+        }
         Path logFile = QuarkusProcessManager.computeLogFile(projectDir);
         if (!Files.exists(logFile)) {
             return ToolResponse.error("No app log file found at " + logFile

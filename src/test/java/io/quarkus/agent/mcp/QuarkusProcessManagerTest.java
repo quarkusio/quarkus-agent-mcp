@@ -459,4 +459,120 @@ class QuarkusProcessManagerTest {
         assertTrue(toolIdx >= 0, "tool extra arg should be present");
         assertTrue(configIdx < toolIdx, "config extra args should come before tool extra args");
     }
+
+    /** Makes tempDir look like a Quarkus project, which attaching requires. */
+    private void writePom() throws IOException {
+        Files.writeString(tempDir.resolve("pom.xml"), "<project/>");
+    }
+
+    private void writeAppProperties(String content) throws IOException {
+        Path resources = Files.createDirectories(tempDir.resolve("src/main/resources"));
+        Files.writeString(resources.resolve("application.properties"), content);
+    }
+
+    @Test
+    void registerCreatesExternalInstance() throws Exception {
+        initOptionalFields();
+        writePom();
+        manager.register(tempDir.toString(), 9090);
+
+        QuarkusInstance instance = manager.getInstance(tempDir.toString());
+        assertNotNull(instance);
+        assertTrue(instance.isExternal());
+        assertEquals(9090, instance.getHttpPort());
+        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+    }
+
+    @Test
+    void registerThrowsForInvalidPort() throws Exception {
+        writePom();
+        assertThrows(IllegalArgumentException.class, () -> manager.register(tempDir.toString(), 0));
+        assertThrows(IllegalArgumentException.class, () -> manager.register(tempDir.toString(), 70000));
+    }
+
+    @Test
+    void registerThrowsForNonExistentDirectory() {
+        assertThrows(IllegalArgumentException.class,
+                () -> manager.register(tempDir.resolve("nope").toString(), 8080));
+    }
+
+    @Test
+    void registerThrowsWhenNotAQuarkusProject() {
+        assertThrows(IllegalArgumentException.class, () -> manager.register(tempDir.toString(), 8080));
+    }
+
+    @Test
+    void registerThrowsWhenInstanceAlreadyAlive() throws Exception {
+        initOptionalFields();
+        writePom();
+        manager.register(tempDir.toString(), 8080);
+
+        assertThrows(IllegalStateException.class, () -> manager.register(tempDir.toString(), 8080));
+    }
+
+    @Test
+    void registerReplacesDeadInstance() throws Exception {
+        initOptionalFields();
+        writePom();
+        manager.register(tempDir.toString(), 8080);
+        manager.stop(tempDir.toString());
+
+        manager.register(tempDir.toString(), 9090);
+
+        QuarkusInstance instance = manager.getInstance(tempDir.toString());
+        assertNotNull(instance);
+        assertEquals(9090, instance.getHttpPort());
+    }
+
+    @Test
+    void restartThrowsForExternalInstance() throws Exception {
+        initOptionalFields();
+        writePom();
+        manager.register(tempDir.toString(), 8080);
+
+        assertThrows(IllegalStateException.class, () -> manager.restart(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortReadsFromProperties() throws Exception {
+        writeAppProperties("quarkus.http.port=9191\n");
+
+        assertEquals(9191, QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortPrefersDevProfileOverride() throws Exception {
+        writeAppProperties("quarkus.http.port=9191\n%dev.quarkus.http.port=8081\n");
+
+        assertEquals(8081, QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortReadsDevProfileOverrideAlone() throws Exception {
+        writeAppProperties("%dev.quarkus.http.port=8081\n");
+
+        assertEquals(8081, QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortFallsBackToDefaultWhenNoFile() {
+        assertEquals(QuarkusProcessManager.DEFAULT_HTTP_PORT,
+                QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortFallsBackToDefaultWhenPropertyAbsent() throws Exception {
+        writeAppProperties("quarkus.datasource.db-kind=h2\n");
+
+        assertEquals(QuarkusProcessManager.DEFAULT_HTTP_PORT,
+                QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
+
+    @Test
+    void detectHttpPortFallsBackToDefaultForConfigExpression() throws Exception {
+        writeAppProperties("quarkus.http.port=${PORT:8080}\n");
+
+        assertEquals(QuarkusProcessManager.DEFAULT_HTTP_PORT,
+                QuarkusProcessManager.detectHttpPort(tempDir.toString()));
+    }
 }

@@ -18,6 +18,7 @@ public class McpIT {
     private static final List<String> EXPECTED_TOOLS = List.of(
             "quarkus_create",
             "quarkus_start",
+            "quarkus_attach",
             "quarkus_stop",
             "quarkus_restart",
             "quarkus_browser",

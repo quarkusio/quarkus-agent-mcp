@@ -26,6 +26,9 @@ public class LifecycleTools {
     @Inject
     ObjectMapper mapper;
 
+    @Inject
+    DevMcpProxyTools devMcpProxyTools;
+
     static final long STARTUP_TIMEOUT_MS = 120_000;
     static final long STARTUP_POLL_INTERVAL_MS = 2_000;
 
@@ -90,12 +93,69 @@ public class LifecycleTools {
         }
     }
 
+    @Tool(name = "quarkus_attach", description = "Attach to a Quarkus application already running in dev mode "
+            + "(e.g. started manually in a terminal), so quarkus_searchTools and quarkus_callTool can proxy "
+            + "to its Dev MCP server. That server is contacted first and attaching fails if it does not "
+            + "answer, which is the only way to know: an app started by hand exposes Dev MCP only if it was "
+            + "enabled for it, and that can come from a user-level file this server cannot see. "
+            + "If httpPort is omitted, the port is read from src/main/resources/application.properties "
+            + "(%dev.quarkus.http.port, then quarkus.http.port), falling back to 8080; pass it explicitly "
+            + "when the application listens elsewhere. "
+            + "Note that this server does not own the process, so quarkus_stop only detaches and "
+            + "quarkus_restart and quarkus_logs do not work. Use quarkus_callTool instead: "
+            + "devui-logstream_forceRestart to restart, devui-logstream_logHistory for logs, "
+            + "devui-exceptions_getLastException for errors.")
+    ToolResponse attach(
+            @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
+            @ToolArg(description = "HTTP port the application is listening on. "
+                    + "If omitted, read from application.properties (defaults to 8080).",
+                    required = false) Integer httpPort) {
+        try {
+            processManager.validateAttachable(projectDir);
+            int port = httpPort != null ? httpPort : QuarkusProcessManager.detectHttpPort(projectDir);
+
+            Optional<String> unreachable = devMcpProxyTools.probeDevMcp(port, QuarkusInstance.DEFAULT_DEV_MCP_PATH);
+            if (unreachable.isPresent()) {
+                return ToolResponse.error(unreachable.get() + ".\nCheck that:\n"
+                        + "- the application is running in dev mode on port " + port
+                        + (httpPort == null
+                                ? " (guessed from application.properties — pass httpPort if it differs)"
+                                : "")
+                        + "\n- Dev MCP is enabled for that app: set enabled=true in ~/.quarkus/dev-mcp.properties "
+                        + "to turn it on for every project, or add quarkus.dev-mcp.enabled=true to the project's "
+                        + "application.properties, or restart it with -Dquarkus.dev-mcp.enabled=true. "
+                        + "Apps launched by quarkus_start always get the flag; one started by hand does not "
+                        + "unless it is enabled somewhere.");
+            }
+
+            processManager.register(projectDir, port);
+            return ToolResponse.success("Attached to external Quarkus application at: " + projectDir
+                    + " (port: " + port + ")\n"
+                    + "Its Dev MCP server responded, so quarkus_searchTools and quarkus_callTool are ready.\n"
+                    + "The process belongs to the terminal that started it, so quarkus_stop only detaches "
+                    + "and quarkus_restart and quarkus_logs do not work. Go through quarkus_callTool instead: "
+                    + "devui-logstream_forceRestart, devui-logstream_logHistory, "
+                    + "devui-exceptions_getLastException.");
+        } catch (Exception e) {
+            LOG.error("Failed to attach to Quarkus application at " + projectDir, e);
+            return ToolResponse.error(e.getMessage());
+        }
+    }
+
     @Tool(name = "quarkus_stop", description = "Stop a running Quarkus application. "
-            + "Sends a graceful shutdown signal, then force-kills if needed.")
+            + "Sends a graceful shutdown signal, then force-kills if needed. "
+            + "For an application attached with quarkus_attach this only drops the attachment — "
+            + "the process keeps running, since this server did not start it.")
     ToolResponse stop(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir) {
         try {
+            QuarkusInstance instance = processManager.getInstance(projectDir);
+            boolean external = instance != null && instance.isExternal();
             processManager.stop(projectDir);
+            if (external) {
+                return ToolResponse.success("Detached from Quarkus application at: " + projectDir
+                        + "\nThe application is still running — stop it in the terminal that started it.");
+            }
             return ToolResponse.success("Quarkus application stopped at: " + projectDir);
         } catch (Exception e) {
             LOG.error("Failed to stop Quarkus application at " + projectDir, e);
@@ -215,6 +275,12 @@ public class LifecycleTools {
             QuarkusInstance instance = processManager.getInstance(projectDir);
             if (instance == null) {
                 return ToolResponse.error("No instance found for: " + projectDir);
+            }
+            if (instance.isExternal()) {
+                return ToolResponse.error("This server did not start the application at: " + projectDir
+                        + ", so it does not capture its output — the logs go to the terminal that started it. "
+                        + "Call devui-logstream_logHistory via quarkus_callTool for recent log lines, "
+                        + "or devui-exceptions_getLastException for the last error.");
             }
             int count = (lines != null && lines > 0) ? Math.min(lines, 10000) : 50;
             String logs = instance.getRecentLogs(count);
