@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -221,10 +222,24 @@ public class QuarkusInstance {
 
     private void reconcileStatus() {
         if (isExternal()) {
+            if (status.get() == Status.RUNNING && !isPortListening(httpPort)) {
+                status.compareAndSet(Status.RUNNING, Status.STOPPED);
+            }
             return;
         }
         if (status.get() == Status.RUNNING && !process.isAlive()) {
             status.compareAndSet(Status.RUNNING, Status.CRASHED);
+        }
+    }
+
+    private static boolean isPortListening(int port) {
+        if (port <= 0) {
+            return false;
+        }
+        try (Socket s = new Socket("localhost", port)) {
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 

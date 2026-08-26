@@ -474,13 +474,17 @@ class QuarkusProcessManagerTest {
     void registerCreatesExternalInstance() throws Exception {
         initOptionalFields();
         writePom();
-        manager.register(tempDir.toString(), 9090);
+        // Use a real open port so the liveness probe in getStatus() returns RUNNING.
+        try (ServerSocket server = new ServerSocket(0)) {
+            int port = server.getLocalPort();
+            manager.register(tempDir.toString(), port);
 
-        QuarkusInstance instance = manager.getInstance(tempDir.toString());
-        assertNotNull(instance);
-        assertTrue(instance.isExternal());
-        assertEquals(9090, instance.getHttpPort());
-        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+            QuarkusInstance instance = manager.getInstance(tempDir.toString());
+            assertNotNull(instance);
+            assertTrue(instance.isExternal());
+            assertEquals(port, instance.getHttpPort());
+            assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+        }
     }
 
     @Test
@@ -488,6 +492,30 @@ class QuarkusProcessManagerTest {
         writePom();
         assertThrows(IllegalArgumentException.class, () -> manager.register(tempDir.toString(), 0));
         assertThrows(IllegalArgumentException.class, () -> manager.register(tempDir.toString(), 70000));
+    }
+
+    @Test
+    void validatePortRejectsOutOfRangePorts() {
+        assertThrows(IllegalArgumentException.class, () -> QuarkusProcessManager.validatePort(0));
+        assertThrows(IllegalArgumentException.class, () -> QuarkusProcessManager.validatePort(70000));
+        assertThrows(IllegalArgumentException.class, () -> QuarkusProcessManager.validatePort(65536));
+        assertThrows(IllegalArgumentException.class, () -> QuarkusProcessManager.validatePort(-1));
+        // boundary values must pass
+        QuarkusProcessManager.validatePort(1);
+        QuarkusProcessManager.validatePort(65535);
+    }
+
+    @Test
+    void registerNormalizedCreatesExternalInstance() throws Exception {
+        initOptionalFields();
+        writePom();
+        String normalizedDir = manager.validateAttachable(tempDir.toString());
+        manager.registerNormalized(normalizedDir, 9191);
+
+        QuarkusInstance instance = manager.getInstance(normalizedDir);
+        assertNotNull(instance);
+        assertTrue(instance.isExternal());
+        assertEquals(9191, instance.getHttpPort());
     }
 
     @Test

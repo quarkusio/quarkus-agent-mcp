@@ -185,6 +185,15 @@ public class QuarkusProcessManager {
     public synchronized void register(String projectDir, int httpPort) {
         validatePort(httpPort);
         String normalizedDir = validateAttachable(projectDir);
+        registerNormalized(normalizedDir, httpPort);
+    }
+
+    /**
+     * Like {@link #register} but accepts a directory path that has already been normalized and
+     * validated by {@link #validateAttachable}. Used by the attach tool to avoid a second
+     * redundant validation round-trip.
+     */
+    synchronized void registerNormalized(String normalizedDir, int httpPort) {
         instances.put(normalizedDir, new QuarkusInstance(normalizedDir, httpPort));
         LOG.infof("Attached to external Quarkus instance at: %s (port: %d)", normalizedDir, httpPort);
     }
@@ -214,7 +223,7 @@ public class QuarkusProcessManager {
         instances.clear();
     }
 
-    private static void validatePort(int httpPort) {
+    static void validatePort(int httpPort) {
         if (httpPort < 1 || httpPort > 65535) {
             throw new IllegalArgumentException(
                     "Invalid HTTP port: " + httpPort + ". Must be between 1 and 65535.");

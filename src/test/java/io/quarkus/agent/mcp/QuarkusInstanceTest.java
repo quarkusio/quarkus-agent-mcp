@@ -2,6 +2,7 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.ServerSocket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -264,13 +265,17 @@ class QuarkusInstanceTest {
     }
 
     @Test
-    void externalInstanceIsRunningWithCorrectPort() {
-        QuarkusInstance instance = new QuarkusInstance("/test/project", 9090);
+    void externalInstanceIsRunningWithCorrectPort() throws Exception {
+        // Use a real open port so the liveness probe in reconcileStatus returns true.
+        try (ServerSocket server = new ServerSocket(0)) {
+            int port = server.getLocalPort();
+            QuarkusInstance instance = new QuarkusInstance("/test/project", port);
 
-        assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
-        assertEquals(9090, instance.getHttpPort());
-        assertTrue(instance.isExternal());
-        assertTrue(instance.isAlive());
+            assertEquals(QuarkusInstance.Status.RUNNING, instance.getStatus());
+            assertEquals(port, instance.getHttpPort());
+            assertTrue(instance.isExternal());
+            assertTrue(instance.isAlive());
+        }
     }
 
     @Test
@@ -288,6 +293,14 @@ class QuarkusInstanceTest {
 
         assertEquals(QuarkusInstance.Status.STOPPED, instance.getStatus());
         assertFalse(instance.isAlive());
+    }
+
+    @Test
+    void externalInstanceTransitionsToStoppedWhenPortUnreachable() {
+        // Port 1 is reserved and will not be listening in any test environment.
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 1);
+
+        assertEquals(QuarkusInstance.Status.STOPPED, instance.getStatus());
     }
 
     @Test

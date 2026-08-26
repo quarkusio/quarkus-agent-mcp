@@ -111,8 +111,11 @@ public class LifecycleTools {
                     + "If omitted, read from application.properties (defaults to 8080).",
                     required = false) Integer httpPort) {
         try {
-            processManager.validateAttachable(projectDir);
-            int port = httpPort != null ? httpPort : QuarkusProcessManager.detectHttpPort(projectDir);
+            if (httpPort != null) {
+                QuarkusProcessManager.validatePort(httpPort);
+            }
+            String normalizedDir = processManager.validateAttachable(projectDir);
+            int port = httpPort != null ? httpPort : QuarkusProcessManager.detectHttpPort(normalizedDir);
 
             Optional<String> unreachable = devMcpProxyTools.probeDevMcp(port, QuarkusInstance.DEFAULT_DEV_MCP_PATH);
             if (unreachable.isPresent()) {
@@ -128,7 +131,7 @@ public class LifecycleTools {
                         + "unless it is enabled somewhere.");
             }
 
-            processManager.register(projectDir, port);
+            processManager.registerNormalized(normalizedDir, port);
             return ToolResponse.success("Attached to external Quarkus application at: " + projectDir
                     + " (port: " + port + ")\n"
                     + "Its Dev MCP server responded, so quarkus_searchTools and quarkus_callTool are ready.\n"
