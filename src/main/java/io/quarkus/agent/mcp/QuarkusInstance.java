@@ -103,7 +103,7 @@ public class QuarkusInstance {
                     System.err.println(clean);
                 }
 
-                if (clean.contains("Listening on:")) {
+                if (clean.contains("Listening on:") && !isTestModeLine(clean)) {
                     parsePort(clean);
                 }
                 if (clean.contains("Dev MCP available at:")) {
@@ -134,6 +134,19 @@ public class QuarkusInstance {
 
     private boolean isStartedLine(String line) {
         return line.contains("Listening on:") || line.contains("installed features:");
+    }
+
+    // Continuous testing (devui-testing_runTests) forks a short-lived, separate
+    // JVM/thread pool ("oneshot-test-runner") that boots its own HTTP server on
+    // quarkus.http.test-port (default 8081) and logs through the same output
+    // streams we capture from the dev JVM. JBoss logging includes the
+    // originating thread/pool name in every line, e.g.:
+    //   "... [io.quarkus] (oneshot-test-runner) my-app started in 1.2s. Listening on: http://localhost:8081"
+    //   "... [io.quarkus] (oneshot-test-runner) my-app(test application) stopped in 5.0s"
+    // Its "Listening on:" line must never be mistaken for the real dev server
+    // moving to a different port.
+    private static boolean isTestModeLine(String line) {
+        return line.contains("(oneshot-test-runner)") || line.contains("(test application)");
     }
 
     private void parsePort(String line) {

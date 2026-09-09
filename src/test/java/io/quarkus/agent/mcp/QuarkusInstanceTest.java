@@ -187,6 +187,43 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void ignoresListeningOnFromContinuousTestingRunner() throws Exception {
+        // The main dev app starts on 8080. Continuous testing then forks a
+        // separate "oneshot-test-runner" thread pool/JVM that logs its own
+        // start banner with the same "Listening on:" phrase on the test port
+        // (8081) -- that must not clobber the tracked dev port. JBoss logging
+        // includes the originating thread/pool name in every line, e.g.:
+        // "... [io.quarkus] (oneshot-test-runner) my-app started in 1.2s. Listening on: http://localhost:8081"
+        process = new ProcessBuilder("bash", "-c",
+                "echo '2026-09-09 17:00:00,000 INFO  [io.quarkus] (main) my-app 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.39.1) started in 1.0s. Listening on: http://localhost:8080' "
+                        + "&& echo '2026-09-09 17:00:05,000 INFO  [io.quarkus] (oneshot-test-runner) my-app 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.39.1) started in 0.5s. Listening on: http://localhost:8081' "
+                        + "&& sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals(8080, instance.getHttpPort());
+    }
+
+    @Test
+    void ignoresTestApplicationStoppedLine() throws Exception {
+        // The test-mode stop banner uses a different marker format:
+        // "my-app(test application) stopped in Xs" -- must also never affect
+        // the tracked dev port even if it happened to contain "Listening on:".
+        process = new ProcessBuilder("bash", "-c",
+                "echo 'Listening on: http://localhost:8080' "
+                        + "&& echo 'my-app(test application) stopped in 5.0s. Listening on: http://localhost:9999' "
+                        + "&& sleep 5")
+                .start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, null, process, executor);
+
+        Thread.sleep(500);
+
+        assertEquals(8080, instance.getHttpPort());
+    }
+
+    @Test
     void detectsDevMcpPathFromLog() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "echo 'Listening on: http://localhost:8080' && echo 'Dev MCP available at: /custom/dev-mcp' && sleep 5")
