@@ -103,13 +103,15 @@ public class QuarkusInstance {
                     System.err.println(clean);
                 }
 
-                if (clean.contains("Listening on:") && !isTestModeLine(clean)) {
+                boolean fromTestRunner = isTestRunnerLine(clean);
+
+                if (!fromTestRunner && clean.contains("Listening on:")) {
                     parsePort(clean);
                 }
                 if (clean.contains("Dev MCP available at:")) {
                     parseDevMcpPath(clean);
                 }
-                if (status.get() == Status.STARTING && isStartedLine(clean)) {
+                if (!fromTestRunner && status.get() == Status.STARTING && isStartedLine(clean)) {
                     status.compareAndSet(Status.STARTING, Status.RUNNING);
                 }
             }
@@ -136,17 +138,28 @@ public class QuarkusInstance {
         return line.contains("Listening on:") || line.contains("installed features:");
     }
 
-    // Continuous testing (devui-testing_runTests) forks a short-lived, separate
-    // JVM/thread pool ("oneshot-test-runner") that boots its own HTTP server on
-    // quarkus.http.test-port (default 8081) and logs through the same output
-    // streams we capture from the dev JVM. JBoss logging includes the
-    // originating thread/pool name in every line, e.g.:
+    // Names of the dev-mode threads that run tests. The test application is an
+    // auxiliary app booted inside the same dev JVM (separate classloader) on
+    // quarkus.http.test-port, and it logs through the streams we capture here.
+    // Its startup banner is indistinguishable from the dev server's except for
+    // the thread name that JBoss logging puts in every line, e.g.:
     //   "... [io.quarkus] (oneshot-test-runner) my-app started in 1.2s. Listening on: http://localhost:8081"
-    //   "... [io.quarkus] (oneshot-test-runner) my-app(test application) stopped in 5.0s"
-    // Its "Listening on:" line must never be mistaken for the real dev server
-    // moving to a different port.
-    private static boolean isTestModeLine(String line) {
-        return line.contains("(oneshot-test-runner)") || line.contains("(test application)");
+    private static final String[] TEST_RUNNER_THREADS = {
+            // io.quarkus.devui.deployment.menu.OneShotTestingProcessor - devui-testing_runTests and friends
+            "(oneshot-test-runner)",
+            // io.quarkus.deployment.dev.testing.TestSupport - continuous testing
+            "(Test runner thread)"
+    };
+
+    // A test run must never be mistaken for the real dev server moving to a
+    // different port, or for it having finished starting up.
+    private static boolean isTestRunnerLine(String line) {
+        for (String thread : TEST_RUNNER_THREADS) {
+            if (line.contains(thread)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void parsePort(String line) {
