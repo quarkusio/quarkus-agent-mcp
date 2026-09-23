@@ -1,0 +1,77 @@
+name: Publish VS Code Extension
+
+# Manual on purpose: release-perform.yml runs on every tag push, so the extension is not
+# released by pushing a tag. The tag created below uses GITHUB_TOKEN, which does not
+# trigger other workflows.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and test only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vscode-extension-publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/vscode
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: plugins/vscode/package-lock.json
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/vscode-v${VERSION}" > /dev/null; then
+            echo "::error::vscode-v${VERSION} is already released. Bump the version in plugins/vscode/package.json."
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Package
+        run: npm run package
+
+      - name: Publish to the VS Code Marketplace
+        if: ${{ !inputs.dry-run }}
+        run: npx vsce publish --no-dependencies --packagePath "quarkus-agent-${{ steps.version.outputs.version }}.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        if: ${{ !inputs.dry-run }}
+        run: npx --yes ovsx@0 publish --packagePath "quarkus-agent-${{ steps.version.outputs.version }}.vsix"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Tag
+        if: ${{ !inputs.dry-run }}
+        run: |
+          git tag "vscode-v${{ steps.version.outputs.version }}"
+          git push origin "vscode-v${{ steps.version.outputs.version }}"
+
+      - name: Upload vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarkus-agent-vsix
+          path: plugins/vscode/*.vsix

@@ -1,0 +1,46 @@
+name: VS Code Extension
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'plugins/vscode/**', '.github/workflows/vscode-extension.yml' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'plugins/vscode/**', '.github/workflows/vscode-extension.yml' ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-14 ]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: plugins/vscode
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: plugins/vscode/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Package
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run package
+
+      - name: Upload vsix
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarkus-agent-vsix
+          path: plugins/vscode/*.vsix
