@@ -63,12 +63,12 @@ Add to `.bob/mcp.json`:
 {
   "mcpServers": {
     "quarkus-agent": {
-      "command": "/home/you/.jbang/bin/jbang",
+      "command": "${env:JBANG_HOME}/bin/jbang",
       "args": [
         "quarkus-agent-mcp@quarkusio"
       ],
       "env": {
-        "JAVA_HOME": "/path/to/your/java/home"
+        "JAVA_HOME": "${env:JAVA_HOME}"
       },
       "disabled": false
     }
