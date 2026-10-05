@@ -121,7 +121,8 @@ public class RagSqlLoader {
             "metadata\\s*->>\\s*'source'\\s*=\\s*'([^']+)'");
     /**
      * A row's source: {@code source} must be the metadata object's first key, as the generator
-     * emits it and as {@link #EXTENSION_FROM_SOURCE_PATTERN} already assumes. Matching a bare
+     * emits it, as {@link #EXTENSION_FROM_SOURCE_PATTERN} already assumes, and as
+     * {@link #appendSourceAndExtension} keeps it when rewriting a row. Matching a bare
      * {@code "source": "..."} anywhere would also hit JSON quoted inside a guide's own text -
      * the core docs artifact contains a platform-descriptor example that does exactly that -
      * and every source matched here is one a reload deletes rows for first, so a phantom that
@@ -130,6 +131,7 @@ public class RagSqlLoader {
     private static final Pattern ROW_SOURCE_PATTERN = Pattern.compile("\\{\"source\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern EXTENSION_FROM_SOURCE_PATTERN = Pattern.compile(
             "'\\{\"source\":\"([^\"]+)\"");
+    private static final Pattern EXTENSIONS_KEY_PATTERN = Pattern.compile("\"extensions\":\"([^\"]*)\"");
     private static final String VERSION_KEY = ",\"version\":";
     private static final String QUARKUS_VERSION_KEY = ",\"quarkus_version\":";
 
@@ -511,7 +513,7 @@ public class RagSqlLoader {
                     long depElapsed = System.currentTimeMillis() - depStart;
                     if (fragment != null) {
                         String guideUrl = readGuideUrl(m2Repo, dep);
-                        fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
+                        fragments.add(injectExtensionMetadata(fragment, dep.groupId(), dep.artifactId(), quarkusVersion, guideUrl));
                         LOG.infof("RAG scan [%d/%d] %s:%s — found RAG SQL via external artifact %s:%s:%s (%d ms)",
                                 index, deps.size(), dep.groupId(), dep.artifactId(),
                                 pointer.groupId(), pointer.artifactId(), dep.version(), depElapsed);
@@ -529,7 +531,7 @@ public class RagSqlLoader {
             RagFragment fragment = readFragmentFromJar(deploymentJar, dep.artifactId());
             if (fragment != null) {
                 String guideUrl = readGuideUrl(m2Repo, dep);
-                fragments.add(injectExtensionMetadata(fragment, dep.artifactId(), quarkusVersion, guideUrl));
+                fragments.add(injectExtensionMetadata(fragment, dep.groupId(), dep.artifactId(), quarkusVersion, guideUrl));
                 LOG.debugf("Found RAG SQL in non-core extension %s", dep.artifactId());
             }
         }
@@ -656,13 +658,15 @@ public class RagSqlLoader {
      * Fixes metadata in non-core extension SQL fragments. The upstream plugin generates
      * metadata assuming core Quarkus conventions; this method corrects it at load time:
      * <ul>
-     *   <li>{@code source} — replaced with the correct runtime artifact ID</li>
+     *   <li>{@code source} — replaced with the correct runtime artifact ID, unless the row comes
+     *       from a guide that declares its own extension (see {@link #declaresOwnSource})</li>
      *   <li>{@code quarkus_version} — renamed to {@code extension_version}; actual Quarkus version injected</li>
-     *   <li>{@code url} — replaced with the guide URL from {@code quarkus-extension.yaml}, or removed if wrong</li>
-     *   <li>{@code extension} — added (existing behavior)</li>
+     *   <li>{@code url} — the plugin's default quarkus.io URL replaced with the guide URL from
+     *       {@code quarkus-extension.yaml}, or removed when there is none</li>
+     *   <li>{@code extension} — added, matching the row's source</li>
      * </ul>
      */
-    static RagFragment injectExtensionMetadata(RagFragment fragment, String extensionName,
+    static RagFragment injectExtensionMetadata(RagFragment fragment, String groupId, String extensionName,
             String quarkusVersion, String guideUrl) {
         String sql = fragment.sql();
 
@@ -670,13 +674,7 @@ public class RagSqlLoader {
         sql = SOURCE_PATTERN.matcher(sql).replaceAll(
                 Matcher.quoteReplacement("metadata->>'source' = '" + extensionName + "'"));
 
-        // Fix source value in JSON metadata (source is always the first field)
-        sql = sql.replaceAll("'\\{\"source\":\"[^\"]+\"",
-                Matcher.quoteReplacement("'{\"source\":\"" + extensionName + "\""));
-
-        // Add extension field before source
-        sql = sql.replace("'{\"source\":",
-                "'{\"extension\":\"" + extensionName + "\",\"source\":");
+        sql = fixRowSources(sql, groupId, extensionName);
 
         // Rename version key to extension_version and inject correct quarkus_version.
         // Handles both old plugin format ("quarkus_version":) and new format (,"version":).
@@ -687,15 +685,69 @@ public class RagSqlLoader {
                     "\"quarkus_version\":\"" + quarkusVersion + "\",\"extension_version\":");
         }
 
-        // Fix URL: use guide URL from extension metadata, or remove wrong quarkus.io URLs
+        // Fix URL: replace wrong quarkus.io URLs with the guide URL from extension metadata, or remove them
         if (guideUrl != null) {
-            sql = sql.replaceAll("\"url\":\"[^\"]*\"",
+            sql = sql.replaceAll("\"url\":\"https://quarkus\\.io/guides/[^\"]*\"",
                     Matcher.quoteReplacement("\"url\":\"" + guideUrl + "\""));
         } else {
             sql = sql.replaceAll(",\"url\":\"https://quarkus\\.io/guides/[^\"]*\"", "");
         }
 
         return new RagFragment(extensionName, sql);
+    }
+
+    /**
+     * Sets each row's {@code source}, and the {@code extension} key placed after it, to
+     * {@code extensionName}, except for rows that {@linkplain #declaresOwnSource declare their own}.
+     * {@code source} has to stay the metadata object's first key so that {@link #ROW_SOURCE_PATTERN}
+     * still finds it: a row keeping its own source is only deleted on reload if the pattern sees it.
+     */
+    private static String fixRowSources(String sql, String groupId, String extensionName) {
+        Matcher matcher = EXTENSION_FROM_SOURCE_PATTERN.matcher(sql);
+        StringBuilder result = new StringBuilder(sql.length() + 64);
+        int lastEnd = 0;
+        while (matcher.find()) {
+            String rowSource = matcher.group(1);
+            String source = declaresOwnSource(sql, matcher.end(), groupId, rowSource) ? rowSource : extensionName;
+            result.append(sql, lastEnd, matcher.start());
+            appendSourceAndExtension(result, source);
+            lastEnd = matcher.end();
+        }
+        result.append(sql, lastEnd, sql.length());
+        return result.toString();
+    }
+
+    /**
+     * Opens a row's metadata object with {@code source} followed by the {@code extension} key the
+     * search filter matches on. {@code source} comes first because {@link #ROW_SOURCE_PATTERN} is
+     * anchored on the opening brace, and the sources it finds are the ones a reload deletes before
+     * re-running the fragment's INSERTs - a row whose source is not found keeps its old copy, and
+     * the INSERT then collides on the baked-in {@code embedding_id} primary key.
+     */
+    private static void appendSourceAndExtension(StringBuilder result, String source) {
+        result.append("'{\"source\":\"").append(source)
+                .append("\",\"extension\":\"").append(source).append('"');
+    }
+
+    /**
+     * Whether the row starting at {@code from} was generated from a guide whose {@code :extensions:}
+     * header names, first, {@code rowSource} within {@code groupId}. The plugin only writes the
+     * {@code extensions} key for such guides, so the source is the guide's own rather than a
+     * fallback guessed from its file name. The group must match because every source a fragment
+     * carries is deleted before it is reloaded: a guide naming another group's extension, such as
+     * a core one, would otherwise wipe that extension's rows.
+     */
+    private static boolean declaresOwnSource(String sql, int from, String groupId, String rowSource) {
+        int end = sql.indexOf("}'::jsonb", from);
+        if (groupId == null || end < 0) {
+            return false;
+        }
+        Matcher matcher = EXTENSIONS_KEY_PATTERN.matcher(sql).region(from, end);
+        if (!matcher.find()) {
+            return false;
+        }
+        String firstExtension = matcher.group(1).split(",")[0].trim();
+        return firstExtension.equals(groupId + ":" + rowSource);
     }
 
     private String readGuideUrl(Path m2Repo, DependencyResolver.Dependency dep) {
@@ -731,8 +783,7 @@ public class RagSqlLoader {
         int lastEnd = 0;
         while (matcher.find()) {
             appendWithVersionKeyFix(result, sql, lastEnd, matcher.start());
-            String source = matcher.group(1);
-            result.append("'{\"extension\":\"").append(source).append("\",\"source\":\"").append(source).append('"');
+            appendSourceAndExtension(result, matcher.group(1));
             lastEnd = matcher.end();
         }
         appendWithVersionKeyFix(result, sql, lastEnd, sql.length());
@@ -982,8 +1033,7 @@ public class RagSqlLoader {
             matcher.reset();
             while (matcher.find()) {
                 sb.append(statement, lastEnd, matcher.start());
-                String source = matcher.group(1);
-                sb.append("'{\"extension\":\"").append(source).append("\",\"source\":\"").append(source).append('"');
+                appendSourceAndExtension(sb, matcher.group(1));
                 lastEnd = matcher.end();
             }
             sb.append(statement, lastEnd, statement.length());

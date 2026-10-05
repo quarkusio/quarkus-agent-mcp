@@ -248,7 +248,7 @@ class RagSqlLoaderTest {
     @Test
     void injectExtensionMetadataFixesSourceInDeleteAndInsert() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", null);
 
         assertEquals("quarkus-vault", result.source());
         assertTrue(result.sql().contains("metadata->>'source' = 'quarkus-vault'"),
@@ -264,18 +264,18 @@ class RagSqlLoaderTest {
     @Test
     void injectExtensionMetadataAddsExtensionField() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", null);
 
         assertTrue(result.sql().contains("\"extension\":\"quarkus-vault\""),
                 "Extension field should be injected");
-        assertTrue(result.sql().contains("\"extension\":\"quarkus-vault\",\"source\":\"quarkus-vault\""),
-                "Extension should appear before source");
+        assertTrue(result.sql().contains("{\"source\":\"quarkus-vault\",\"extension\":\"quarkus-vault\""),
+                "Source must stay the metadata object's first key, with extension right after it");
     }
 
     @Test
     void injectExtensionMetadataFixesVersionFields() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", null);
 
         assertTrue(result.sql().contains("\"quarkus_version\":\"3.21.0\""),
                 "quarkus_version should have the actual Quarkus version");
@@ -289,7 +289,7 @@ class RagSqlLoaderTest {
     void injectExtensionMetadataReplacesUrlWhenGuideAvailable() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
         String guideUrl = "https://docs.quarkiverse.io/quarkus-vault/dev/index.html";
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", guideUrl);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", guideUrl);
 
         assertTrue(result.sql().contains("\"url\":\"" + guideUrl + "\""),
                 "URL should be replaced with guide URL from extension metadata");
@@ -300,7 +300,7 @@ class RagSqlLoaderTest {
     @Test
     void injectExtensionMetadataRemovesWrongUrlWhenNoGuide() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", null);
 
         assertFalse(result.sql().contains("quarkus.io/guides"),
                 "Wrong quarkus.io URL should be removed");
@@ -314,10 +314,98 @@ class RagSqlLoaderTest {
                 "https://quarkus.io/guides/index",
                 "https://docs.example.com/my-ext/guide");
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", sqlWithCustomUrl);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "my-ext", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "org.acme", "my-ext", "3.21.0", null);
 
         assertTrue(result.sql().contains("\"url\":\"https://docs.example.com/my-ext/guide\""),
                 "Non-quarkus.io URLs should be preserved when no guide URL is available");
+    }
+
+    /**
+     * Shape of a fragment generated in directory mode ({@code guidesDirectory}), as shipped by an
+     * external RAG artifact: each guide carries its own source (from its {@code :extensions:}
+     * header) and its own URL (from {@code guideBaseUrl}).
+     */
+    private static final String DIRECTORY_MODE_SQL = """
+            -- quarkus-rag fragment: quarkus-documentation 1.15.0
+            DELETE FROM rag_documents WHERE metadata->>'source' = 'quarkus-documentation';
+
+            INSERT INTO rag_documents (embedding_id, embedding, text, metadata) VALUES (\
+            'a1b2c3', '[0.1,0.2]'::vector, 'Integrate Claude models', \
+            '{"source":"quarkus-langchain4j-anthropic","version":"1.15.0","title":"Anthropic Chat Models",\
+            "url":"https://docs.quarkiverse.io/quarkus-langchain4j/dev/anthropic-chat-model",\
+            "extensions":"io.quarkiverse.langchain4j:quarkus-langchain4j-anthropic",\
+            "section_title":"Anthropic Chat Models","section_level":"0",\
+            "section_path":"Anthropic Chat Models"}'::jsonb);
+
+            INSERT INTO rag_documents (embedding_id, embedding, text, metadata) VALUES (\
+            'd4e5f6', '[0.3,0.4]'::vector, 'Configure the OpenAI chat model', \
+            '{"source":"quarkus-langchain4j-openai","version":"1.15.0","title":"OpenAI Chat Models",\
+            "url":"https://docs.quarkiverse.io/quarkus-langchain4j/dev/openai-chat-model",\
+            "extensions":"io.quarkiverse.langchain4j:quarkus-langchain4j-openai",\
+            "section_title":"OpenAI Chat Models","section_level":"0",\
+            "section_path":"OpenAI Chat Models"}'::jsonb);
+            """;
+
+    private static final String CORE_GUIDE_URL = "https://docs.quarkiverse.io/quarkus-langchain4j/dev/index.html";
+
+    @Test
+    void injectExtensionMetadataPreservesPerGuideSourceFromDirectoryMode() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-documentation", DIRECTORY_MODE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.langchain4j",
+                "quarkus-langchain4j-core", "3.33.0", CORE_GUIDE_URL);
+
+        assertTrue(result.sql().contains(
+                "{\"source\":\"quarkus-langchain4j-anthropic\",\"extension\":\"quarkus-langchain4j-anthropic\""),
+                "Each guide should keep the source from its :extensions: header");
+        assertTrue(result.sql().contains(
+                "{\"source\":\"quarkus-langchain4j-openai\",\"extension\":\"quarkus-langchain4j-openai\""),
+                "Each guide should keep the source from its :extensions: header");
+    }
+
+    /**
+     * The sources a reload deletes before re-running a fragment's INSERTs. A preserved source the
+     * scan cannot see leaves its rows in place, and the INSERTs then collide on the baked-in
+     * {@code embedding_id} primary key, rolling back the whole load.
+     */
+    @Test
+    void preservedRowSourcesAreVisibleToTheReloadScan() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-documentation", DIRECTORY_MODE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.langchain4j",
+                "quarkus-langchain4j-core", "3.33.0", CORE_GUIDE_URL);
+
+        assertEquals(
+                Set.of("quarkus-langchain4j-anthropic", "quarkus-langchain4j-openai", "quarkus-langchain4j-core"),
+                RagSqlLoader.extractSources(result.sql(), result.source()),
+                "A reload must delete every source the fragment writes rows for, not just its own");
+    }
+
+    @Test
+    void injectExtensionMetadataReplacesSourceDeclaredForAnotherGroup() {
+        String sql = DIRECTORY_MODE_SQL
+                .replace("\"source\":\"quarkus-langchain4j-anthropic\"", "\"source\":\"quarkus-rest\"")
+                .replace("io.quarkiverse.langchain4j:quarkus-langchain4j-anthropic", "io.quarkus:quarkus-rest");
+        var fragment = new RagSqlLoader.RagFragment("quarkus-documentation", sql);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.langchain4j",
+                "quarkus-langchain4j-core", "3.33.0", CORE_GUIDE_URL);
+
+        assertFalse(result.sql().contains("\"source\":\"quarkus-rest\""),
+                "A guide must not claim a source outside its extension's group, or reloading it would delete that source's rows");
+        assertTrue(result.sql().contains("\"source\":\"quarkus-langchain4j-core\""),
+                "The row should fall back to the extension the fragment was found for");
+    }
+
+    @Test
+    void injectExtensionMetadataPreservesPerGuideUrlFromDirectoryMode() {
+        var fragment = new RagSqlLoader.RagFragment("quarkus-documentation", DIRECTORY_MODE_SQL);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.langchain4j",
+                "quarkus-langchain4j-core", "3.33.0", CORE_GUIDE_URL);
+
+        assertTrue(result.sql().contains(
+                "\"url\":\"https://docs.quarkiverse.io/quarkus-langchain4j/dev/anthropic-chat-model\""),
+                "Each guide should keep the URL built from guideBaseUrl");
+        assertTrue(result.sql().contains(
+                "\"url\":\"https://docs.quarkiverse.io/quarkus-langchain4j/dev/openai-chat-model\""),
+                "Each guide should keep the URL built from guideBaseUrl");
     }
 
     @Test
@@ -325,7 +413,7 @@ class RagSqlLoaderTest {
         // New plugin format uses "version" instead of "quarkus_version"
         String newFormatSql = NON_CORE_SQL.replace("\"quarkus_version\":", "\"version\":");
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", newFormatSql);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", "3.21.0", null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", "3.21.0", null);
 
         assertTrue(result.sql().contains("\"quarkus_version\":\"3.21.0\""),
                 "quarkus_version should have the actual Quarkus version");
@@ -338,7 +426,7 @@ class RagSqlLoaderTest {
     @Test
     void injectExtensionMetadataSkipsVersionFixWhenQuarkusVersionNull() {
         var fragment = new RagSqlLoader.RagFragment("quarkus-index", NON_CORE_SQL);
-        var result = RagSqlLoader.injectExtensionMetadata(fragment, "quarkus-vault", null, null);
+        var result = RagSqlLoader.injectExtensionMetadata(fragment, "io.quarkiverse.vault", "quarkus-vault", null, null);
 
         assertTrue(result.sql().contains("\"quarkus_version\":\"1.2.0-SNAPSHOT\""),
                 "quarkus_version should remain unchanged when quarkusVersion is null");
