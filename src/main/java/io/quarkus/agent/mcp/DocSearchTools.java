@@ -14,7 +14,10 @@ import io.quarkiverse.mcp.server.ToolArg;
 import io.quarkiverse.mcp.server.ToolResponse;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +62,12 @@ public class DocSearchTools {
             "quarkus", "java", "jakarta", "the", "a", "an", "how", "to", "with",
             "using", "and", "or", "for", "in", "on", "is", "it", "this", "that");
 
+    /**
+     * What each keyword narrows a search to, matched as a substring of a row's {@code extension}.
+     * A value is usually a whole extension name, but a keyword shared by a family of them maps to
+     * the part they have in common - {@code oidc} reaches every {@code quarkus-oidc*} extension.
+     * Built once per database by {@link KeywordIndexBuilder}.
+     */
     private final ConcurrentHashMap<String, String> keywordToExtension = new ConcurrentHashMap<>();
 
     private static final Map<String, String> SYNONYMS = Map.ofEntries(
@@ -245,7 +254,7 @@ public class DocSearchTools {
         if ((effectiveExtension == null || effectiveExtension.isBlank())) {
             effectiveExtension = inferExtension(query);
             if (effectiveExtension != null) {
-                LOG.debugf("Auto-inferred extension filter: %s", effectiveExtension);
+                LOG.debugf("Auto-inferred extension filter: *%s*", effectiveExtension);
             }
         }
 
@@ -461,6 +470,7 @@ public class DocSearchTools {
     }
 
     void buildKeywordIndex(String jdbcUrl, String user, String password) {
+        KeywordIndexBuilder builder = new KeywordIndexBuilder();
         try (java.sql.Connection conn = java.sql.DriverManager.getConnection(jdbcUrl, user, password);
                 java.sql.Statement stmt = conn.createStatement();
                 java.sql.ResultSet rs = stmt.executeQuery(
@@ -470,45 +480,107 @@ public class DocSearchTools {
                                 + "FROM rag_documents "
                                 + "WHERE metadata->>'extension' IS NOT NULL")) {
             while (rs.next()) {
-                String ext = rs.getString("ext");
-                if (ext == null || ext.isBlank()) {
-                    continue;
-                }
-                String extLower = ext.toLowerCase().trim();
-                registerKeywordsFromExtensionName(extLower, ext);
-
-                String topics = rs.getString("topics");
-                if (topics != null) {
-                    registerKeywords(topics, ext);
-                }
-                String categories = rs.getString("categories");
-                if (categories != null) {
-                    registerKeywords(categories, ext);
-                }
+                builder.add(rs.getString("ext"), rs.getString("topics"), rs.getString("categories"));
             }
-            LOG.infof("Built keyword index with %d entries from RAG metadata", keywordToExtension.size());
         } catch (Exception e) {
+            // Keep whatever was collected before the failure rather than starting with nothing.
             LOG.debugf("Failed to build keyword index: %s", e.getMessage());
         }
+        Map<String, String> index = builder.build();
+        keywordToExtension.putAll(index);
+        LOG.infof("Built keyword index with %d entries from RAG metadata (%d contested keyword(s) left unmapped)",
+                index.size(), builder.claimCount() - index.size());
     }
 
-    private void registerKeywordsFromExtensionName(String extLower, String ext) {
-        keywordToExtension.putIfAbsent(extLower, ext);
-        String withoutPrefix = extLower.replaceFirst("^quarkus-", "");
-        keywordToExtension.putIfAbsent(withoutPrefix, ext);
-        for (String part : withoutPrefix.split("-")) {
-            if (part.length() > 2 && !GENERIC_KEYWORDS.contains(part)) {
-                keywordToExtension.putIfAbsent(part, ext);
+    /**
+     * Works out what each keyword should filter on, over all extensions at once rather than one
+     * row at a time. A keyword more than one extension claims used to go to whichever row the
+     * {@code DISTINCT} scan happened to return first, which became a real problem once an external
+     * RAG artifact started tagging rows per guide: {@code quarkus-langchain4j-oidc-model-auth-provider}
+     * claims the bare keyword {@code oidc} alongside the thirteen core {@code quarkus-oidc*}
+     * extensions, and the winner was whatever Postgres listed first.
+     */
+    static final class KeywordIndexBuilder {
+
+        private final Map<String, Set<String>> claims = new HashMap<>();
+        private final Set<String> fromExtensionName = new HashSet<>();
+
+        /** Records the keywords {@code ext} lays claim to, from its own name and its doc metadata. */
+        void add(String ext, String topics, String categories) {
+            if (ext == null || ext.isBlank()) {
+                return;
+            }
+            String extLower = ext.toLowerCase().trim();
+            String withoutPrefix = extLower.replaceFirst("^quarkus-", "");
+
+            claimFromName(extLower, ext);
+            claimFromName(withoutPrefix, ext);
+            for (String part : withoutPrefix.split("-")) {
+                claimFromName(part, ext);
+            }
+            claimAll(topics, ext);
+            claimAll(categories, ext);
+        }
+
+        private void claimFromName(String keyword, String ext) {
+            if (claim(keyword, ext)) {
+                fromExtensionName.add(keyword);
             }
         }
-    }
 
-    private void registerKeywords(String text, String ext) {
-        for (String token : text.toLowerCase().split("[,\\s]+")) {
-            String trimmed = token.trim();
-            if (trimmed.length() > 2 && !GENERIC_KEYWORDS.contains(trimmed)) {
-                keywordToExtension.putIfAbsent(trimmed, ext);
+        private void claimAll(String text, String ext) {
+            if (text == null) {
+                return;
             }
+            for (String token : text.toLowerCase().split("[,\\s]+")) {
+                claim(token.trim(), ext);
+            }
+        }
+
+        private boolean claim(String keyword, String ext) {
+            if (keyword.length() <= 2 || GENERIC_KEYWORDS.contains(keyword)) {
+                return false;
+            }
+            claims.computeIfAbsent(keyword, k -> new LinkedHashSet<>()).add(ext);
+            return true;
+        }
+
+        /** How many distinct keywords were claimed, mapped or not. */
+        int claimCount() {
+            return claims.size();
+        }
+
+        Map<String, String> build() {
+            Map<String, String> index = new HashMap<>();
+            for (Map.Entry<String, Set<String>> claim : claims.entrySet()) {
+                String filter = resolve(claim.getKey(), claim.getValue());
+                if (filter != null) {
+                    index.put(claim.getKey(), filter);
+                }
+            }
+            return index;
+        }
+
+        /**
+         * What a keyword should filter on, or null when that cannot be decided.
+         * <p>
+         * {@link #inferExtension} feeds a {@link ContainsString} filter, which is a substring match
+         * over the row's {@code extension}. So a keyword taken from an extension's own name can
+         * simply filter on itself: {@code oidc} reaches every {@code quarkus-oidc*} extension, and
+         * {@code langchain4j} reaches all thirty-odd of its own, instead of being awarded to one
+         * arbitrary member of the family. Naming a single extension would hide the rest, and
+         * dropping the keyword would let a shorter, narrower one win the inference instead -
+         * "langchain4j chat memory" would end up filtered to the Redis chat-memory store.
+         * <p>
+         * A keyword that appears only in doc metadata has no such anchor, so it is usable only
+         * while exactly one extension claims it. Anything still contested is dropped, which costs
+         * no more than an unfiltered search.
+         */
+        private String resolve(String keyword, Set<String> claimants) {
+            if (fromExtensionName.contains(keyword)) {
+                return keyword;
+            }
+            return claimants.size() == 1 ? claimants.iterator().next() : null;
         }
     }
 
