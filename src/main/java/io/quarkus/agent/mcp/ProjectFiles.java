@@ -9,7 +9,7 @@ import java.util.List;
 import org.jboss.logging.Logger;
 
 /**
- * Generates agent instruction files (AGENTS.md, CLAUDE.md)
+ * Generates agent instruction file (AGENTS.md)
  * that coding agents rely on when working with a Quarkus project.
  * Used by {@link CreateTools} (always writes) and {@link LifecycleTools} (writes only if missing).
  */
@@ -21,7 +21,6 @@ public final class ProjectFiles {
     }
 
     static final String AGENTS_MD = "AGENTS.md";
-    static final String CLAUDE_MD = "CLAUDE.md";
 
     /**
      * Checks for missing agent files and generates any that don't exist.
@@ -37,17 +36,12 @@ public final class ProjectFiles {
             generateAgentsMd(projectDir, devMode);
             created.add(AGENTS_MD);
         }
-        if (!Files.exists(dir.resolve(CLAUDE_MD))) {
-            generateClaudeMd(projectDir);
-            created.add(CLAUDE_MD);
-        }
 
         return created;
     }
 
     static void generateProjectInstructions(String projectDir, boolean devMode) {
         generateAgentsMd(projectDir, devMode);
-        generateClaudeMd(projectDir);
     }
 
     private static void generateAgentsMd(String projectDir, boolean devMode) {
@@ -203,17 +197,4 @@ public final class ProjectFiles {
                 then edit the file directly to customize it for the project.
                 """;
     }
-
-    private static void generateClaudeMd(String projectDir) {
-        try {
-            String claudeMdContent = """
-                    See [AGENTS.md](AGENTS.md) for project instructions.
-                    """;
-            Files.writeString(Path.of(projectDir, CLAUDE_MD), claudeMdContent, StandardCharsets.UTF_8);
-            LOG.debugf("Generated %s in %s", CLAUDE_MD, projectDir);
-        } catch (IOException e) {
-            LOG.warnf("Failed to generate %s in %s: %s", CLAUDE_MD, projectDir, e.getMessage());
-        }
-    }
-
 }

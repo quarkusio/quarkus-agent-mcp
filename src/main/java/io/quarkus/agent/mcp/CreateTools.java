@@ -184,7 +184,7 @@ public class CreateTools {
             // full restart.
             createSourceDirectories(projectDir);
 
-            // Generate AGENTS.md and CLAUDE.md
+            // Generate AGENTS.md
             ProjectFiles.generateProjectInstructions(projectDir, processManager.isDevMode());
 
             // Auto-start the app in dev mode and wait for it to be ready

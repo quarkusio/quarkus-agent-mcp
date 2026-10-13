@@ -236,7 +236,7 @@ Ask your agent to build a Quarkus application using natural language. The agent 
 
 > **You:** Create a Quarkus REST API with a greeting endpoint and a PostgreSQL database
 >
-> **Agent:** _(uses `quarkus_create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode and a `CLAUDE.md` is generated with project-specific workflow instructions)_
+> **Agent:** _(uses `quarkus_create` to scaffold the project with `rest-jackson,jdbc-postgresql,hibernate-orm-panache` extensions — the app starts automatically in dev mode and an `AGENTS.md` is generated with project-specific workflow instructions)_
 >
 > **Agent:** _(calls `quarkus_skills` to learn the correct patterns for Panache, REST, and other extensions before writing any code)_
 >
@@ -253,7 +253,7 @@ NEW PROJECT                           EXISTING PROJECT
 
 1. quarkus_create                     1. quarkus_start
    → scaffolds + auto-starts             → starts dev mode
-   → generates CLAUDE.md
+   → generates AGENTS.md
                                       2. quarkus_skills
 2. quarkus_skills                        → learn extension patterns
    → learn extension patterns            → query 'quarkus-update' to check version
@@ -282,7 +282,7 @@ Since the process belongs to your terminal, `quarkus_stop` only detaches, and `q
 - **Skills before code** — the agent reads extension-specific skills to learn correct patterns, testing approaches, and common pitfalls before writing any code.
 - **Tests via subagents** — if your agent supports subagents, test execution can be dispatched to one so the main conversation stays responsive.
 - **The MCP server survives crashes** — if the app crashes due to a code error, the agent can use `devui-exceptions_getLastException` to get structured exception details (class, message, stack trace, user code location) and fix it. Use `quarkus_logs` for broader context.
-- **CLAUDE.md** — every new project gets a `CLAUDE.md` with Quarkus-specific workflow instructions that guide the agent.
+- **AGENTS.md** — every new project gets an `AGENTS.md` with Quarkus-specific workflow instructions that guide the agent.
 
 ### What the agent can do with a running app
 
@@ -352,7 +352,7 @@ Then start the MCP server with `AGENT_MCP_DOC_SEARCH_PG_HOST=<host>` (and `AGENT
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
-| `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate CLAUDE.md | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion`, `noCode`, `noWrapper`, `createInCurrentDir` |
+| `quarkus_create` | Create a new Quarkus app, auto-start in dev mode, generate AGENTS.md | `outputDir` (required), `groupId`, `artifactId`, `extensions`, `buildTool`, `quarkusVersion`, `noCode`, `noWrapper`, `createInCurrentDir` |
 
 ### Extension Skills
 
