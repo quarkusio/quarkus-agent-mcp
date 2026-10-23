@@ -140,6 +140,14 @@ Alternatively, use the direct download method with an absolute path to `java`:
 }
 ```
 
+### Via SmallRye ACP
+
+Add the Quarkus Agent MCP server to an ACP-compatible client using stdio transport:
+
+```bash
+acp run -a claude-acp --mcp-server-config '{"type":"stdio","name":"quarkus-agent","command":"jbang","args":["quarkus-agent-mcp@quarkusio"]}' -p "Create a Quarkus REST app"
+```
+
 ### Via direct download
 
 Download the uber-jar from the [latest GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest), then:
@@ -147,7 +155,6 @@ Download the uber-jar from the [latest GitHub Release](https://github.com/quarku
 ```bash
 claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp-runner.jar
 ```
-
 ### Native binary (Linux & macOS)
 
 Pre-built native binaries are available on each [GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest). They start instantly and use significantly less memory than the JVM version — ideal for VPS and resource-constrained environments. No JVM or JBang installation required.
