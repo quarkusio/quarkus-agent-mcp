@@ -140,13 +140,17 @@ Alternatively, use the direct download method with an absolute path to `java`:
 }
 ```
 
-### Via SmallRye ACP client
+#### SmallRye ACP client
 
-The [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) can run ACP-compatible agents and connect them to MCP servers over stdio or HTTP.
+The [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) can run ACP-compatible agents and connect them to Quarkus Agent MCP over stdio.
 
-Install the ACP CLI using [the SmallRye ACP client instructions](https://github.com/smallrye/smallrye-acp-client).
+Install the ACP CLI using JBang:
 
-#### Using a JSON configuration file (stdio)
+```bash
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.1.1:runner
+```
+
+##### Using a JSON configuration file
 
 Create an `mcp-server.json` file:
 
@@ -168,7 +172,7 @@ acp run -a claude-acp \
   -p "Explore the tools available in my Quarkus application."
 ```
 
-#### Using inline JSON (stdio)
+##### Using inline JSON
 
 Alternatively, pass the MCP server configuration directly:
 
@@ -179,19 +183,6 @@ acp run -a claude-acp \
   -p "Explore the tools available in my Quarkus application."
 ```
 
-#### Using HTTP
-
-For an MCP server that exposes an HTTP endpoint, create `mcp-server.json` with its URL:
-
-```json
-{
-  "type": "http",
-  "name": "analyze-tools",
-  "url": "http://localhost:8080/mcp"
-}
-```
-
-Use this configuration with the same `acp run` command. Replace the URL with the actual MCP endpoint; this example does not imply that Quarkus Agent MCP exposes HTTP at this address by default.
 ### Via direct download
 
 Download the uber-jar from the [latest GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest), then:
@@ -614,6 +605,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 
 ## Related Projects
 
+- [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) — ACP client for running compatible agents
 - [Quarkus Dev MCP](https://github.com/quarkusio/quarkus) — Built-in MCP server inside running Quarkus apps
 - [quarkus-skills](https://github.com/quarkusio/skills) — Community workflow skills for Quarkus (Agent Skills specification)
 - [code-with-quarkus-compare](https://github.com/quarkusio/code-with-quarkus-compare) — Reference projects for build file comparison
