@@ -140,6 +140,30 @@ Alternatively, use the direct download method with an absolute path to `java`:
 }
 ```
 
+#### SmallRye ACP client
+
+The [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) can run ACP-compatible agents with Quarkus Agent MCP.
+
+Install the ACP CLI:
+
+```bash
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.2.1:runner
+```
+
+Install an ACP agent from the registry (for example Claude Code):
+
+```bash
+acp registry install claude-acp
+```
+
+Then run the agent with Quarkus Agent MCP over stdio:
+
+```bash
+acp run -a claude-acp \
+  --mcp-server-config '{"type":"stdio","name":"quarkus-agent","command":"jbang","args":["quarkus-agent-mcp@quarkusio"]}' \
+  -p "Create a Quarkus REST app"
+```
+
 ### Via direct download
 
 Download the uber-jar from the [latest GitHub Release](https://github.com/quarkusio/quarkus-agent-mcp/releases/latest), then:
@@ -562,6 +586,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 
 ## Related Projects
 
+- [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) — Java client for the Agent Client Protocol (ACP)
 - [Quarkus Dev MCP](https://github.com/quarkusio/quarkus) — Built-in MCP server inside running Quarkus apps
 - [quarkus-skills](https://github.com/quarkusio/skills) — Community workflow skills for Quarkus (Agent Skills specification)
 - [code-with-quarkus-compare](https://github.com/quarkusio/code-with-quarkus-compare) — Reference projects for build file comparison
