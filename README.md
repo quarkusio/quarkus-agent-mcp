@@ -108,6 +108,16 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 }
 ```
 
+#### SmallRye ACP client
+
+[smallrye-acp-client](https://github.com/smallrye/smallrye-acp-client) runs any agent from the [ACP registry](https://agentclientprotocol.com/get-started/registry) and can hand it MCP servers. Pass the server as a stdio config with `--mcp-server-config` (inline JSON or a path to a JSON file):
+
+```shell
+acp run -a claude-acp \
+  --mcp-server-config '{"type":"stdio","name":"quarkus-agent","command":"jbang","args":["quarkus-agent-mcp@quarkusio"]}' \
+  -p "Create a Quarkus REST app"
+```
+
 #### JetBrains IDEs (IntelliJ IDEA, WebStorm, etc.)
 
 In **Settings → Tools → AI Assistant → MCP Servers** (or the GitHub Copilot MCP settings), add a server with an **absolute path** to `jbang`:
@@ -592,6 +602,7 @@ This is a [Quarkus core issue](https://github.com/quarkusio/quarkus/issues/53739
 - [code-with-quarkus-compare](https://github.com/quarkusio/code-with-quarkus-compare) — Reference projects for build file comparison
 - [chappie-docling-rag](https://github.com/chappie-bot/chappie-docling-rag) — Builds the pgvector Docker images with pre-indexed Quarkus docs
 - [quarkus-mcp-server](https://github.com/quarkiverse/quarkus-mcp-server) — Quarkiverse MCP Server extension used by this project
+- [smallrye-acp-client](https://github.com/smallrye/smallrye-acp-client) — Java ACP client that installs and runs ACP agents with MCP servers attached
 
 ## Privacy Policy
 
