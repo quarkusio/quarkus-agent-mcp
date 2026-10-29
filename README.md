@@ -147,7 +147,7 @@ The [SmallRye ACP client](https://github.com/smallrye/smallrye-acp-client) can r
 Install the ACP CLI:
 
 ```bash
-jbang app install --name acp io.smallrye.ai:acp-java-client:0.2.1:runner
+jbang app install --name acp io.smallrye.ai:acp-java-client:0.2.2:runner
 ```
 
 Install an ACP agent from the registry (for example Claude Code):
@@ -156,6 +156,27 @@ Install an ACP agent from the registry (for example Claude Code):
 acp registry install claude-acp
 ```
 
+##### Using a JSON configuration file
+
+Create an `mcp-server.json` file:
+
+```json
+{
+  "type": "stdio",
+  "name": "quarkus-agent",
+  "command": "jbang",
+  "args": ["quarkus-agent-mcp@quarkusio"]
+}
+```
+
+Run an ACP-compatible agent:
+
+```bash
+acp run -a claude-acp \
+  --mcp-server-config mcp-server.json \
+  --backup no \
+  -p "Explore the tools available in my Quarkus application."
+```
 Then run the agent with Quarkus Agent MCP over stdio:
 
 ```bash
