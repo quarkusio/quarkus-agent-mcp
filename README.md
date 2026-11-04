@@ -491,6 +491,8 @@ Configuration via `application.properties`, system properties (`-D`), or environ
 | `agent-mcp.doc-search.embedding-url` | `http://<pg-host>:9222` | Embedding server for the existing database |
 | `agent-mcp.doc-search.read-only` | `false` | With `pg-host`: never write to the database (no docs loading); for databases loaded ahead of time |
 | `agent-mcp.tools.browser.enabled` | `true` | Set to `false` to leave `quarkus_browser` out of the tool list, e.g. in headless or remote setups |
+| `agent-mcp.dev-mcp.request-timeout` | `PT30S` | How long `quarkus_callTool` waits for an answer from the app's Dev MCP server |
+| `agent-mcp.dev-mcp.test-request-timeout` | `PT10M` | How long `quarkus_callTool` waits for the test-runner tools (`devui-testing_run*`), which answer only once the run ends |
 | `agent-mcp.local-skills-dir` | `~/.quarkus/skills` | Directory for user-level skill customizations |
 | `agent-mcp.process.mvn-cmd` | _(auto-detect)_ | Override the Maven command used to start dev mode (e.g. `mvn` to skip wrapper detection) |
 | `agent-mcp.process.gradle-cmd` | _(auto-detect)_ | Override the Gradle command used to start dev mode (e.g. `gradle` to skip wrapper detection) |

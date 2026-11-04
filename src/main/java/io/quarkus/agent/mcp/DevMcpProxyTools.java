@@ -11,6 +11,7 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.inject.Inject;
+import java.net.ConnectException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
@@ -34,7 +36,6 @@ public class DevMcpProxyTools {
 
     private static final Logger LOG = Logger.getLogger(DevMcpProxyTools.class);
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_RETRIES = 3;
     private static final long INITIAL_RETRY_DELAY_MS = 2000;
@@ -89,6 +90,14 @@ public class DevMcpProxyTools {
 
     @ConfigProperty(name = "agent-mcp.skills.include-transitive", defaultValue = "false")
     boolean includeTransitiveDeps;
+
+    /** How long to wait for an answer from the app's Dev MCP server. */
+    @ConfigProperty(name = "agent-mcp.dev-mcp.request-timeout", defaultValue = "PT30S")
+    Duration requestTimeout = Duration.ofSeconds(30);
+
+    /** How long to wait for the synchronous test-runner tools (devui-testing_run*), which answer only once the run ends. */
+    @ConfigProperty(name = "agent-mcp.dev-mcp.test-request-timeout", defaultValue = "PT10M")
+    Duration testRequestTimeout = Duration.ofMinutes(10);
 
     @Tool(name = "quarkus_searchTools", description = "Discover available tools on the running Quarkus app's Dev MCP server. "
             + "Use this before interacting with the running app -- for testing, config, extensions, "
@@ -443,7 +452,8 @@ public class DevMcpProxyTools {
             + "Use quarkus_searchTools first to discover tool names and parameters. "
             + "After structural changes (adding extensions, endpoints), update README.md. "
             + "NEVER run 'mvn clean' or 'gradle clean' while dev mode is running -- it deletes target/test-classes and breaks the test runner. "
-            + "If the test runner returns 'Tests already in progress' and won't recover, do a full quarkus_stop + quarkus_start cycle to reset it.")
+            + "If the test runner returns 'Tests already in progress', call devui-testing_resetTests (or devui-testing_cancelTests to stop a run); "
+            + "only if that tool is not available, do a full quarkus_stop + quarkus_start cycle to reset it.")
     Uni<ToolResponse> callTool(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
             @ToolArg(description = "The name of the Dev MCP tool to call (as returned by quarkus_searchTools)") String toolName,
@@ -461,7 +471,8 @@ public class DevMcpProxyTools {
                 params.put("arguments", Map.of());
             }
 
-            return callDevMcp(port, instance.getDevMcpPath(), "tools/call", params)
+            Duration timeout = timeoutFor(toolName, requestTimeout, testRequestTimeout);
+            return callDevMcp(port, instance.getDevMcpPath(), "tools/call", params, timeout)
                     .emitOn(Infrastructure.getDefaultWorkerPool())
                     .map(response -> {
                         try {
@@ -495,6 +506,10 @@ public class DevMcpProxyTools {
                         }
                     })
                     .onFailure().recoverWithItem(e -> {
+                        if (e instanceof TimeoutException) {
+                            LOG.warnf("Dev MCP tool '%s' for %s did not answer within %s", toolName, projectDir, timeout);
+                            return ToolResponse.error(timeoutMessage(toolName, timeout));
+                        }
                         LOG.error("Failed to call Dev MCP tool '" + toolName + "' for " + projectDir, e);
                         return ToolResponse.error(e.getMessage());
                     });
@@ -644,11 +659,45 @@ public class DevMcpProxyTools {
     }
 
     private Uni<JsonNode> fetchDevMcpTools(int port, String devMcpPath) {
-        return callDevMcp(port, devMcpPath, "tools/list", Map.of())
+        return callDevMcp(port, devMcpPath, "tools/list", Map.of(), requestTimeout)
                 .map(result -> result != null && result.has("tools") ? result.get("tools") : null);
     }
 
-    private Uni<JsonNode> callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params) {
+    static boolean isTestRunTool(String toolName) {
+        return toolName != null && toolName.startsWith("devui-testing_run");
+    }
+
+    static Duration timeoutFor(String toolName, Duration requestTimeout, Duration testRequestTimeout) {
+        return isTestRunTool(toolName) ? testRequestTimeout : requestTimeout;
+    }
+
+    static String timeoutMessage(String toolName, Duration timeout) {
+        String message = "Dev MCP tool '" + toolName + "' did not answer within " + timeout.toSeconds() + "s.";
+        if (isTestRunTool(toolName)) {
+            return message + " The tests may still be running in dev mode: call devui-testing_cancelTests to stop them, "
+                    + "or devui-testing_resetTests if the runner then reports 'Tests already in progress'. "
+                    + "Set agent-mcp.dev-mcp.test-request-timeout to allow longer test runs.";
+        }
+        return message + " Set agent-mcp.dev-mcp.request-timeout to wait longer.";
+    }
+
+    /**
+     * Whether a failed Dev MCP request may be sent again. A timeout never is: the app got the request
+     * and may still be working on it (a test run, for one). A tools/call is retried only when the
+     * connection could not be made at all, since anything later may already have run the tool.
+     */
+    static boolean isRetryable(String method, Throwable failure) {
+        if (failure instanceof TimeoutException) {
+            return false;
+        }
+        if (failure instanceof ConnectException) {
+            return true;
+        }
+        return !"tools/call".equals(method);
+    }
+
+    private Uni<JsonNode> callDevMcp(int port, String devMcpPath, String method, Map<String, Object> params,
+            Duration timeout) {
         String jsonRpcRequest;
         try {
             jsonRpcRequest = mapper.writeValueAsString(Map.of(
@@ -664,10 +713,10 @@ public class DevMcpProxyTools {
         return webClient.postAbs("http://localhost:" + port + devMcpPath)
                 .putHeader("Content-Type", "application/json")
                 .putHeader("Accept", "application/json, text/event-stream")
-                .timeout(REQUEST_TIMEOUT.toMillis())
+                .timeout(timeout.toMillis())
                 .sendBuffer(Buffer.buffer(jsonRpcRequest))
-                // Retry only connection-level failures (before we get a response)
-                .onFailure().retry()
+                // Retry only connection-level failures (before we get a response), never timeouts
+                .onFailure(failure -> isRetryable(method, failure)).retry()
                     .withBackOff(Duration.ofMillis(INITIAL_RETRY_DELAY_MS), Duration.ofSeconds(8))
                     .atMost(MAX_RETRIES)
                 .map(response -> {
