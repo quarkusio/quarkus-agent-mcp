@@ -2,7 +2,10 @@ package io.quarkus.agent.mcp;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.net.ConnectException;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 class DevMcpProxyToolsTest {
@@ -181,5 +184,50 @@ class DevMcpProxyToolsTest {
     void titleCaseHandlesNullAndEmpty() {
         assertNull(DevMcpProxyTools.titleCase(null));
         assertEquals("", DevMcpProxyTools.titleCase(""));
+    }
+
+    @Test
+    void testRunToolsGetTheLongerTimeout() {
+        Duration request = Duration.ofSeconds(30);
+        Duration test = Duration.ofMinutes(10);
+
+        assertEquals(test, DevMcpProxyTools.timeoutFor("devui-testing_runTest", request, test));
+        assertEquals(test, DevMcpProxyTools.timeoutFor("devui-testing_runTests", request, test));
+        assertEquals(test, DevMcpProxyTools.timeoutFor("devui-testing_runAffectedTests", request, test));
+        assertEquals(request, DevMcpProxyTools.timeoutFor("devui-testing_cancelTests", request, test));
+        assertEquals(request, DevMcpProxyTools.timeoutFor("devui-config_getConfig", request, test));
+        assertEquals(request, DevMcpProxyTools.timeoutFor(null, request, test));
+    }
+
+    @Test
+    void timeoutsAreNeverRetried() {
+        assertFalse(DevMcpProxyTools.isRetryable("tools/call", new TimeoutException("timeout")));
+        assertFalse(DevMcpProxyTools.isRetryable("tools/list", new TimeoutException("timeout")));
+    }
+
+    @Test
+    void toolCallIsRetriedOnlyWhenTheConnectionFailed() {
+        assertTrue(DevMcpProxyTools.isRetryable("tools/call", new ConnectException("refused")));
+        assertFalse(DevMcpProxyTools.isRetryable("tools/call", new IllegalStateException("connection closed")));
+        assertTrue(DevMcpProxyTools.isRetryable("tools/list", new IllegalStateException("connection closed")));
+    }
+
+    @Test
+    void testRunTimeoutPointsAtCancelAndReset() {
+        String message = DevMcpProxyTools.timeoutMessage("devui-testing_runTest", Duration.ofMinutes(10));
+
+        assertTrue(message.contains("600s"));
+        assertTrue(message.contains("devui-testing_cancelTests"));
+        assertTrue(message.contains("devui-testing_resetTests"));
+        assertTrue(message.contains("agent-mcp.dev-mcp.test-request-timeout"));
+    }
+
+    @Test
+    void otherTimeoutPointsAtRequestTimeout() {
+        String message = DevMcpProxyTools.timeoutMessage("devui-config_getConfig", Duration.ofSeconds(30));
+
+        assertTrue(message.contains("30s"));
+        assertTrue(message.contains("agent-mcp.dev-mcp.request-timeout"));
+        assertFalse(message.contains("devui-testing_resetTests"));
     }
 }
