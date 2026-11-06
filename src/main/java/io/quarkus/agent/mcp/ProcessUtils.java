@@ -29,21 +29,48 @@ final class ProcessUtils {
         Optional<String> mvnCmd = ConfigProvider.getConfig().getOptionalValue("agent-mcp.process.mvn-cmd", String.class);
         return mvnCmd.orElseGet(() -> {
             boolean win = OS.WINDOWS.isCurrent();
-            File wrapper = win ? new File(projectDir, "mvnw.cmd") : new File(projectDir, "mvnw");
-            if (wrapper.exists()) {
-                return wrapper.getAbsolutePath();
-            }
-            return win ? "mvn.cmd" : "mvn";
+            File wrapper = findWrapper(projectDir, win ? "mvnw.cmd" : "mvnw");
+            return wrapper != null ? wrapper.getAbsolutePath() : win ? "mvn.cmd" : "mvn";
         });
     }
 
     static String resolveGradleCommand(File projectDir) {
         boolean win = OS.WINDOWS.isCurrent();
-        File wrapper = win ? new File(projectDir, "gradlew.bat") : new File(projectDir, "gradlew");
-        if (wrapper.exists()) {
-            return wrapper.getAbsolutePath();
+        File wrapper = findWrapper(projectDir, win ? "gradlew.bat" : "gradlew");
+        return wrapper != null ? wrapper.getAbsolutePath() : win ? "gradle.bat" : "gradle";
+    }
+
+    private static final String[] BUILD_FILES = { "pom.xml", "build.gradle", "build.gradle.kts",
+            "settings.gradle", "settings.gradle.kts" };
+
+    /**
+     * Looks for a build wrapper in the project directory and then in the parent build directories,
+     * since in a multi-module build the wrapper sits in the root directory, not next to each module.
+     * The search stops at the first parent that has no build file, so a stray wrapper higher up is
+     * never picked.
+     */
+    static File findWrapper(File projectDir, String name) {
+        File dir = projectDir.getAbsoluteFile();
+        while (dir != null) {
+            File wrapper = new File(dir, name);
+            if (wrapper.isFile()) {
+                return wrapper;
+            }
+            dir = dir.getParentFile();
+            if (dir != null && !hasBuildFile(dir)) {
+                return null;
+            }
         }
-        return win ? "gradle.bat" : "gradle";
+        return null;
+    }
+
+    private static boolean hasBuildFile(File dir) {
+        for (String buildFile : BUILD_FILES) {
+            if (new File(dir, buildFile).isFile()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static String runAndCapture(ProcessBuilder pb, long timeout, TimeUnit unit) {

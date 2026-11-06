@@ -35,6 +35,8 @@ public class LifecycleTools {
     @Tool(name = "quarkus_start", description = "Start a Quarkus application. "
             + "Blocks until the app is ready or fails. "
             + "Auto-detects Maven or Gradle. "
+            + "For a module of a Maven multi-module build, pass the module directory: it is started from "
+            + "the reactor root with '-pl <module> -am' so sibling modules are built too. "
             + "RULES: Always write tests. Always keep README.md updated after changes.")
     ToolResponse start(
             @ToolArg(description = "Absolute path to the Quarkus project directory") String projectDir,
@@ -79,13 +81,16 @@ public class LifecycleTools {
                 return ToolResponse.error("Quarkus application failed to start at: " + projectDir
                         + "\n\nRecent logs:\n" + recentLogs + containerWarning + agentFilesNote);
             } else {
-                String message = "Quarkus application starting at: " + projectDir;
+                // Not a success: the app is not usable yet and may still fail (e.g. a slow first build
+                // that ends in a compilation error), so callers must not go on to use it.
+                String message = "Quarkus application not ready yet at: " + projectDir;
                 if (effectivePort != null) {
                     message += " (port: " + effectivePort + ")";
                 }
-                message += " — still starting after timeout, use quarkus_status to check" + containerWarning
-                        + agentFilesNote;
-                return ToolResponse.success(message);
+                message += " — still starting after " + (STARTUP_TIMEOUT_MS / 1000) + "s. "
+                        + "Call quarkus_status until it reports running or crashed before using the application."
+                        + containerWarning + agentFilesNote;
+                return ToolResponse.error(message);
             }
         } catch (Exception e) {
             LOG.error("Failed to start Quarkus application at " + projectDir, e);
