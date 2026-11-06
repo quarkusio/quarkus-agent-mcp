@@ -259,10 +259,17 @@ public class QuarkusProcessManager {
         }
 
         ProcessBuilder pb;
+        File workDir = dir;
         if ("gradle".equalsIgnoreCase(buildTool)) {
             pb = createGradleProcessBuilder(dir);
         } else {
-            pb = createMavenProcessBuilder(dir, mavenProfiles);
+            // A module of a Maven reactor is started from the reactor root with -pl <module> -am,
+            // so its sibling modules are built from source instead of resolved from ~/.m2.
+            Path reactorRoot = isDevMode() ? MavenReactor.findRoot(dir.toPath()).orElse(null) : null;
+            if (reactorRoot != null) {
+                workDir = reactorRoot.toFile();
+            }
+            pb = createMavenProcessBuilder(dir, reactorRoot, mavenProfiles);
         }
 
         if (httpPort != null) {
@@ -282,18 +289,24 @@ public class QuarkusProcessManager {
             }
         }
 
-        pb.directory(dir);
+        pb.directory(workDir);
         pb.redirectErrorStream(false);
         return pb;
     }
 
-    private ProcessBuilder createMavenProcessBuilder(File projectDir, String mavenProfiles) {
-        String mvnCmd = ProcessUtils.resolveMavenCommand(projectDir);
+    private ProcessBuilder createMavenProcessBuilder(File projectDir, Path reactorRoot, String mavenProfiles) {
+        String mvnCmd = ProcessUtils.resolveMavenCommand(reactorRoot != null ? reactorRoot.toFile() : projectDir);
         var command = new ArrayList<String>();
         command.add(mvnCmd);
         if (isDevMode()) {
-            command.addAll(List.of("quarkus:dev",
-                    "-Dquarkus.console.enabled=false", "-Dquarkus.dev-mcp.enabled=true"));
+            if (reactorRoot != null) {
+                LOG.infof("%s is a module of the Maven reactor at %s", projectDir, reactorRoot);
+                command.add(MavenReactor.devGoal(projectDir.toPath(), reactorRoot));
+                command.addAll(List.of("-pl", reactorRoot.relativize(projectDir.toPath()).toString(), "-am"));
+            } else {
+                command.add("quarkus:dev");
+            }
+            command.addAll(List.of("-Dquarkus.console.enabled=false", "-Dquarkus.dev-mcp.enabled=true"));
         } else {
             command.add("quarkus:run");
             if ("test".equals(mode)) {
