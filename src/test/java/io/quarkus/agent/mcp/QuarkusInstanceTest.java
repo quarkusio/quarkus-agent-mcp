@@ -115,6 +115,35 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void stopKillsChildProcessesOfTheLauncher() throws Exception {
+        // Like mvn quarkus:dev, the launcher forks a child (the dev JVM) that must not survive stop()
+        process = new ProcessBuilder("bash", "-c", "sleep 60 & wait").start();
+        QuarkusInstance instance = new QuarkusInstance("/test/project", "maven", null, null, null, process, executor);
+        ProcessHandle child = null;
+        for (int i = 0; i < 50 && child == null; i++) {
+            child = process.children().findFirst().orElse(null);
+            Thread.sleep(100);
+        }
+        assertNotNull(child, "launcher did not fork a child");
+
+        instance.stop();
+
+        assertTrue(process.waitFor(5, TimeUnit.SECONDS));
+        assertTrue(child.onExit().get(5, TimeUnit.SECONDS) != null);
+        assertFalse(child.isAlive());
+    }
+
+    @Test
+    void terminateProcessTreeKillsProcessesIgnoringSigterm() throws Exception {
+        process = new ProcessBuilder("bash", "-c", "trap '' TERM; sleep 60 & wait").start();
+        Thread.sleep(300);
+
+        QuarkusInstance.terminateProcessTree(process.toHandle(), 1);
+
+        assertTrue(process.waitFor(5, TimeUnit.SECONDS));
+    }
+
+    @Test
     void logsAreCapturedInRingBuffer() throws Exception {
         process = new ProcessBuilder("bash", "-c",
                 "for i in $(seq 1 10); do echo \"line $i\"; done && sleep 5")

@@ -14,9 +14,13 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -30,6 +34,7 @@ import org.jboss.logging.Logger;
 public class QuarkusInstance {
 
     private static final Logger LOG = Logger.getLogger(QuarkusInstance.class);
+    private static final long STOP_TIMEOUT_SECONDS = 10;
 
     public enum Status {
         STARTING,
@@ -315,19 +320,38 @@ public class QuarkusInstance {
         disableFileLogging();
         status.set(Status.STOPPED);
         if (process.isAlive()) {
-            try {
-                sendInput('q');
-            } catch (RuntimeException e) {
-                LOG.debugf("Could not send quit signal (stdin may be closed): %s", e.getMessage());
-            }
-            try {
-                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
+            terminateProcessTree(process.toHandle(), STOP_TIMEOUT_SECONDS);
+        }
+    }
+
+    /**
+     * Stops a launcher ({@code mvn}, {@code gradle}) together with the JVM it forked.
+     * The 'q' console command cannot be used: it is disabled with
+     * {@code -Dquarkus.console.enabled=false}. Killing only the launcher would orphan
+     * the application JVM, which keeps its ports and Dev Services containers.
+     * <p>
+     * The descendants are captured before signalling, because once the launcher dies
+     * they are reparented and can no longer be found. Everything gets SIGTERM first,
+     * so the Quarkus shutdown hooks run, and is killed forcibly after the timeout.
+     */
+    static void terminateProcessTree(ProcessHandle root, long timeoutSeconds) {
+        List<ProcessHandle> tree = new ArrayList<>(root.descendants().toList());
+        tree.add(root);
+        tree.forEach(ProcessHandle::destroy);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        try {
+            for (ProcessHandle handle : tree) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining > 0) {
+                    handle.onExit().get(remaining, TimeUnit.NANOSECONDS);
                 }
-            } catch (InterruptedException e) {
-                process.destroyForcibly();
-                Thread.currentThread().interrupt();
             }
+        } catch (TimeoutException | ExecutionException e) {
+            LOG.debugf("Process tree of %d did not exit in time, killing it", root.pid());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            tree.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
         }
     }
 
