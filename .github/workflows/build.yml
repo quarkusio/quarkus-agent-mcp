@@ -34,7 +34,7 @@ jobs:
         include:
           - os: ubuntu-latest
             graalvm-distribution: mandrel
-          - os: macos-14
+          - os: macos-15
             graalvm-distribution: graalvm
     runs-on: ${{ matrix.os }}
     steps:

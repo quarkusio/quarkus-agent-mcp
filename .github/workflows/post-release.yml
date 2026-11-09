@@ -67,10 +67,10 @@ jobs:
           - os: ubuntu-latest
             artifact: linux-x86_64
             graalvm-distribution: mandrel
-          - os: macos-13
+          - os: macos-15-intel
             artifact: macos-x86_64
             graalvm-distribution: graalvm
-          - os: macos-14
+          - os: macos-15
             artifact: macos-aarch64
             graalvm-distribution: graalvm
     runs-on: ${{ matrix.os }}
