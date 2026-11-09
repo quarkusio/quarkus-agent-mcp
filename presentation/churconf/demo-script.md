@@ -1,26 +1,28 @@
 # Teaching AI Agents to Speak Quarkus: ChurConf Sydney, 18 Nov 2026 (10:15–10:55)
 
-Slides: `teaching-ai-agents-to-speak-quarkus.pptx`. Speaker notes on every slide give the timing and what to point at.
-To use the template, open the template deck in Google Slides, choose **File → Import slides**, pick this .pptx, select all slides and
-**untick "Keep original theme"**. The slides use only standard layouts (Title, Title and body, Section header, Title only), so they take on the template's layouts.
+Slides: `teaching-ai-agents-to-speak-quarkus.pptx`, built on the ChurConf / Community Over Code Sydney template.
+Speaker notes on every slide give the timing, what to point at, and the prompts.
 
-To regenerate after edits: `python -m venv v && v/bin/pip install python-pptx qrcode pillow && v/bin/python build_deck.py <repo root> out.pptx`
+To regenerate after editing `build_deck.py` (the template is not in the repo; pass your copy):
+
+    python -m venv v && v/bin/pip install python-pptx
+    v/bin/python build_deck.py "Teaching AI Agents to Speak Quarkus.pptx" <repo root> teaching-ai-agents-to-speak-quarkus.pptx
 
 ## Run sheet
 
 | Time | Slide | What happens |
 |---|---|---|
 | 0:00 | 1–2 | Paste Prompt 1, press enter, show the "Demo 1" slide |
-| 2:00 | 3–7 | Why agents get Quarkus wrong · architecture · tools · skills. Glance at the terminal |
+| 2:00 | 3–7 | Statement · why agents get Quarkus wrong · architecture · tools · skills. Glance at the terminal |
 | 9:00 | 8 | Back to the terminal: walk through the transcript, `quarkus_browser`, curl |
 | 17:00 | 9 | Prompt 2 plus your prepared bad edit; the agent recovers using `devui-exceptions_getLastException` |
-| 22:00 | 10 | Prompts 3 and 4: teach a rule with `quarkus_updateSkill`, then show `quarkus_saveSkill` |
-| 30:00 | 11–12 | Extension authors · optional `quarkus_attach` demo |
-| 34:00 | 13–14 | Install + QR, then Q&A |
+| 22:00 | 10–11 | Prompts 3 and 4: teach a rule with `quarkus_updateSkill`, show the skill file, then `quarkus_saveSkill` |
+| 30:00 | 12–13 | Extension authors · optional `quarkus_attach` demo |
+| 34:00 | 14–15 | Install commands, then the closing slide (QR code to the repo) during Q&A |
 
 ## Prompts
 
-1. Create a Quarkus app in ~/demo/churconf for a conference agenda. Talks have title, speaker, track, room, start time and duration. REST API to list talks, filter by day and track, and mark favourites. Use PostgreSQL. Seed it with 6 talks from ChurConf Sydney 2026. Add a simple web page listing the agenda. Write tests and make sure they pass.
+1. Create a Quarkus app in ~/demo/churconf for a conference agenda. Talks have title, speaker, room, start time and duration. REST API to list talks, filter by day and track, and mark favourites. Use PostgreSQL. Seed it with 6 talks from ChurConf Sydney 2026. Add a simple web page listing the agenda. Write tests and make sure they pass.
 2. Add an endpoint that returns "what's on now" and "up next" for each room.
 3. Our team rule: REST errors must use RFC 7807 Problem Details, and resources return Java records, never entities. Remember this as a skill for quarkus-rest.
 4. Add a POST endpoint to submit talk feedback with a 1–5 rating, rejecting invalid input.
