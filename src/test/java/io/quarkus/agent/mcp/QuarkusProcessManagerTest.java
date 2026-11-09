@@ -334,6 +334,7 @@ class QuarkusProcessManagerTest {
         assertTrue(pb.command().contains("quarkus:dev"));
         assertTrue(pb.command().contains("-Dquarkus.dev-mcp.enabled=true"));
         assertTrue(pb.command().contains("-Dquarkus.console.enabled=false"));
+        assertTrue(pb.command().contains("-Dquarkus.analytics.disabled=true"));
     }
 
     @Test
