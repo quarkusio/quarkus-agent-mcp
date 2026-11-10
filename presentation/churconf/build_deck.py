@@ -107,12 +107,13 @@ notes(TITLE, "0:00. Skip the intro and go straight to the terminal. Paste Prompt
 order = [TITLE]
 
 # 2 Demo 1
-order.append(section("Demo 1 · Build it", "A ChurConf agenda app, built live by Claude Code",
+order.append(section("Demo 1 · Build it", "A Sydney ferry departures board, built live by Claude Code",
     "Show this while the prompt runs. Prompt 1:\n"
-    "Create a Quarkus app in ~/demo/churconf for a conference agenda. Talks have title, speaker, room, "
-    "start time and duration. REST API to list talks, filter by day and track, and mark favourites. "
-    "Use PostgreSQL. Seed it with 6 talks from ChurConf Sydney 2026. Add a simple web page listing the "
-    "agenda. Write tests and make sure they pass."))
+    "Create a Quarkus app in ~/demo/ferries for a Sydney ferry departures board. A departure has a route "
+    "(like F1 Manly), wharf, destination, departure time and trip duration. REST API to list departures, filter "
+    "by wharf and route, and mark departures as favourites. Use PostgreSQL. Seed it with a timetable from "
+    "Circular Quay wharves 2 to 6, with departures every 10 to 20 minutes from 6am to 10pm (make the times up). "
+    "Add a simple web page that shows it as a departures board. Write tests and make sure they pass."))
 
 # 3 Statement
 s = STATEMENT_S
@@ -180,12 +181,13 @@ order.append(bullets("Skills before code", [
 order.append(section("Back to the demo", "What did it build, and how did it get there?",
     "Scroll the transcript and point at: quarkus_create (scaffold + auto start), AGENTS.md, quarkus_skills, "
     "quarkus_searchDocs, then tests via quarkus_callTool → devui-testing_runTests. Ask it to open the app and "
-    "the Dev UI (quarkus_browser). Add a talk with curl and show it in the page. If it's stuck after 60 s, "
+    "the Dev UI (quarkus_browser). Add a departure with curl and show it on the board. If it's stuck after 60 s, "
     "switch to the finished branch or the recording."))
 
 # 9 Break it
 order.append(section("Demo 2 · Break it", "The app crashes. The agent keeps going.",
-    "17:00. Prompt 2: Add an endpoint that returns 'what's on now' and 'up next' for each room.\n"
+    "17:00. Prompt 2: Add an endpoint that returns the next departure and the one after it from each wharf, "
+    "from now or from an optional time parameter.\n"
     "Apply your prepared bad edit (e.g. remove @Transactional or break an entity field). The app fails but "
     "the MCP server stays up. Point at devui-exceptions_getLastException: exception class, message and the "
     "line in your code. The agent fixes it and reruns the tests."))
@@ -208,8 +210,8 @@ order.append(code("A skill is just Markdown", [
     ("", "- Resources return Java records, never entities"),
     ("", "- Errors use RFC 7807 Problem Details")],
     "Illustrative: show the real file the agent just wrote. 'enhance' appends to the extension's own skill "
-    "instead of replacing it.\nPrompt 4: Add a POST endpoint to submit talk feedback with a 1–5 rating, "
-    "rejecting invalid input. Point out records and Problem Details, without being told again. Then "
+    "instead of replacing it.\nPrompt 4: Add a POST endpoint to rate a departure from 1 to 5, rejecting invalid "
+    "input. Point out records and Problem Details, without being told again. Then "
     "quarkus_saveSkill → .agent/skills/: 'commit this and your whole team's agent gets the rule'."))
 
 # 12 Extension authors
