@@ -107,13 +107,12 @@ notes(TITLE, "0:00. Skip the intro and go straight to the terminal. Paste Prompt
 order = [TITLE]
 
 # 2 Demo 1
-order.append(section("Demo 1 · Build it", "A Sydney ferry departures board, built live by Claude Code",
-    "Show this while the prompt runs. Prompt 1:\n"
-    "Create a Quarkus app in ~/demo/ferries for a Sydney ferry departures board. A departure has a route "
-    "(like F1 Manly), wharf, destination, departure time and trip duration. REST API to list departures, filter "
-    "by wharf and route, and mark departures as favourites. Use PostgreSQL. Seed it with a timetable from "
-    "Circular Quay wharves 2 to 6, with departures every 10 to 20 minutes from 6am to 10pm (make the times up). "
-    "Add a simple web page that shows it as a departures board. Write tests and make sure they pass."))
+order.append(section("Demo 1 · Build it", "A vinyl collection manager, built live by Claude Code",
+    "Start Claude Code in the empty ~/demo/vinyl folder. Show this while the prompt runs. Prompt 1:\n"
+    "Create an app that I can use to manage my vinyl collection. Add some Test data and a nice UI\n"
+    "Point out that the prompt doesn't say Quarkus, Java, database or tests. The MCP server's instructions get "
+    "it to Quarkus; from then on AGENTS.md and the skills decide what it builds (database, tests, Dev UI). If "
+    "rehearsal showed you need ~/demo/CLAUDE.md to get Quarkus, show that one line: it's the first bit of teaching."))
 
 # 3 Statement
 s = STATEMENT_S
@@ -181,14 +180,14 @@ order.append(bullets("Skills before code", [
 order.append(section("Back to the demo", "What did it build, and how did it get there?",
     "Scroll the transcript and point at: quarkus_create (scaffold + auto start), AGENTS.md, quarkus_skills, "
     "quarkus_searchDocs, then tests via quarkus_callTool → devui-testing_runTests. Ask it to open the app and "
-    "the Dev UI (quarkus_browser). Add a departure with curl and show it on the board. If it's stuck after 60 s, "
+    "the Dev UI (quarkus_browser). Add a record in the UI (or with curl) and show it in the list. If it's stuck after 60 s, "
     "switch to the finished branch or the recording."))
 
 # 9 Break it
 order.append(section("Demo 2 · Break it", "The app crashes. The agent keeps going.",
-    "17:00. Prompt 2: Add an endpoint that returns the next departure and the one after it from each wharf, "
-    "from now or from an optional time parameter.\n"
-    "Apply your prepared bad edit (e.g. remove @Transactional or break an entity field). The app fails but "
+    "17:00. Prompt 2: Add a listening queue: show the record that's playing now and what's up next.\n"
+    "Apply your prepared bad edit (picked in rehearsal for the stack it usually chooses, e.g. remove "
+    "@Transactional or break an entity field). The app fails but "
     "the MCP server stays up. Point at devui-exceptions_getLastException: exception class, message and the "
     "line in your code. The agent fixes it and reruns the tests."))
 
@@ -210,8 +209,9 @@ order.append(code("A skill is just Markdown", [
     ("", "- Resources return Java records, never entities"),
     ("", "- Errors use RFC 7807 Problem Details")],
     "Illustrative: show the real file the agent just wrote. 'enhance' appends to the extension's own skill "
-    "instead of replacing it.\nPrompt 4: Add a POST endpoint to rate a departure from 1 to 5, rejecting invalid "
-    "input. Point out records and Problem Details, without being told again. Then "
+    "instead of replacing it.\nPrompt 4: Let me lend records to friends. A record that's already lent out can't be lent "
+    "again, and I want to see who has what. Point out the Java records in the responses (not entities) and "
+    "Problem Details for the already-lent error, without being told again. Then "
     "quarkus_saveSkill → .agent/skills/: 'commit this and your whole team's agent gets the rule'."))
 
 # 12 Extension authors
