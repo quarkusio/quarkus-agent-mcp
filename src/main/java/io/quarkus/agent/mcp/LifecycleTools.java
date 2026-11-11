@@ -106,6 +106,8 @@ public class LifecycleTools {
             + "If httpPort is omitted, the port is read from src/main/resources/application.properties "
             + "(%dev.quarkus.http.port, then quarkus.http.port), falling back to 8080; pass it explicitly "
             + "when the application listens elsewhere. "
+            + "The Dev MCP endpoint path is derived from quarkus.http.root-path and "
+            + "quarkus.http.non-application-root-path in application.properties, falling back to /q/dev-mcp. "
             + "Note that this server does not own the process, so quarkus_stop only detaches and "
             + "quarkus_restart and quarkus_logs do not work. Use quarkus_callTool instead: "
             + "devui-logstream_forceRestart to restart, devui-logstream_logHistory for logs, "
@@ -121,14 +123,17 @@ public class LifecycleTools {
             }
             String normalizedDir = processManager.validateAttachable(projectDir);
             int port = httpPort != null ? httpPort : QuarkusProcessManager.detectHttpPort(normalizedDir);
+            String devMcpPath = QuarkusProcessManager.detectDevMcpPath(normalizedDir);
 
-            Optional<String> unreachable = devMcpProxyTools.probeDevMcp(port, QuarkusInstance.DEFAULT_DEV_MCP_PATH);
+            Optional<String> unreachable = devMcpProxyTools.probeDevMcp(port, devMcpPath);
             if (unreachable.isPresent()) {
                 return ToolResponse.error(unreachable.get() + ".\nCheck that:\n"
                         + "- the application is running in dev mode on port " + port
                         + (httpPort == null
                                 ? " (guessed from application.properties — pass httpPort if it differs)"
                                 : "")
+                        + "\n- the Dev MCP path (derived from quarkus.http.root-path / non-application-root-path "
+                        + "in application.properties) is correct"
                         + "\n- Dev MCP is enabled for that app: set enabled=true in ~/.quarkus/dev-mcp.properties "
                         + "to turn it on for every project, or add quarkus.dev-mcp.enabled=true to the project's "
                         + "application.properties, or restart it with -Dquarkus.dev-mcp.enabled=true. "
@@ -136,7 +141,7 @@ public class LifecycleTools {
                         + "unless it is enabled somewhere.");
             }
 
-            processManager.registerNormalized(normalizedDir, port);
+            processManager.registerNormalized(normalizedDir, port, devMcpPath);
             return ToolResponse.success("Attached to external Quarkus application at: " + projectDir
                     + " (port: " + port + ")\n"
                     + "Its Dev MCP server responded, so quarkus_searchTools and quarkus_callTool are ready.\n"
