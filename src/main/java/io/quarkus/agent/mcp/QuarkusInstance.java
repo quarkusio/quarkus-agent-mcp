@@ -84,6 +84,10 @@ public class QuarkusInstance {
      * (restart, stop, stdin) are unavailable and log capture is empty.
      */
     public QuarkusInstance(String projectDir, int httpPort) {
+        this(projectDir, httpPort, null);
+    }
+
+    public QuarkusInstance(String projectDir, int httpPort, String devMcpPath) {
         this.projectDir = projectDir;
         this.buildTool = null;
         this.requestedHttpPort = httpPort;
@@ -91,6 +95,7 @@ public class QuarkusInstance {
         this.extraArgs = null;
         this.process = null;
         this.httpPort = httpPort;
+        this.devMcpPath = devMcpPath;
         this.status.set(Status.RUNNING);
     }
 

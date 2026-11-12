@@ -604,4 +604,66 @@ class QuarkusProcessManagerTest {
         assertEquals(QuarkusProcessManager.DEFAULT_HTTP_PORT,
                 QuarkusProcessManager.detectHttpPort(tempDir.toString()));
     }
+
+    @Test
+    void detectDevMcpPathFallsBackToDefaultWhenNoFile() {
+        assertEquals(QuarkusInstance.DEFAULT_DEV_MCP_PATH,
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathFallsBackToDefaultWhenPropertiesAbsent() throws Exception {
+        writeAppProperties("quarkus.http.port=8080\n");
+
+        assertEquals(QuarkusInstance.DEFAULT_DEV_MCP_PATH,
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathWithCustomRootPathAndRelativeNonAppRoot() throws Exception {
+        writeAppProperties("quarkus.http.root-path=/my-app\n");
+
+        assertEquals("/my-app/q/dev-mcp",
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathWithCustomRootPathAndExplicitNonAppRoot() throws Exception {
+        writeAppProperties("quarkus.http.root-path=/my-app\nquarkus.http.non-application-root-path=/my-app/q\n");
+
+        assertEquals("/my-app/q/dev-mcp",
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathWithAbsoluteNonAppRootPath() throws Exception {
+        writeAppProperties("quarkus.http.root-path=/my-app\nquarkus.http.non-application-root-path=/custom-q\n");
+
+        assertEquals("/custom-q/dev-mcp",
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathPrefersDevProfileOverride() throws Exception {
+        writeAppProperties("quarkus.http.root-path=/prod\n%dev.quarkus.http.root-path=/dev-app\n");
+
+        assertEquals("/dev-app/q/dev-mcp",
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathWithTrailingSlashesAndNoLeadingSlash() throws Exception {
+        writeAppProperties("quarkus.http.root-path=my-app/\nquarkus.http.non-application-root-path=admin/\n");
+
+        assertEquals("/my-app/admin/dev-mcp",
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
+
+    @Test
+    void detectDevMcpPathFallsBackToDefaultForConfigExpression() throws Exception {
+        writeAppProperties("quarkus.http.root-path=${CONTEXT:/app}\nquarkus.http.non-application-root-path=${NON_APP:q}\n");
+
+        assertEquals(QuarkusInstance.DEFAULT_DEV_MCP_PATH,
+                QuarkusProcessManager.detectDevMcpPath(tempDir.toString()));
+    }
 }

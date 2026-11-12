@@ -366,6 +366,13 @@ class QuarkusInstanceTest {
     }
 
     @Test
+    void externalInstanceWithCustomDevMcpPath() {
+        QuarkusInstance instance = new QuarkusInstance("/test/project", 8080, "/my-app/q/dev-mcp");
+
+        assertEquals("/my-app/q/dev-mcp", instance.getDevMcpPath());
+    }
+
+    @Test
     void externalInstanceStopSetsStatusWithoutKillingProcess() {
         QuarkusInstance instance = new QuarkusInstance("/test/project", 8080);
 

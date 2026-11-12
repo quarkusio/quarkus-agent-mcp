@@ -194,8 +194,17 @@ public class QuarkusProcessManager {
      * redundant validation round-trip.
      */
     synchronized void registerNormalized(String normalizedDir, int httpPort) {
-        instances.put(normalizedDir, new QuarkusInstance(normalizedDir, httpPort));
-        LOG.infof("Attached to external Quarkus instance at: %s (port: %d)", normalizedDir, httpPort);
+        registerNormalized(normalizedDir, httpPort, null);
+    }
+
+    synchronized void registerNormalized(String normalizedDir, int httpPort, String devMcpPath) {
+        instances.put(normalizedDir, new QuarkusInstance(normalizedDir, httpPort, devMcpPath));
+        if (devMcpPath != null) {
+            LOG.infof("Attached to external Quarkus instance at: %s (port: %d, devMcpPath: %s)", normalizedDir,
+                    httpPort, devMcpPath);
+        } else {
+            LOG.infof("Attached to external Quarkus instance at: %s (port: %d)", normalizedDir, httpPort);
+        }
     }
 
     public QuarkusInstance getInstance(String projectDir) {
@@ -391,6 +400,53 @@ public class QuarkusProcessManager {
             }
         }
         return DEFAULT_HTTP_PORT;
+    }
+
+    /**
+     * Best-effort guess at the Dev MCP endpoint path for an already-running application,
+     * read from application.properties. Resolves quarkus.http.non-application-root-path
+     * against quarkus.http.root-path when relative, falling back to /q/dev-mcp.
+     */
+    static String detectDevMcpPath(String projectDir) {
+        Path file = Path.of(projectDir, "src", "main", "resources", "application.properties");
+        if (!Files.exists(file)) {
+            return QuarkusInstance.DEFAULT_DEV_MCP_PATH;
+        }
+        Properties props = new Properties();
+        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            props.load(reader);
+        } catch (IOException e) {
+            LOG.debugf("Could not read %s: %s", file, e.getMessage());
+            return QuarkusInstance.DEFAULT_DEV_MCP_PATH;
+        }
+
+        String rootPath = getProperty(props, "%dev.quarkus.http.root-path", "quarkus.http.root-path");
+        String nonAppRootPath = getProperty(props, "%dev.quarkus.http.non-application-root-path",
+                "quarkus.http.non-application-root-path");
+
+        return buildDevMcpPath(rootPath, nonAppRootPath);
+    }
+
+    private static String getProperty(Properties props, String... keys) {
+        for (String key : keys) {
+            String val = props.getProperty(key);
+            if (val != null && !val.isBlank()) {
+                String trimmed = val.trim();
+                if (trimmed.contains("${")) {
+                    LOG.debugf("Ignoring config expression in %s: '%s'", key, val);
+                    continue;
+                }
+                return trimmed;
+            }
+        }
+        return null;
+    }
+
+    static String buildDevMcpPath(String rootPath, String nonAppRootPath) {
+        String nonApp = (nonAppRootPath != null && !nonAppRootPath.isBlank()) ? nonAppRootPath.trim() : "q";
+        String root = (rootPath != null && !rootPath.isBlank()) ? rootPath.trim() : "/";
+        String basePath = nonApp.startsWith("/") ? nonApp : (root + "/" + nonApp);
+        return ("/" + basePath + "/dev-mcp").replaceAll("/+", "/");
     }
 
 }
