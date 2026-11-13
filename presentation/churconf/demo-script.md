@@ -13,12 +13,15 @@ To regenerate after editing `build_deck.py` (the template is not in the repo; pa
 | Time | Slide | What happens |
 |---|---|---|
 | 0:00 | 1–2 | Paste Prompt 1, press enter, show the "Demo 1" slide |
-| 2:00 | 3–7 | Statement · why agents get Quarkus wrong · architecture · tools · skills. Glance at the terminal |
-| 9:00 | 8 | Back to the terminal: walk through the transcript, `quarkus_browser`, add a record in the UI |
-| 17:00 | 9 | Prompt 2 plus your prepared bad edit; the agent recovers using `devui-exceptions_getLastException` |
-| 22:00 | 10–11 | Prompts 3 and 4: teach a rule with `quarkus_updateSkill`, show the skill file, then `quarkus_saveSkill` |
-| 30:00 | 12–13 | Extension authors · optional `quarkus_attach` demo |
-| 34:00 | 14–15 | Install commands, then the closing slide (QR code to the repo) during Q&A |
+| 2:00 | 3–8 | Statement · how we got here (Dev Ex → AI Ex) · through the eyes of the agent · Quarkus Agent MCP · tools · skills. Glance at the terminal |
+| 9:00 | 9 | Back to the terminal: walk through the transcript, `quarkus_browser`, add a record in the UI |
+| 17:00 | 10 | Prompt 2 plus your prepared bad edit; the agent recovers using `devui-exceptions_getLastException` |
+| 22:00 | 11–12 | Prompts 3 and 4: teach a rule with `quarkus_updateSkill`, show the skill file, then `quarkus_saveSkill` |
+| 30:00 | 13–15 | Extension authors (what you ship, how) · optional `quarkus_attach` demo |
+| 34:00 | 16–18 | Install: plugin and JBang, then the native binary (Linux and macOS); then the closing slide (QR code to the repo) during Q&A |
+
+The "how we got here", "through the eyes of the agent", tool groups and extension-author slides borrow from the
+earlier "Coding Agents with Quarkus" deck.
 
 ## Prompts
 
@@ -58,8 +61,8 @@ run sheet, the bad edit and Prompt 3 (the team rule) stay the same. Only Prompts
 - **Prompt 2** adds a time-based "now / next" query. It touches the entities and queries, which suits the crash in Demo 2.
 - **Prompt 4** adds a POST with validation, which shows off the Problem Details rule from Demo 3.
 
-If you switch, change the Demo 1 subtitle and Prompt 1 in the slide 2 notes, Prompt 2 in the slide 9 notes and
-Prompt 4 in the slide 11 notes. Either edit those slides in the .pptx, or edit the `# 2`, `# 9` and `# 11` blocks in
+If you switch, change the Demo 1 subtitle and Prompt 1 in the slide 2 notes, Prompt 2 in the slide 10 notes and
+Prompt 4 in the slide 12 notes. Either edit those slides in the .pptx, or edit the `# 2`, `# 10` and `# 12` blocks in
 `build_deck.py` and rebuild. Also change the folder in the checklist.
 
 | App | Folder | Why pick it |
