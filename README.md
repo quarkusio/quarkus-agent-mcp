@@ -216,6 +216,16 @@ curl -sL https://raw.githubusercontent.com/quarkusio/quarkus-agent-mcp/main/inst
 
 To update to a newer version, run the same command again.
 
+The binary is installed as `~/.local/bin/quarkus-agent-mcp-<version>`, with `~/.local/bin/quarkus-agent-mcp` as a symlink to it, so you can see the installed version with `ls -l ~/.local/bin/quarkus-agent-mcp`. Updating replaces the symlink and removes older versions; agent sessions that are already running keep using the binary they started with.
+
+#### Checking the installed version
+
+```bash
+quarkus-agent-mcp --version
+```
+
+With JBang, use `jbang quarkus-agent-mcp@quarkusio --version`.
+
 #### Manual install
 
 ##### Linux (x86_64)
