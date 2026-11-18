@@ -51,7 +51,7 @@ public class Main {
                   -V, --version    Print the version and exit
 
                 INSTALL (native binary — recommended):
-                  curl -sL https://github.com/quarkusio/quarkus-agent-mcp/releases/latest/download/install.sh | bash
+                  curl -sL https://raw.githubusercontent.com/quarkusio/quarkus-agent-mcp/main/install.sh | bash
 
                 INSTALL (JBang):
                   claude mcp add -s user quarkus-agent -- jbang quarkus-agent-mcp@quarkusio
