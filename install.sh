@@ -27,10 +27,27 @@ fi
 
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/quarkus-agent-mcp-${VERSION}-${PLATFORM}"
 
+BINARY="quarkus-agent-mcp-${VERSION}"
+
 echo "Installing quarkus-agent-mcp ${VERSION} (${PLATFORM})..."
 mkdir -p "${INSTALL_DIR}"
-curl -fL -o "${INSTALL_DIR}/quarkus-agent-mcp" "${DOWNLOAD_URL}"
-chmod +x "${INSTALL_DIR}/quarkus-agent-mcp"
+# Download to a temporary name first so an interrupted download never leaves a broken binary behind
+curl -fL -o "${INSTALL_DIR}/.${BINARY}.download" "${DOWNLOAD_URL}"
+chmod +x "${INSTALL_DIR}/.${BINARY}.download"
+mv -f "${INSTALL_DIR}/.${BINARY}.download" "${INSTALL_DIR}/${BINARY}"
+
+# Point the stable name at the versioned binary, so `ls -l` shows the installed version.
+# Replacing the link (or an older plain-file install) does not disturb running agent
+# sessions: they keep using the binary they started with.
+ln -sfn "${BINARY}" "${INSTALL_DIR}/quarkus-agent-mcp"
+
+# Remove binaries from previous versions
+for old in "${INSTALL_DIR}"/quarkus-agent-mcp-[0-9]*; do
+  if [ -f "${old}" ] && [ "$(basename "${old}")" != "${BINARY}" ]; then
+    rm -f "${old}"
+    echo "Removed previous version $(basename "${old}")"
+  fi
+done
 
 if command -v claude &>/dev/null; then
   claude mcp remove quarkus-agent -s user 2>/dev/null || true
@@ -41,4 +58,4 @@ else
   echo "  claude mcp add -s user quarkus-agent -- ${INSTALL_DIR}/quarkus-agent-mcp"
 fi
 
-echo "Done! Installed to ${INSTALL_DIR}/quarkus-agent-mcp"
+echo "Done! Installed to ${INSTALL_DIR}/quarkus-agent-mcp -> ${BINARY}"
