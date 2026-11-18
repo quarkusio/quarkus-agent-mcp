@@ -277,7 +277,7 @@ cd quarkus-agent-mcp
 This produces the uber-jar at `target/quarkus-agent-mcp-1.0.0-SNAPSHOT-runner.jar` (version may vary).
 
 ```bash
-claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp/target/quarkus-agent-mcp-1.2.14-runner.jar
+claude mcp add -s user quarkus-agent -- java -jar /path/to/quarkus-agent-mcp/target/quarkus-agent-mcp-1.2.15-runner.jar
 ```
 
 #### Verify
